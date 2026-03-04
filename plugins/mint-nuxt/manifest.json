@@ -1,0 +1,16 @@
+{
+  "name": "mint-nuxt",
+  "version": "0.1.0",
+  "description": "Nuxt-specific conventions and review for mint",
+  "type": "stack",
+  "agents": [
+    "agents/nuxt-reviewer.md"
+  ],
+  "commands": [],
+  "config": {
+    "nuxtVersion": 4
+  },
+  "hooks": {
+    "pre-review": "agents/nuxt-reviewer.md"
+  }
+}

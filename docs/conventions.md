@@ -54,7 +54,7 @@ Every spec must have: `id`, `title`, `goal`, `scope` (with `can-modify` and `can
 
 ### Optional Fields
 
-`estimate`, `depends-on`, `pre-conditions`, `context`, `references`, `pitfalls`, `anti-patterns`, `no-mocks`, `tests`.
+`estimate`, `depends-on`, `pre-conditions`, `context`, `references`, `pitfalls`, `anti-patterns`, `no-mocks`, `tests`, `workspace-impact`.
 
 ### Scope Rules
 
@@ -82,6 +82,19 @@ Non-spec commits: `type(scope): description`
 | `isolation` | object | Worktree/branch strategy per mode |
 | `documenters` | array | Auto-doc configurations |
 | `plugins` | array | Plugin directory paths |
+| `workspace.repos` | array | Workspace repo registry (see below) |
+
+### Workspace Registry (`workspace.repos`)
+
+Each entry in `workspace.repos` describes a repository in the workspace:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Human-readable identifier (e.g., `"sales-portal"`) |
+| `path` | string | yes | Relative or absolute path to the repo root |
+| `stack` | string | yes | Detected or declared framework (`nuxt`, `react`, `typescript`, `python`, etc.) |
+| `role` | string | yes | One of `"primary"`, `"dependency"`, `"reference"` |
+| `dependsOn` | string[] | no | Array of other repo `name` values this repo depends on |
 
 ## Documentation
 

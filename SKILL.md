@@ -146,6 +146,36 @@ Update this file at every stage transition — it's the source of truth for what
 - Check `documenters` config for `on-task-complete` triggers
 - Dispatch `mint-documenter` subagent for each triggered doc
 
+### 3b. Spec Retry Protocol
+
+When a spec fails gates or review, don't just retry blindly — rewrite the spec with targeted
+adjustments. This is how "never fix bad output — fix the spec" works in practice.
+
+**On failure:**
+
+1. Read the failure report from the subagent
+2. Cross-reference `.mint/issues.md` for similar past failures (same files, similar patterns)
+3. Diagnose root cause category:
+   - `bad-spec` → spec was ambiguous, agent had to guess
+   - `missing-context` → not enough info about existing code patterns or dependencies
+   - `scope-leak` → agent needed files outside declared scope
+   - `environment` → missing dependency, broken config, tooling issue
+   - `hard-block` → violates a constraint in `.mint/hard-blocks.md`
+   - `unknown-pattern` → codebase has a pattern the spec didn't account for
+4. Rewrite the spec with targeted adjustments based on root cause:
+   - `bad-spec` → narrow scope, add explicit constraints, clarify ambiguous steps
+   - `missing-context` → add file paths, type definitions, function signatures to `<context>`
+   - `scope-leak` → tighten `<can-modify>`, expand `<cannot-modify>`, or split into two specs
+   - `environment` → add environment pre-conditions or notes
+   - `hard-block` → redesign approach to avoid the constraint
+   - `unknown-pattern` → add the pattern to `<context>` and `<pitfalls>`
+5. Update `execution.json`: status → `rewriting`, log the adjustment in `attempts[]`
+6. Dispatch fresh `mint-planner` with the rewritten spec
+7. If rewrite also fails → set status to `failed`, log to `.mint/issues.md`, escalate to user
+
+**One rewrite, then stop.** Original attempt + one rewrite = two total. This preserves the
+"fail twice → stop" discipline while making the second attempt count.
+
 ### 4. Finish
 
 After all specs complete:

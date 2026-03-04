@@ -31,6 +31,11 @@ You receive a feature description. Your job:
 You receive a complete XML spec. Your job:
 
 1. **Read the spec completely** — understand every field
+1b. **Check for retry history** — if the orchestrator includes an `attempts` array from
+    `execution.json`, this is a rewritten spec. Read every previous attempt's `failureReason`
+    and `specAdjustment`. Do NOT repeat the same mistakes. The rewritten spec already accounts
+    for past failures — trust the adjustments and pay special attention to changed steps,
+    narrowed scope, or added context.
 2. **Declare scope** — state out loud: "I will only modify: [files from can-modify]"
 3. **Check pre-conditions** — verify everything in `<pre-conditions>` is true
 4. **Read before writing** — scan existing code in `<can-modify>` files for patterns, naming,

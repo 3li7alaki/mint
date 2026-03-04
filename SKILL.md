@@ -25,19 +25,23 @@ decision transparently — the user can override.
 
 Evaluate in this order:
 
-1. **Verify** — user says "verify", "check gates", "audit", "run checks"
+1. **SSH** — user says "ssh to", "connect to staging/prod", "run X on staging/prod", "check logs on",
+   "run migrations on", "tinker on", or any remote server command
+   → Run in main context using ssh config from `.mint/config.json`. See "SSH Execution" below.
+
+2. **Verify** — user says "verify", "check gates", "audit", "run checks"
    → Delegate to `mint-verifier` subagent
 
-2. **Research** — user says "research", "how to", "what's the best", "compare", "should I use"
+3. **Research** — user says "research", "how to", "what's the best", "compare", "should I use"
    → Delegate to `mint-researcher` subagent
 
-3. **Quick** — task touches ≤3 files AND scope is obvious (rename, typo, config tweak, bug fix)
+4. **Quick** — task touches ≤3 files AND scope is obvious (rename, typo, config tweak, bug fix)
    → Run in main context. No subagent. Gates still enforced.
 
-4. **Ship** — user describes multiple features, says "ship", "build all", or lists a batch of work
+5. **Ship** — user describes multiple features, says "ship", "build all", or lists a batch of work
    → Interview user in main context → delegate execution to `mint-shipper` subagent
 
-5. **Plan** — everything else (single feature, >3 files, unclear scope, architectural work)
+6. **Plan** — everything else (single feature, >3 files, unclear scope, architectural work)
    → Delegate to `mint-planner` subagent
 
 ### Announce the route
@@ -258,6 +262,72 @@ For investigating problems before building.
 2. Researcher: scans codebase, searches web, compares options
 3. Returns structured report saved to `.mint/research/<topic>.md`
 4. Optionally suggests a plan task to run next
+
+---
+
+## Execution Flow — SSH Mode
+
+For running commands on remote servers. Requires `mint-ssh` plugin and `ssh` config in `.mint/config.json`.
+
+### When to route here
+
+User intent involves a remote server:
+- "ssh to staging", "connect to prod"
+- "run migrations on staging", "run artisan X on prod"
+- "check logs on staging", "tinker on prod"
+- "restart queue on prod", "clear cache on staging"
+
+### Config lookup
+
+Read `.mint/config.json` for SSH settings:
+
+```json
+{
+  "ssh": {
+    "key": "~/.ssh/my-key",
+    "environments": {
+      "staging": {
+        "host": "1.2.3.4",
+        "doppler": { "config": "staging", "var": "SERVER_IP" },
+        "user": "root",
+        "docker": { "container": "my-app-web" }
+      }
+    }
+  }
+}
+```
+
+### Execution flow
+
+1. **Resolve host** — check `.mint/ssh-cache.json` first, then Doppler if configured, then static `host`
+2. **Build SSH command**:
+   - Base: `ssh -i {key} {user}@{host}`
+   - If `docker` configured: append `docker exec -i {container} {command}`
+   - If no docker: run command directly on host
+3. **Execute command** — run via Bash, return output to user
+4. **On connection failure with cached host** — invalidate cache, re-fetch from Doppler, retry once
+
+### Cache management
+
+- Cache file: `.mint/ssh-cache.json` (gitignored)
+- Structure: `{ "env": { "host": "1.2.3.4", "fetched_at": "ISO-8601" } }`
+- Only cache Doppler-fetched hosts (static hosts don't need caching)
+- Invalidate on connection failure, re-fetch, retry once
+
+### Example commands
+
+| User says | SSH command executed |
+|-----------|---------------------|
+| "run migrations on staging" | `ssh -i ~/.ssh/key root@host "docker exec -i container php artisan migrate"` |
+| "check queue status on prod" | `ssh -i ~/.ssh/key root@host "docker exec -i container php artisan queue:status"` |
+| "restart nginx on staging" | `ssh -i ~/.ssh/key root@host "systemctl restart nginx"` |
+| "tail logs on prod" | `ssh -i ~/.ssh/key root@host "docker exec -i container tail -100 storage/logs/laravel.log"` |
+
+### Notes
+
+- Container names may change between deploys — use `docker ps --filter 'name={container}' --format '{{.Names}}' | head -1` to find current name
+- For interactive commands (tinker, shell), inform user this requires a terminal
+- Always expand `~` in key path to actual home directory
 
 ---
 

@@ -22,7 +22,7 @@
   },
   "hooks": {
     "pre-plan": "agents/ticket-context.md",
-    "post-plan": "agents/project-update.md",
+    "post-plan": null,
     "pre-review": null,
     "post-commit": "agents/status-sync.md",
     "on-init": null

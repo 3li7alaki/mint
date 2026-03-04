@@ -24,9 +24,9 @@ Add to `.mint/config.json`:
 
 ## Requirements
 
-Works best with Figma MCP tools available in your Claude Code environment. Falls back to local exports and Figma REST API via Bash if MCP tools aren't available.
+Requires a Figma API token (`figma.apiToken` in config). The plugin uses the Figma REST API directly to fetch file structure, component specs, design variables, styles, and rendered screenshots.
 
-**Recommended:** Export design tokens and screenshots to a local directory (`figma.exports`) for faster access without API calls.
+Figma MCP tools are used when available. Local exports directory (`figma.exports`) provides supplemental curated data like processed token docs.
 
 ## What It Does
 

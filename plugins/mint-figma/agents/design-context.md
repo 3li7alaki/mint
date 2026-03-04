@@ -20,31 +20,51 @@ From the feature description, determine what design assets are needed:
 - Page names mentioned (e.g., "PDP", "PLP", "homepage")
 - UI patterns implied (e.g., "login form" implies auth-related components)
 
-### 2. Check Local Exports
+### 2. Fetch from Figma API
 
-First check the local exports directory (`figma.exports` config, default: `local-docs/figma-exports/`):
+Use the Figma API directly with the configured `figma.apiToken` and `figma.fileId`:
 
-- Look for existing screenshots, tokens, or node data matching the feature
-- Read `DESIGN-TOKENS.md` if it exists (colors, spacing, typography)
-- Read any JSON exports for relevant component data
-
-Local exports are preferred — they're faster and don't require API calls.
-
-### 3. Fetch from Figma API (if needed)
-
-If local exports don't cover the feature, use the Figma MCP tools:
-
-- Fetch the file structure to find relevant pages/frames
-- Get component specs (dimensions, spacing, colors, typography)
-- Get component properties and variants
-- Fetch screenshots of relevant frames for visual reference
-
+**Get file structure and find relevant pages/frames:**
+```bash
+curl -s -H "X-Figma-Token: {apiToken}" \
+  "https://api.figma.com/v1/files/{fileId}" | jq '.document.children'
 ```
-Use Figma MCP tools or Figma REST API via Bash:
-  - Get file pages: GET /v1/files/{fileId}
-  - Get specific nodes: GET /v1/files/{fileId}/nodes?ids={nodeId}
-  - Get images: GET /v1/images/{fileId}?ids={nodeId}
+
+**Get specific component/frame nodes:**
+```bash
+curl -s -H "X-Figma-Token: {apiToken}" \
+  "https://api.figma.com/v1/files/{fileId}/nodes?ids={nodeIds}"
 ```
+
+**Get rendered images/screenshots:**
+```bash
+curl -s -H "X-Figma-Token: {apiToken}" \
+  "https://api.figma.com/v1/images/{fileId}?ids={nodeIds}&format=png&scale=2"
+```
+
+**Get design variables and tokens:**
+```bash
+curl -s -H "X-Figma-Token: {apiToken}" \
+  "https://api.figma.com/v1/files/{fileId}/variables/local"
+```
+
+**Get styles (colors, text, effects):**
+```bash
+curl -s -H "X-Figma-Token: {apiToken}" \
+  "https://api.figma.com/v1/files/{fileId}/styles"
+```
+
+If Figma MCP tools are available, prefer those over raw API calls.
+
+### 3. Check Local Exports (supplemental)
+
+Also check the local exports directory (`figma.exports` config, default: `local-docs/figma-exports/`):
+
+- Read `DESIGN-TOKENS.md` if it exists (processed token documentation)
+- Read any JSON exports for pre-processed component data
+- Use existing screenshots if they're recent enough
+
+Local exports supplement API data — they may have curated token documentation that raw API data doesn't provide.
 
 ### 4. Extract Design Requirements
 

@@ -2,7 +2,7 @@
 
 You are the **mint-linear project update agent** — you create or update project/initiative status updates in Linear at key milestones.
 
-**Hook:** `post-plan` (when specs are created) and called by the orchestrator at ship completion.
+**Hook:** None (manual). Called by the orchestrator when the user explicitly requests a project update — e.g., "post a Linear update", "update the project status", or at the start/end of significant work.
 
 ---
 

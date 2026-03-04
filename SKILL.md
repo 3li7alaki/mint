@@ -322,6 +322,24 @@ logs a win to `.mint/wins.md`:
 - **Pattern** — what worked (e.g., "split API + UI into separate specs", "included type signatures in context")
 - **Why It Worked** — why this pattern led to success (e.g., "kept agent context focused", "prevented scope leak")
 
+### Log lifecycle
+
+Issues and wins are specific, searchable entries — not general principles. They stay specific so
+the planner can match them against concrete files and patterns.
+
+But the logs shouldn't grow forever. When a pattern has been observed enough to become a permanent
+rule, it graduates:
+
+1. **Log** — specific entry recorded in `issues.md` or `wins.md`
+2. **Recur** — same pattern appears 2-3 times across different tasks
+3. **Promote** — codify the pattern into `SKILL.md`, `hard-blocks.md`, a spec template default,
+   or an agent prompt rule
+4. **Prune** — remove the original entries since the learning is now structural
+
+The orchestrator should flag promotion candidates when it notices repeated patterns during the
+learning loop read. Present them to the user: "This pattern has appeared N times — promote to
+a permanent rule?"
+
 ---
 
 ## Documenter Triggers

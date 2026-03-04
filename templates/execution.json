@@ -1,0 +1,30 @@
+{
+  "specId": "NNN",
+  "status": "pending",
+  "attempts": [
+    {
+      "attempt": 1,
+      "startedAt": "ISO-8601 timestamp",
+      "result": "passed | failed",
+      "failureReason": "null if passed, description if failed",
+      "specAdjustment": "null if first attempt, description of rewrite if retry"
+    }
+  ],
+  "gates": {
+    "lint": null,
+    "types": null,
+    "tests": null
+  },
+  "reviews": {
+    "spec": null,
+    "quality": null,
+    "security": null,
+    "conventions": null,
+    "tests": null,
+    "business": null,
+    "performance": null
+  },
+  "commit": null,
+  "startedAt": null,
+  "completedAt": null
+}

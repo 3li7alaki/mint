@@ -6,6 +6,7 @@
 |---|---|---|
 | Agent prompts | Markdown (.md) | What Claude expects as input |
 | Task specs | XML (.xml) | Structured, parseable, validated |
+| Execution state | JSON (.json) | Per-spec tracking, machine-readable, resumable |
 | Config | JSON (.json) | Zero ambiguity, machine-readable |
 | Issue log | Markdown table (.md) | Human-readable, git-diffable |
 | Documentation | Markdown (.md) | Standard, renderable everywhere |

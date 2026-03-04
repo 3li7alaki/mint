@@ -94,6 +94,7 @@ This is the primary workflow for non-trivial tasks.
 - Check `.mint/config.json` exists (if not, prompt user to run `mint init`)
 - Create worktree: `.mint/worktrees/<task-slug>`
 - Read `.mint/issues.md` for relevant past pitfalls
+- Check for resumable specs (see "Resuming Interrupted Work" below)
 
 ### 2. Decompose
 
@@ -107,15 +108,22 @@ Dispatch `mint-planner` subagent with the feature description. Planner:
 
 For each spec (sequenced by `<depends-on>`):
 
+**Execution tracking:** Before starting a spec, create its execution state file at
+`.mint/tasks/<slug>/<spec-id>/execution.json` (see `templates/execution.json` for schema).
+Update this file at every stage transition — it's the source of truth for what happened.
+
 **a) Implementation**
+- Set `execution.json` status to `running`, record `startedAt` and new attempt entry
 - Dispatch `mint-planner` subagent with the spec XML (full text, not file path)
 - Planner implements, runs gates, commits if green
+- Update `execution.json`: gate results in `gates`, commit hash in `commit`
 - Returns: commit hash + summary, or failure report
 
 **b) Stage 1 — Spec Review (sequential gate)**
 - Dispatch `mint-spec-reviewer` subagent with: spec XML + git diff
 - Must pass before stage 2
 - If gaps found → planner fixes → spec-reviewer re-reviews
+- Update `execution.json`: `reviews.spec` = `"passed"` or `"failed"`
 
 **c) Stage 2 — Audit (parallel)**
 - Dispatch ALL enabled reviewers simultaneously:
@@ -126,11 +134,15 @@ For each spec (sequenced by `<depends-on>`):
   - `mint-performance-reviewer` — re-renders, N+1, bundle
   - `mint-business-reviewer` — business logic, requirements alignment (reads business docs)
 - Each returns: PASS or issues with severity (BLOCKING/WARNING/INFO)
+- Update `execution.json`: each reviewer key in `reviews` = `"passed"` or `"failed"`
 - Planner fixes BLOCKING + WARNING issues
 - Only failed auditors re-run (not all of them)
 - 3 review rounds max, then escalate
 
-**d) Documentation**
+**d) Completion**
+- If all stages pass: set `execution.json` status to `passed`, record `completedAt`
+- If spec failed and will be rewritten: set status to `rewriting`
+- If spec failed twice: set status to `failed`, log to `.mint/issues.md`
 - Check `documenters` config for `on-task-complete` triggers
 - Dispatch `mint-documenter` subagent for each triggered doc
 
@@ -212,6 +224,21 @@ For checking quality gates on demand.
 1. Delegate to `mint-verifier` subagent
 2. Verifier runs: gates + mock audit + hard block scan + open issues count
 3. Returns clean report with pass/fail per check
+
+---
+
+## Resuming Interrupted Work
+
+On startup (during Setup), scan `.mint/tasks/` for execution.json files with non-terminal status
+(`running`, `rewriting`). These are specs from a previous session that didn't finish.
+
+If found:
+1. Present the list to the user: "Found N interrupted specs from a previous session:"
+   - For each: spec ID, title, status, last attempt result
+2. Ask: "Resume these specs?" — user can pick which to resume or start fresh
+3. For resumed specs: continue from the last completed stage (use `execution.json` to determine
+   where it left off — e.g., if gates passed but reviews didn't, skip straight to review)
+4. For skipped specs: set their `execution.json` status to `failed` with reason "abandoned"
 
 ---
 

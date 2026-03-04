@@ -105,7 +105,7 @@ After a PR is merged:
 | `stack` | string | Detected framework |
 | `packageManager` | string | npm, pnpm, yarn, bun |
 | `gates` | object | lint/types/tests commands |
-| `reviewers` | object | Which reviewers are enabled |
+| `reviewers` | object | Which reviewers are enabled — values can be `true`/`false` or `{ enabled, model }` |
 | `conventions.docs` | array | Paths to convention docs the enforcer reads |
 | `business.docs` | array | Paths to business docs the reviewer reads |
 | `isolation` | object | Worktree/branch strategy per mode |

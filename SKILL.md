@@ -140,7 +140,7 @@ Update this file at every stage transition — it's the source of truth for what
 - Update `execution.json`: `reviews.spec` = `"passed"` or `"failed"`
 
 **c) Stage 2 — Audit (parallel)**
-- Dispatch ALL enabled reviewers simultaneously:
+- Dispatch ALL enabled reviewers simultaneously (see "Multi-model dispatch" below):
   - `mint-quality-reviewer` — code quality, patterns, DRY
   - `mint-security-auditor` — injection, XSS, auth, secrets
   - `mint-conventions-enforcer` — naming, structure, imports (reads convention docs)
@@ -333,6 +333,31 @@ mint expects `.mint/config.json` in the project root. Created by `mint init`.
 
 If config doesn't exist when a task comes in, prompt the user:
 "No mint config found. Want me to set up this project? (runs mint init)"
+
+### Multi-model dispatch
+
+Reviewers can optionally specify which Claude model to use. In `config.reviewers`, each entry
+can be a boolean (`true`/`false`) or an object with `enabled` and `model`:
+
+```json
+{
+  "reviewers": {
+    "spec": true,
+    "quality": { "enabled": true, "model": "sonnet" },
+    "security": { "enabled": true, "model": "opus" },
+    "conventions": true
+  }
+}
+```
+
+- `true` = enabled, uses the session's default model
+- `{ "enabled": true }` = same as `true`
+- `{ "enabled": true, "model": "sonnet" }` = enabled, dispatched with `model: "sonnet"`
+- `{ "enabled": false }` = disabled (same as `false`)
+
+Valid model values: `"opus"`, `"sonnet"`, `"haiku"`. When dispatching a reviewer subagent, pass
+the `model` parameter to the Agent tool if configured. Different models catch different things —
+heavier models for security/quality, lighter models for conventions/formatting.
 
 ---
 

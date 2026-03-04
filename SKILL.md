@@ -332,7 +332,7 @@ commits, checkouts, or merges). Agents use workspace context for awareness only:
 
 **Planning:**
 - When decomposing a feature, if work touches a dependency repo, the planner notes it in the
-  spec's `<workspace-impact>` field (e.g., "requires SDK changes in geins-sdk")
+  spec's `<workspace-impact>` field (e.g., "requires SDK changes in my-sdk")
 - Specs that affect multiple repos get explicit call-outs so the user can coordinate
 
 **Reviewing:**

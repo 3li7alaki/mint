@@ -167,9 +167,9 @@ c. For each sibling repo, detect its stack using the same logic as step 1 (check
 d. If sibling repos are found, present them to the user:
 ```
 Workspace detected:
-  sales-portal/  (nuxt)     ← you are here
-  geins-sdk/     (typescript)
-  ralph-ui/      (nuxt)
+  my-app/     (nuxt)        ← you are here
+  my-sdk/     (typescript)
+  my-docs/    (none)
 
 Add these as workspace repos? (y/n)
 ```
@@ -180,9 +180,9 @@ e. If the user confirms, populate `workspace.repos` in `.mint/config.json`:
 {
   "workspace": {
     "repos": [
-      { "name": "sales-portal", "path": "../sales-portal", "stack": "nuxt", "role": "primary", "dependsOn": [] },
-      { "name": "geins-sdk", "path": "../geins-sdk", "stack": "typescript", "role": "dependency", "dependsOn": [] },
-      { "name": "ralph-ui", "path": "../ralph-ui", "stack": "nuxt", "role": "reference", "dependsOn": [] }
+      { "name": "my-app", "path": "../my-app", "stack": "nuxt", "role": "primary", "dependsOn": [] },
+      { "name": "my-sdk", "path": "../my-sdk", "stack": "typescript", "role": "dependency", "dependsOn": [] },
+      { "name": "my-docs", "path": "../my-docs", "stack": "none", "role": "reference", "dependsOn": [] }
     ]
   }
 }

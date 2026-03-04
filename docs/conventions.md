@@ -90,7 +90,7 @@ Each entry in `workspace.repos` describes a repository in the workspace:
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `name` | string | yes | Human-readable identifier (e.g., `"sales-portal"`) |
+| `name` | string | yes | Human-readable identifier (e.g., `"my-app"`) |
 | `path` | string | yes | Relative or absolute path to the repo root |
 | `stack` | string | yes | Detected or declared framework (`nuxt`, `react`, `typescript`, `python`, etc.) |
 | `role` | string | yes | One of `"primary"`, `"dependency"`, `"reference"` |

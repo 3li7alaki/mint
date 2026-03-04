@@ -4,6 +4,9 @@
 .mint/worktrees/
 .mint/plugins/
 
+# Local design docs (not published)
+docs/plans/
+
 # mint config files are committed:
 # .mint/config.json — shared project settings
 # .mint/hard-blocks.md — rules everyone follows

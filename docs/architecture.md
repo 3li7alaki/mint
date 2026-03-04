@@ -49,16 +49,24 @@ Subagent Pool (fresh context per dispatch)
   └─ Plugin Agents ──────── stack/PM/design/memory extensions
 ```
 
+## Workspace
+
+When `workspace.repos` is configured, the orchestrator loads repo metadata (path, role, label) and feeds scoped context to agents. This gives agents awareness of cross-repo dependencies without loading entire codebases into context.
+
+Workspace is opt-in. Without it, mint operates on the current repo only. See `SKILL.md` for the full workspace config schema and dispatch behavior.
+
 ## Agent Isolation
 
 Each subagent:
 - Gets **fresh context** — no memory from previous agents
-- Receives **exactly what it needs** — spec XML, config, or diff (not everything)
+- Receives **exactly what it needs** — spec XML, config, workspace context, or diff (not everything)
 - Returns **a concise summary** — never raw tool output
 - Writes **artifacts to disk** — `.mint/tasks/`, `.mint/research/`, commits
 - **Cannot spawn other subagents** — only the orchestrator dispatches
 
 This prevents context pollution. An agent that builds up too much context makes worse decisions. Fresh agents make better decisions.
+
+When workspace is configured, agents receive scoped workspace context relevant to their task — not the full workspace. The orchestrator decides what each agent needs to see.
 
 ## Review Pipeline
 

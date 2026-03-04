@@ -194,6 +194,24 @@ my-plugin/
 
 See [`plugins/mint-nuxt/`](plugins/mint-nuxt/) for a working reference plugin and `templates/plugin-manifest.json` for the manifest schema.
 
+## Workspace
+
+Workspace is an opt-in feature that gives mint multi-repo awareness. When your project spans multiple repositories — an app, its SDK, a reference implementation — you can declare them in `.mint/config.json` so agents get cross-repo context during planning and review.
+
+```json
+{
+  "workspace": {
+    "repos": [
+      { "path": "../my-app", "role": "primary", "label": "Nuxt storefront" },
+      { "path": "../my-sdk", "role": "dependency", "label": "TypeScript SDK" },
+      { "path": "../reference-ui", "role": "reference", "label": "Reference implementation (read-only)" }
+    ]
+  }
+}
+```
+
+Agents use workspace context to understand cross-repo dependencies, match patterns from reference repos, and avoid breaking changes across boundaries. Workspace is entirely optional — mint works the same without it.
+
 ## Built With mint
 
 Once the core was ready, mint became the first project developed using mint itself — specs, reviews, the full pipeline. Like Git, it manages its own development.

@@ -1,0 +1,67 @@
+<task>
+  <id>NNN</id>
+  <title>Short descriptive title</title>
+  <goal>One sentence — what this task achieves when done</goal>
+  <estimate>small|medium|large</estimate>
+
+  <depends-on>none</depends-on>
+  <!-- Comma-separated IDs: <depends-on>001, 002</depends-on> -->
+
+  <pre-conditions>
+    - What must be true before this task can start
+    - e.g., "zod is installed", "auth middleware exists"
+  </pre-conditions>
+
+  <scope>
+    <can-modify>exact/paths/to/files.ts, other/file.vue</can-modify>
+    <cannot-modify>everything else — be explicit about boundaries</cannot-modify>
+  </scope>
+
+  <context>
+    Paste relevant existing code snippets, function signatures, line numbers.
+    The agent should not need to hunt — give it what it needs here.
+  </context>
+
+  <references>
+    - docs/conventions/example.md — relevant convention
+    - docs/adr/NNN-decision.md — why we chose this approach
+  </references>
+
+  <steps>
+    1. Concrete step with exact file, function, and line reference
+    2. No "figure it out" — every step is actionable
+    3. Reference existing patterns the agent should follow
+  </steps>
+
+  <tests>
+    - Test file: tests/path/to/test.ts
+    - Test: descriptive test name — what it asserts
+    - Test: another test — what it asserts
+  </tests>
+
+  <acceptance>
+    - Testable condition 1
+    - Testable condition 2
+    - No regressions in existing functionality
+    - lint ✅ types ✅ tests ✅
+  </acceptance>
+
+  <pitfalls>
+    - Known gotchas from past issues or codebase quirks
+    - e.g., "This framework auto-imports X — use stubGlobal, not vi.mock"
+  </pitfalls>
+
+  <anti-patterns>
+    - What NOT to do — explicit implementation warnings
+    - e.g., "Do NOT create a wrapper — use the library directly"
+  </anti-patterns>
+
+  <no-mocks>
+    - What to use real instead of mocking
+    - e.g., "Use real zod validation — no mocking zod"
+  </no-mocks>
+
+  <commit>type(mint-NNN): short description</commit>
+
+  <gates>lint, types, tests</gates>
+</task>

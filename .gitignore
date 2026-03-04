@@ -1,1 +1,10 @@
-.mint/
+# mint working state (local, per-developer)
+.mint/tasks/
+.mint/research/
+.mint/worktrees/
+.mint/plugins/
+
+# mint config files are committed:
+# .mint/config.json — shared project settings
+# .mint/hard-blocks.md — rules everyone follows
+# .mint/issues.md — institutional knowledge

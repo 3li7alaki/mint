@@ -154,10 +154,17 @@ If plugins are found, run any `on-init` hooks defined in their manifests.
 
 ### 7. Add to .gitignore
 
-Check if `.mint/` is in `.gitignore`. If not, add it.
+Add working state directories to `.gitignore` if not already present:
 
-The `.mint/` directory is project-local working state — not committed to git by default.
-Users can choose to commit config and hard-blocks if they want team-wide settings.
+```
+.mint/tasks/
+.mint/research/
+.mint/worktrees/
+.mint/plugins/
+```
+
+**Committed** (shared, version-controlled): `config.json`, `hard-blocks.md`, `issues.md`
+**Ignored** (local, per-developer): `tasks/`, `research/`, `worktrees/`, `plugins/`
 
 ### 8. Report
 

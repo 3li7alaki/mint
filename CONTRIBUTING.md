@@ -38,7 +38,13 @@ mint/
 ├── docs/                    # Documentation
 │   ├── architecture.md
 │   └── conventions.md
-└── .mint/                   # Self-hosted config (gitignored)
+└── .mint/                   # Project config (partially committed)
+    ├── config.json          # Committed — shared project settings
+    ├── hard-blocks.md       # Committed — rules everyone follows
+    ├── issues.md            # Committed — institutional knowledge
+    ├── tasks/               # Gitignored — in-progress specs
+    ├── research/            # Gitignored — local research reports
+    └── plugins/             # Gitignored — installed plugins
 ```
 
 ## Commit Conventions

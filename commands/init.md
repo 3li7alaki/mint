@@ -179,26 +179,11 @@ e. If the user confirms, populate `workspace.repos` in `.mint/config.json`:
 ```json
 {
   "workspace": {
-    "repos": {
-      "sales-portal": {
-        "path": "../sales-portal",
-        "role": "primary",
-        "stack": "nuxt",
-        "dependsOn": []
-      },
-      "geins-sdk": {
-        "path": "../geins-sdk",
-        "role": "dependency",
-        "stack": "typescript",
-        "dependsOn": []
-      },
-      "ralph-ui": {
-        "path": "../ralph-ui",
-        "role": "dependency",
-        "stack": "nuxt",
-        "dependsOn": []
-      }
-    }
+    "repos": [
+      { "name": "sales-portal", "path": "../sales-portal", "stack": "nuxt", "role": "primary", "dependsOn": [] },
+      { "name": "geins-sdk", "path": "../geins-sdk", "stack": "typescript", "role": "dependency", "dependsOn": [] },
+      { "name": "ralph-ui", "path": "../ralph-ui", "stack": "nuxt", "role": "reference", "dependsOn": [] }
+    ]
   }
 }
 ```

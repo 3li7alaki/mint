@@ -202,9 +202,9 @@ Workspace is an opt-in feature that gives mint multi-repo awareness. When your p
 {
   "workspace": {
     "repos": [
-      { "path": "../my-app", "role": "primary", "label": "Nuxt storefront" },
-      { "path": "../my-sdk", "role": "dependency", "label": "TypeScript SDK" },
-      { "path": "../reference-ui", "role": "reference", "label": "Reference implementation (read-only)" }
+      { "name": "sales-portal", "path": "../sales-portal", "stack": "nuxt", "role": "primary" },
+      { "name": "geins-sdk", "path": "../geins-sdk", "stack": "typescript", "role": "dependency", "dependsOn": ["sales-portal"] },
+      { "name": "ralph-ui", "path": "../ralph-ui", "stack": "nuxt", "role": "reference" }
     ]
   }
 }

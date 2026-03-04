@@ -51,7 +51,7 @@ Subagent Pool (fresh context per dispatch)
 
 ## Workspace
 
-When `workspace.repos` is configured, the orchestrator loads repo metadata (path, role, label) and feeds scoped context to agents. This gives agents awareness of cross-repo dependencies without loading entire codebases into context.
+When `workspace.repos` is configured, the orchestrator loads repo metadata (name, path, stack, role, dependsOn) and feeds scoped context to agents. This gives agents awareness of cross-repo dependencies without loading entire codebases into context.
 
 Workspace is opt-in. Without it, mint operates on the current repo only. See `SKILL.md` for the full workspace config schema and dispatch behavior.
 

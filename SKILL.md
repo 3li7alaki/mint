@@ -272,15 +272,27 @@ If found:
 
 ---
 
-## Issue Log Learning Loop
+## Learning Loop
 
 Before creating any new specs, the planner MUST:
 
-1. Read `.mint/issues.md`
-2. Find entries relevant to the current task (same files, similar patterns)
+1. Read `.mint/issues.md` — find relevant past failures (same files, similar patterns)
+2. Read `.mint/wins.md` — find relevant successful patterns (similar task types, decomposition strategies)
 3. Add relevant past issues as `<pitfalls>` in the new specs
+4. Use winning patterns to inform `<steps>` structure and spec decomposition strategy
 
-This is how mint gets smarter over time. Past mistakes become future prevention.
+This is how mint gets smarter over time. Past mistakes become future prevention. Past wins
+become future guidance.
+
+### Logging wins
+
+After a full task completes successfully (all specs passed, reviews done), the orchestrator
+logs a win to `.mint/wins.md`:
+
+- **Date** — when the task completed
+- **Task** — the task slug or feature name
+- **Pattern** — what worked (e.g., "split API + UI into separate specs", "included type signatures in context")
+- **Why It Worked** — why this pattern led to success (e.g., "kept agent context focused", "prevented scope leak")
 
 ---
 
@@ -417,7 +429,7 @@ Every subagent gets exactly what it needs — no more, no less:
 
 | Agent | Receives |
 |-------|----------|
-| Planner | Feature description OR spec XML + config + hard blocks + full workspace map (if configured) |
+| Planner | Feature description OR spec XML + config + hard blocks + issues.md + wins.md + retry history (if rewrite) + full workspace map (if configured) |
 | Researcher | Question + config + full workspace map (if configured) |
 | Spec reviewer | Spec XML + git diff + current repo and dependsOn repos from workspace (if configured) |
 | Stage 2 reviewers | Git diff + relevant docs (conventions, business, as configured) + current repo context (if configured) |

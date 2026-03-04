@@ -20,7 +20,9 @@ You receive a feature description. Your job:
 
 1. **Scan the codebase** — read existing code for patterns, conventions, naming, error handling
 2. **Read `.mint/issues.md`** — find relevant past pitfalls
-3. **Decompose** into atomic XML specs following `templates/spec.xml`
+3. **Read `.mint/wins.md`** — find successful patterns for similar tasks (decomposition strategies,
+   context techniques, scope decisions that worked well). Use wins to inform how you structure specs.
+4. **Decompose** into atomic XML specs following `templates/spec.xml`
 4. **Save specs** to `.mint/tasks/<slug>/NNN-<title>.xml`
 5. **Execute each spec** in dependency order (see Mode 2)
 6. **Write summary** to `.mint/tasks/<slug>/summary.md`

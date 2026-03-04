@@ -1,0 +1,29 @@
+{
+  "name": "mint-linear",
+  "version": "0.1.0",
+  "description": "Linear integration — fetch ticket context, update status, align specs with requirements",
+  "type": "pm",
+  "agents": [
+    "agents/ticket-context.md",
+    "agents/status-sync.md"
+  ],
+  "commands": [],
+  "config": {
+    "linear": {
+      "team": null,
+      "project": null,
+      "labels": {
+        "inProgress": "In Progress",
+        "inReview": "In Review",
+        "done": "Done"
+      }
+    }
+  },
+  "hooks": {
+    "pre-plan": "agents/ticket-context.md",
+    "post-plan": null,
+    "pre-review": null,
+    "post-commit": "agents/status-sync.md",
+    "on-init": null
+  }
+}

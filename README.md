@@ -161,18 +161,19 @@ Auto-update project docs when code changes:
 
 Plugins extend mint with stack-specific, PM, design, or memory capabilities. A plugin is a directory with a `manifest.json` and optional agents/commands.
 
-**Install a plugin:**
+**Bundled plugins:**
 
-```bash
-# Clone into .mint/plugins/
-git clone https://github.com/user/mint-nuxt .mint/plugins/mint-nuxt
-```
+| Plugin | Type | What it does |
+|--------|------|-------------|
+| [`mint-nuxt`](plugins/mint-nuxt/) | stack | Nuxt file structure, auto-imports, server patterns |
+| [`mint-linear`](plugins/mint-linear/) | pm | Ticket context, status sync, project updates |
+| [`mint-figma`](plugins/mint-figma/) | design | Design specs, tokens, alignment review |
 
-Then add it to `.mint/config.json`:
+**Enable a plugin** in `.mint/config.json`:
 
 ```json
 {
-  "plugins": [".mint/plugins/mint-nuxt"]
+  "plugins": ["plugins/mint-nuxt", "plugins/mint-linear"]
 }
 ```
 

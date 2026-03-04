@@ -233,15 +233,31 @@ Knowledge persistence and retrieval.
 - Pattern recognition across sessions
 - Relevant past context for new specs
 
-## Publishing
+## Distribution
 
-Plugins are git repos. To publish:
+### Bundled with mint
 
-1. Create a repo named `mint-yourname`
-2. Include `manifest.json`, agents, README
-3. Users install with: `git clone <repo> .mint/plugins/mint-yourname`
+The standard way — add your plugin to the `plugins/` directory in the mint repo. Users get it automatically with `npx skills add 3li7alaki/mint` and enable it in config:
 
-No registry, no package manager. Just git.
+```json
+{
+  "plugins": ["plugins/mint-yourplugin"]
+}
+```
+
+### Community plugins
+
+Third-party plugins can be standalone git repos. Users clone them into their project and reference the path in config:
+
+```bash
+git clone https://github.com/user/mint-yourplugin .mint/plugins/mint-yourplugin
+```
+
+```json
+{
+  "plugins": [".mint/plugins/mint-yourplugin"]
+}
+```
 
 ## Checklist
 

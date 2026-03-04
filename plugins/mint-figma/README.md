@@ -4,15 +4,11 @@ Figma integration plugin for [mint](https://github.com/3li7alaki/mint).
 
 ## Install
 
-```bash
-git clone https://github.com/3li7alaki/mint-figma .mint/plugins/mint-figma
-```
-
-Add to `.mint/config.json`:
+mint-figma ships with mint. After installing mint (`npx skills add 3li7alaki/mint`), enable it in `.mint/config.json`:
 
 ```json
 {
-  "plugins": [".mint/plugins/mint-figma"],
+  "plugins": ["plugins/mint-figma"],
   "figma": {
     "fileId": "your-figma-file-id",
     "apiToken": "your-figma-api-token",

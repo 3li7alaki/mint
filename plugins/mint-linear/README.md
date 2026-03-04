@@ -4,15 +4,11 @@ Linear integration plugin for [mint](https://github.com/3li7alaki/mint).
 
 ## Install
 
-```bash
-git clone https://github.com/3li7alaki/mint-linear .mint/plugins/mint-linear
-```
-
-Add to `.mint/config.json`:
+mint-linear ships with mint. After installing mint (`npx skills add 3li7alaki/mint`), enable it in `.mint/config.json`:
 
 ```json
 {
-  "plugins": [".mint/plugins/mint-linear"],
+  "plugins": ["plugins/mint-linear"],
   "linear": {
     "team": "your-team-name",
     "project": "your-project-name",

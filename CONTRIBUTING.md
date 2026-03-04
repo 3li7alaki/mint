@@ -100,6 +100,8 @@ Plugins live in their own directories with a `manifest.json`.
 - Include a README.md in the plugin directory
 - Plugin names: `mint-{name}` (e.g., `mint-nuxt`, `mint-linear`)
 - Don't duplicate core agent checks — extend, don't repeat
+- Bundled plugins live in `plugins/` and ship with mint
+- Community plugins are standalone repos cloned into `.mint/plugins/`
 
 ## Writing XML Specs
 

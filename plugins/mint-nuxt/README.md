@@ -4,15 +4,11 @@ Nuxt-specific conventions and review plugin for [mint](https://github.com/3li7al
 
 ## Install
 
-```bash
-git clone https://github.com/3li7alaki/mint-nuxt .mint/plugins/mint-nuxt
-```
-
-Add to `.mint/config.json`:
+mint-nuxt ships with mint. After installing mint (`npx skills add 3li7alaki/mint`), enable it in `.mint/config.json`:
 
 ```json
 {
-  "plugins": [".mint/plugins/mint-nuxt"]
+  "plugins": ["plugins/mint-nuxt"]
 }
 ```
 

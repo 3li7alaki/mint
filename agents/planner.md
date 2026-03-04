@@ -20,7 +20,9 @@ You receive a feature description. Your job:
 
 1. **Scan the codebase** — read existing code for patterns, conventions, naming, error handling
 2. **Read `.mint/issues.md`** — find relevant past pitfalls
-3. **Decompose** into atomic XML specs following `templates/spec.xml`
+3. **Read `.mint/wins.md`** — find successful patterns for similar tasks (decomposition strategies,
+   context techniques, scope decisions that worked well). Use wins to inform how you structure specs.
+4. **Decompose** into atomic XML specs following `templates/spec.xml`
 4. **Save specs** to `.mint/tasks/<slug>/NNN-<title>.xml`
 5. **Execute each spec** in dependency order (see Mode 2)
 6. **Write summary** to `.mint/tasks/<slug>/summary.md`
@@ -31,6 +33,11 @@ You receive a feature description. Your job:
 You receive a complete XML spec. Your job:
 
 1. **Read the spec completely** — understand every field
+1b. **Check for retry history** — if the orchestrator includes an `attempts` array from
+    `execution.json`, this is a rewritten spec. Read every previous attempt's `failureReason`
+    and `specAdjustment`. Do NOT repeat the same mistakes. The rewritten spec already accounts
+    for past failures — trust the adjustments and pay special attention to changed steps,
+    narrowed scope, or added context.
 2. **Declare scope** — state out loud: "I will only modify: [files from can-modify]"
 3. **Check pre-conditions** — verify everything in `<pre-conditions>` is true
 4. **Read before writing** — scan existing code in `<can-modify>` files for patterns, naming,

@@ -80,13 +80,26 @@ Why two stages? Because there's no point auditing code quality on an implementat
 
 Why parallel? Because reviewers don't depend on each other. Quality review doesn't need security results. Conventions don't need test results. Running them in parallel saves time without losing accuracy.
 
-## Issue Log
+## Learning Loop
 
-`.mint/issues.md` is a markdown table with columns: Date, Task, Severity, Issue, Root Cause, Resolution, Spec Fix.
+Two complementary logs feed the planner:
 
-Root cause categories: `bad-spec`, `missing-context`, `scope-leak`, `environment`, `hard-block`, `unknown-pattern`.
+**Issue log** (`.mint/issues.md`) — tracks failures. Columns: Date, Task, Severity, Issue, Root Cause, Resolution, Spec Fix. Root cause categories: `bad-spec`, `missing-context`, `scope-leak`, `environment`, `hard-block`, `unknown-pattern`. Relevant issues become `<pitfalls>` in new specs.
 
-The planner reads this before creating new specs. If a past issue is relevant (same files, similar patterns), it becomes a `<pitfalls>` entry in the new spec. This is the learning loop.
+**Wins log** (`.mint/wins.md`) — tracks successes. Columns: Date, Task, Pattern, Why It Worked. Logged by the orchestrator after full task completion. Wins inform spec decomposition strategy.
+
+The planner reads both before creating new specs. Past mistakes become prevention. Past wins become guidance.
+
+## Execution Tracking
+
+Every spec gets a per-spec `execution.json` that records status transitions, attempt history, gate results, review verdicts, and commit hashes. This enables:
+- **Resumability** — interrupted sessions can pick up where they left off
+- **Visibility** — clear record of what happened at each pipeline stage
+- **Retry intelligence** — the spec retry protocol uses attempt history to write targeted rewrites
+
+## Spec Retry Protocol
+
+When a spec fails, the orchestrator diagnoses the root cause category, cross-references the issue log for similar past failures, and rewrites the spec with targeted adjustments. One rewrite attempt, then escalate. This is how "never fix bad output — fix the spec" works in practice.
 
 ## Plugin System
 

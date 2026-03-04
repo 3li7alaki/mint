@@ -1,0 +1,34 @@
+{
+  "enabledPlugins": {
+    "context7@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": false,
+    "typescript-lsp@claude-plugins-official": false,
+    "frontend-design@claude-plugins-official": false,
+    "security-guidance@claude-plugins-official": false,
+    "playwright@claude-plugins-official": false,
+    "feature-dev@claude-plugins-official": false,
+    "figma@claude-plugins-official": false,
+    "linear@claude-plugins-official": false
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git commit *)",
+      "Bash(git add *)",
+      "Bash(git checkout *)",
+      "Bash(git branch *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git fetch*)",
+      "Bash(git merge *)",
+      "Bash(git stash*)",
+      "Bash(ls*)",
+      "Bash(mkdir *)"
+    ]
+  }
+}

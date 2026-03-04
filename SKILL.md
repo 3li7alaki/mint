@@ -83,6 +83,20 @@ These are non-negotiable. Violating any of these is a failure.
   to the user. Never attempt a third run with the same spec.
 - **Never push.** Agents commit only. The user reviews and pushes manually.
 
+### Completion check
+
+Before marking a spec as `passed` in `execution.json`, verify all `definitionOfDone` criteria
+from `.mint/config.json`:
+
+- `gatesPassing` — all enabled gates returned green
+- `specReviewPassed` — stage 1 spec reviewer approved
+- `stage2ReviewsPassed` — all enabled stage 2 reviewers approved (no unresolved BLOCKING issues)
+- `screenshotReminder` — if set to `"ui-changes"` and the spec modified UI files (`.vue`, `.tsx`,
+  `.jsx`, `.svelte`, `.html`, `.css`), remind the user: "This spec modified UI files — consider
+  capturing a screenshot before merging." If `"always"`, remind on every spec. If `false`, skip.
+
+The finish step includes DoD status per spec in the summary.
+
 ---
 
 ## Execution Flow — Plan Mode
@@ -94,6 +108,7 @@ This is the primary workflow for non-trivial tasks.
 - Check `.mint/config.json` exists (if not, prompt user to run `mint init`)
 - Create worktree: `.mint/worktrees/<task-slug>`
 - Read `.mint/issues.md` for relevant past pitfalls
+- Check for resumable specs (see "Resuming Interrupted Work" below)
 
 ### 2. Decompose
 
@@ -107,18 +122,25 @@ Dispatch `mint-planner` subagent with the feature description. Planner:
 
 For each spec (sequenced by `<depends-on>`):
 
+**Execution tracking:** Before starting a spec, create its execution state file at
+`.mint/tasks/<slug>/<spec-id>/execution.json` (see `templates/execution.json` for schema).
+Update this file at every stage transition — it's the source of truth for what happened.
+
 **a) Implementation**
+- Set `execution.json` status to `running`, record `startedAt` and new attempt entry
 - Dispatch `mint-planner` subagent with the spec XML (full text, not file path)
 - Planner implements, runs gates, commits if green
+- Update `execution.json`: gate results in `gates`, commit hash in `commit`
 - Returns: commit hash + summary, or failure report
 
 **b) Stage 1 — Spec Review (sequential gate)**
 - Dispatch `mint-spec-reviewer` subagent with: spec XML + git diff
 - Must pass before stage 2
 - If gaps found → planner fixes → spec-reviewer re-reviews
+- Update `execution.json`: `reviews.spec` = `"passed"` or `"failed"`
 
 **c) Stage 2 — Audit (parallel)**
-- Dispatch ALL enabled reviewers simultaneously:
+- Dispatch ALL enabled reviewers simultaneously (see "Multi-model dispatch" below):
   - `mint-quality-reviewer` — code quality, patterns, DRY
   - `mint-security-auditor` — injection, XSS, auth, secrets
   - `mint-conventions-enforcer` — naming, structure, imports (reads convention docs)
@@ -126,13 +148,47 @@ For each spec (sequenced by `<depends-on>`):
   - `mint-performance-reviewer` — re-renders, N+1, bundle
   - `mint-business-reviewer` — business logic, requirements alignment (reads business docs)
 - Each returns: PASS or issues with severity (BLOCKING/WARNING/INFO)
+- Update `execution.json`: each reviewer key in `reviews` = `"passed"` or `"failed"`
 - Planner fixes BLOCKING + WARNING issues
 - Only failed auditors re-run (not all of them)
 - 3 review rounds max, then escalate
 
-**d) Documentation**
+**d) Completion**
+- If all stages pass: set `execution.json` status to `passed`, record `completedAt`
+- If spec failed and will be rewritten: set status to `rewriting`
+- If spec failed twice: set status to `failed`, log to `.mint/issues.md`
 - Check `documenters` config for `on-task-complete` triggers
 - Dispatch `mint-documenter` subagent for each triggered doc
+
+### 3b. Spec Retry Protocol
+
+When a spec fails gates or review, don't just retry blindly — rewrite the spec with targeted
+adjustments. This is how "never fix bad output — fix the spec" works in practice.
+
+**On failure:**
+
+1. Read the failure report from the subagent
+2. Cross-reference `.mint/issues.md` for similar past failures (same files, similar patterns)
+3. Diagnose root cause category:
+   - `bad-spec` → spec was ambiguous, agent had to guess
+   - `missing-context` → not enough info about existing code patterns or dependencies
+   - `scope-leak` → agent needed files outside declared scope
+   - `environment` → missing dependency, broken config, tooling issue
+   - `hard-block` → violates a constraint in `.mint/hard-blocks.md`
+   - `unknown-pattern` → codebase has a pattern the spec didn't account for
+4. Rewrite the spec with targeted adjustments based on root cause:
+   - `bad-spec` → narrow scope, add explicit constraints, clarify ambiguous steps
+   - `missing-context` → add file paths, type definitions, function signatures to `<context>`
+   - `scope-leak` → tighten `<can-modify>`, expand `<cannot-modify>`, or split into two specs
+   - `environment` → add environment pre-conditions or notes
+   - `hard-block` → redesign approach to avoid the constraint
+   - `unknown-pattern` → add the pattern to `<context>` and `<pitfalls>`
+5. Update `execution.json`: status → `rewriting`, log the adjustment in `attempts[]`
+6. Dispatch fresh `mint-planner` with the rewritten spec
+7. If rewrite also fails → set status to `failed`, log to `.mint/issues.md`, escalate to user
+
+**One rewrite, then stop.** Original attempt + one rewrite = two total. This preserves the
+"fail twice → stop" discipline while making the second attempt count.
 
 ### 4. Finish
 
@@ -207,23 +263,64 @@ For investigating problems before building.
 
 ## Execution Flow — Verify Mode
 
-For checking quality gates on demand.
+For checking quality gates on demand. Uses a two-layer approach to avoid wasting tokens when
+everything is green.
 
-1. Delegate to `mint-verifier` subagent
-2. Verifier runs: gates + mock audit + hard block scan + open issues count
-3. Returns clean report with pass/fail per check
+### Layer 1 — Bash pre-check (zero tokens)
+
+Run gate commands directly as bash in the main context (this is the one exception to "never run
+gates in main context" — these are quick pass/fail checks, not heavy analysis):
+
+1. Run each enabled gate command from `config.gates` (lint, types, tests)
+2. If ALL pass → report "All gates green. No issues found." — done, no subagent needed
+3. If ANY fail → proceed to layer 2
+
+### Layer 2 — Deep analysis (subagent)
+
+Only dispatched when layer 1 detects a problem:
+
+1. Delegate to `mint-verifier` subagent with the failing gate output
+2. Verifier runs: deeper analysis of failures + mock audit + hard block scan + open issues count
+3. Returns detailed report with root cause analysis and suggested fixes
 
 ---
 
-## Issue Log Learning Loop
+## Resuming Interrupted Work
+
+On startup (during Setup), scan `.mint/tasks/` for execution.json files with non-terminal status
+(`running`, `rewriting`). These are specs from a previous session that didn't finish.
+
+If found:
+1. Present the list to the user: "Found N interrupted specs from a previous session:"
+   - For each: spec ID, title, status, last attempt result
+2. Ask: "Resume these specs?" — user can pick which to resume or start fresh
+3. For resumed specs: continue from the last completed stage (use `execution.json` to determine
+   where it left off — e.g., if gates passed but reviews didn't, skip straight to review)
+4. For skipped specs: set their `execution.json` status to `failed` with reason "abandoned"
+
+---
+
+## Learning Loop
 
 Before creating any new specs, the planner MUST:
 
-1. Read `.mint/issues.md`
-2. Find entries relevant to the current task (same files, similar patterns)
+1. Read `.mint/issues.md` — find relevant past failures (same files, similar patterns)
+2. Read `.mint/wins.md` — find relevant successful patterns (similar task types, decomposition strategies)
 3. Add relevant past issues as `<pitfalls>` in the new specs
+4. Use winning patterns to inform `<steps>` structure and spec decomposition strategy
 
-This is how mint gets smarter over time. Past mistakes become future prevention.
+This is how mint gets smarter over time. Past mistakes become future prevention. Past wins
+become future guidance.
+
+### Logging wins
+
+After a full task completes successfully (all specs passed, reviews done), the orchestrator
+logs a win to `.mint/wins.md`:
+
+- **Date** — when the task completed
+- **Task** — the task slug or feature name
+- **Pattern** — what worked (e.g., "split API + UI into separate specs", "included type signatures in context")
+- **Why It Worked** — why this pattern led to success (e.g., "kept agent context focused", "prevented scope leak")
 
 ---
 
@@ -250,6 +347,31 @@ mint expects `.mint/config.json` in the project root. Created by `mint init`.
 
 If config doesn't exist when a task comes in, prompt the user:
 "No mint config found. Want me to set up this project? (runs mint init)"
+
+### Multi-model dispatch
+
+Reviewers can optionally specify which Claude model to use. In `config.reviewers`, each entry
+can be a boolean (`true`/`false`) or an object with `enabled` and `model`:
+
+```json
+{
+  "reviewers": {
+    "spec": true,
+    "quality": { "enabled": true, "model": "sonnet" },
+    "security": { "enabled": true, "model": "opus" },
+    "conventions": true
+  }
+}
+```
+
+- `true` = enabled, uses the session's default model
+- `{ "enabled": true }` = same as `true`
+- `{ "enabled": true, "model": "sonnet" }` = enabled, dispatched with `model: "sonnet"`
+- `{ "enabled": false }` = disabled (same as `false`)
+
+Valid model values: `"opus"`, `"sonnet"`, `"haiku"`. When dispatching a reviewer subagent, pass
+the `model` parameter to the Agent tool if configured. Different models catch different things —
+heavier models for security/quality, lighter models for conventions/formatting.
 
 ---
 
@@ -360,7 +482,7 @@ Every subagent gets exactly what it needs — no more, no less:
 
 | Agent | Receives |
 |-------|----------|
-| Planner | Feature description OR spec XML + config + hard blocks + full workspace map (if configured) |
+| Planner | Feature description OR spec XML + config + hard blocks + issues.md + wins.md + retry history (if rewrite) + full workspace map (if configured) |
 | Researcher | Question + config + full workspace map (if configured) |
 | Spec reviewer | Spec XML + git diff + current repo and dependsOn repos from workspace (if configured) |
 | Stage 2 reviewers | Git diff + relevant docs (conventions, business, as configured) + current repo context (if configured) |

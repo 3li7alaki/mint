@@ -58,10 +58,11 @@ This creates:
 
 ```
 .mint/
-├── config.json       — gate settings, reviewers, stack config
+├── config.json       — gate settings, reviewers, stack config, definition of done
 ├── hard-blocks.md    — what agents can never do
-├── issues.md         — agent learnings and blockers log
-└── tasks/            — XML spec files from plan mode
+├── issues.md         — failure log — what went wrong and why
+├── wins.md           — success log — what worked and why
+└── tasks/            — XML spec files + execution state from plan mode
 ```
 
 ## XML Specs
@@ -105,9 +106,34 @@ Every spec goes through:
 
 Issues are categorized: BLOCKING (must fix), WARNING (should fix), INFO (logged).
 
-## Issue Log
+Each reviewer can optionally use a different Claude model (`opus`, `sonnet`, `haiku`) — heavier models for security/quality, lighter for conventions.
 
-`.mint/issues.md` tracks every blocker and gotcha. The planner reads past issues before creating new specs — turning mistakes into prevention.
+## Learning Loop
+
+`.mint/issues.md` tracks every blocker and gotcha. `.mint/wins.md` tracks successful patterns. The planner reads both before creating new specs — turning mistakes into prevention and wins into guidance.
+
+## Execution Tracking
+
+Every spec gets an `execution.json` that tracks status, attempts, gate results, review verdicts, and commit hashes. If a session is interrupted, mint detects non-terminal specs on startup and offers to resume from where it left off.
+
+## Spec Retry Protocol
+
+When a spec fails, the orchestrator doesn't just retry — it diagnoses the root cause, rewrites the spec with targeted adjustments, and dispatches a fresh planner. One rewrite attempt, then escalate to the user.
+
+## Definition of Done
+
+Configurable completion checklist in `.mint/config.json`:
+
+```json
+{
+  "definitionOfDone": {
+    "gatesPassing": true,
+    "specReviewPassed": true,
+    "stage2ReviewsPassed": true,
+    "screenshotReminder": "ui-changes"
+  }
+}
+```
 
 ## Documenters
 

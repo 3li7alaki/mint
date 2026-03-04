@@ -7,12 +7,12 @@
     "tests": false
   },
   "reviewers": {
-    "spec": true,
-    "quality": true,
+    "spec": { "enabled": true, "model": "opus" },
+    "quality": { "enabled": true, "model": "sonnet" },
     "security": false,
-    "conventions": true,
+    "conventions": { "enabled": true, "model": "haiku" },
     "tests": false,
-    "business": true,
+    "business": { "enabled": true, "model": "opus" },
     "performance": false
   },
   "conventions": {

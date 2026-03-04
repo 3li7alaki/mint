@@ -40,6 +40,9 @@ mint/
 │   └── conventions.md
 └── .mint/                   # Project config (partially committed)
     ├── config.json          # Committed — shared project settings
+    │   ├── gates, reviewers, stack config
+    │   ├── plugins[]        # Enabled plugins
+    │   └── workspace.repos[]# Opt-in multi-repo awareness (name, path, stack, role, dependsOn)
     ├── hard-blocks.md       # Committed — rules everyone follows
     ├── issues.md            # Committed — institutional knowledge
     ├── tasks/               # Gitignored — in-progress specs

@@ -152,7 +152,54 @@ To install a plugin:
 
 If plugins are found, run any `on-init` hooks defined in their manifests.
 
-### 7. Add to .gitignore
+### 7. Detect workspace
+
+Discover sibling repos to build workspace context.
+
+**Detection flow:**
+
+a. Get the **parent directory** of the current project (one level up).
+
+b. List immediate child directories in the parent that contain a `.git/` directory. **Do not scan recursively** — only direct siblings.
+
+c. For each sibling repo, detect its stack using the same logic as step 1 (check for `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`).
+
+d. If sibling repos are found, present them to the user:
+```
+Workspace detected:
+  my-app/     (nuxt)        ← you are here
+  my-sdk/     (typescript)
+  my-docs/    (none)
+
+Add these as workspace repos? (y/n)
+```
+
+e. If the user confirms, populate `workspace.repos` in `.mint/config.json`:
+
+```json
+{
+  "workspace": {
+    "repos": [
+      { "name": "my-app", "path": "../my-app", "stack": "nuxt", "role": "primary", "dependsOn": [] },
+      { "name": "my-sdk", "path": "../my-sdk", "stack": "typescript", "role": "dependency", "dependsOn": [] },
+      { "name": "my-docs", "path": "../my-docs", "stack": "none", "role": "reference", "dependsOn": [] }
+    ]
+  }
+}
+```
+
+- The **current project** gets `role: "primary"`
+- All **siblings** default to `role: "dependency"` (user can change to `"reference"` later)
+- `dependsOn` is **empty by default** — relationships require human confirmation, don't auto-populate
+
+f. If **no sibling git repos** are found, skip silently — no prompt, no config entry.
+
+**Important:**
+- Never modify sibling repos — only read their project markers
+- Some siblings may be unrelated — always ask the user before writing config
+- Don't assume dependency relationships between repos
+
+### 8. Add to .gitignore
 
 Add working state directories to `.gitignore` if not already present:
 
@@ -166,7 +213,7 @@ Add working state directories to `.gitignore` if not already present:
 **Committed** (shared, version-controlled): `config.json`, `hard-blocks.md`, `issues.md`
 **Ignored** (local, per-developer): `tasks/`, `research/`, `worktrees/`, `plugins/`
 
-### 8. Report
+### 9. Report
 
 Show the user:
 ```
@@ -192,6 +239,7 @@ Performance reviewer: disabled (enable in config.json)
 Convention docs: <paths if detected, or "none — add paths to conventions.docs">
 Business docs: <paths if detected, or "none — add paths to business.docs">
 Plugins: <list if found, or "none — see docs for plugin installation">
+Workspace: <list repos if configured, or "none detected">
 
 ⚠️  Missing gate commands: <list any missing>
     Add these scripts to your project before mint can enforce gates.

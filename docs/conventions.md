@@ -54,7 +54,7 @@ Every spec must have: `id`, `title`, `goal`, `scope` (with `can-modify` and `can
 
 ### Optional Fields
 
-`estimate`, `depends-on`, `pre-conditions`, `context`, `references`, `pitfalls`, `anti-patterns`, `no-mocks`, `tests`.
+`estimate`, `depends-on`, `pre-conditions`, `context`, `references`, `pitfalls`, `anti-patterns`, `no-mocks`, `tests`, `workspace-impact`.
 
 ### Scope Rules
 
@@ -66,6 +66,34 @@ Every spec must have: `id`, `title`, `goal`, `scope` (with `can-modify` and `can
 
 Spec-driven commits: `type(mint-NNN): description`
 Non-spec commits: `type(scope): description`
+
+## Git Strategy
+
+### Branching
+
+- `main` — stable, always clean. Never commit directly.
+- `feat/<name>` — feature branches off main. One feature per branch.
+- `fix/<name>` — bug fix branches off main.
+
+### Commits
+
+- **Atomic commits** — one spec = one commit. Don't bundle multiple specs.
+- **Commit message format** — `type(scope): description` (see above)
+- **Never push from agents** — agents commit only. Human reviews and pushes.
+- **No AI attribution** — never add "Co-Authored-By" or mention AI tools in commits.
+
+### Merging
+
+- **Always squash merge** — PRs merge as a single squash commit into main.
+- **Delete branch after merge** — clean up remote and local branches.
+- **PR before merge** — all work goes through a PR, even solo work. No direct merges.
+
+### Post-Merge
+
+After a PR is merged:
+1. `git checkout main && git pull && git fetch --prune`
+2. Delete the local feature branch
+3. Verify main is clean
 
 ## Config Schema
 
@@ -82,6 +110,19 @@ Non-spec commits: `type(scope): description`
 | `isolation` | object | Worktree/branch strategy per mode |
 | `documenters` | array | Auto-doc configurations |
 | `plugins` | array | Plugin directory paths |
+| `workspace.repos` | array | Workspace repo registry (see below) |
+
+### Workspace Registry (`workspace.repos`)
+
+Each entry in `workspace.repos` describes a repository in the workspace:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Human-readable identifier (e.g., `"my-app"`) |
+| `path` | string | yes | Relative or absolute path to the repo root |
+| `stack` | string | yes | Detected or declared framework (`nuxt`, `react`, `typescript`, `python`, etc.) |
+| `role` | string | yes | One of `"primary"`, `"dependency"`, `"reference"` |
+| `dependsOn` | string[] | no | Array of other repo `name` values this repo depends on |
 
 ## Documentation
 

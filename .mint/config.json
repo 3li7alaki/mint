@@ -1,0 +1,43 @@
+{
+  "stack": "none",
+  "packageManager": "none",
+  "gates": {
+    "lint": false,
+    "types": false,
+    "tests": false
+  },
+  "reviewers": {
+    "spec": true,
+    "quality": true,
+    "security": false,
+    "conventions": true,
+    "tests": false,
+    "business": true,
+    "performance": false
+  },
+  "conventions": {
+    "docs": [
+      "docs/conventions.md",
+      "CONTRIBUTING.md"
+    ]
+  },
+  "business": {
+    "docs": [
+      "docs/architecture.md"
+    ]
+  },
+  "isolation": {
+    "plan": "worktree",
+    "ship": "worktree",
+    "quick": "branch"
+  },
+  "documenters": [
+    {
+      "path": "README.md",
+      "trigger": "on-task-complete",
+      "description": "Public-facing project documentation — install, pipeline, agents, config",
+      "mode": "update"
+    }
+  ],
+  "plugins": []
+}

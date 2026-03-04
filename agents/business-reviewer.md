@@ -29,8 +29,8 @@ In `.mint/config.json`:
     "docs": [
       "docs/requirements/",
       "docs/specs/",
-      "local-docs/litium-wiki/",
-      "MENTAL-MAP.md"
+      "docs/business/",
+      "local-docs/"
     ]
   }
 }
@@ -87,7 +87,7 @@ mint business review: PASS | ISSUES
 
 Docs consulted:
   - docs/requirements/auth-spec.md
-  - local-docs/litium-wiki/tech/sales-portal.md
+  - docs/business/product-requirements.md
 
 Findings:
   [BLOCKING] <file:line> — <requirement>: <how implementation contradicts it>

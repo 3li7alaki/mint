@@ -176,11 +176,22 @@ Then add it to `.mint/config.json`:
 }
 ```
 
+**Create a plugin:**
+
+```
+my-plugin/
+├── manifest.json          # Required — name, type, agents, hooks
+├── agents/                # Plugin agent prompts
+│   └── my-reviewer.md
+├── commands/              # Plugin commands (optional)
+└── README.md
+```
+
 **Plugin types:** `stack` (framework conventions), `pm` (project management), `design` (design tools), `memory` (knowledge persistence).
 
 **Hook points:** `pre-plan`, `post-plan`, `pre-review`, `post-commit`, `on-init`.
 
-See `plugins/mint-nuxt/` for a reference plugin and `templates/plugin-manifest.json` for the manifest schema.
+See [`plugins/mint-nuxt/`](plugins/mint-nuxt/) for a working reference plugin and `templates/plugin-manifest.json` for the manifest schema.
 
 ## Built With mint
 

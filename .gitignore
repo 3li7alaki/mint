@@ -4,6 +4,9 @@
 .mint/worktrees/
 .mint/plugins/
 
+# mint-ssh cache (contains fetched server IPs)
+.mint/ssh-cache.json
+
 # Local design docs (not published)
 docs/plans/
 

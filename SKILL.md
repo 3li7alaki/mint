@@ -263,11 +263,25 @@ For investigating problems before building.
 
 ## Execution Flow — Verify Mode
 
-For checking quality gates on demand.
+For checking quality gates on demand. Uses a two-layer approach to avoid wasting tokens when
+everything is green.
 
-1. Delegate to `mint-verifier` subagent
-2. Verifier runs: gates + mock audit + hard block scan + open issues count
-3. Returns clean report with pass/fail per check
+### Layer 1 — Bash pre-check (zero tokens)
+
+Run gate commands directly as bash in the main context (this is the one exception to "never run
+gates in main context" — these are quick pass/fail checks, not heavy analysis):
+
+1. Run each enabled gate command from `config.gates` (lint, types, tests)
+2. If ALL pass → report "All gates green. No issues found." — done, no subagent needed
+3. If ANY fail → proceed to layer 2
+
+### Layer 2 — Deep analysis (subagent)
+
+Only dispatched when layer 1 detects a problem:
+
+1. Delegate to `mint-verifier` subagent with the failing gate output
+2. Verifier runs: deeper analysis of failures + mock audit + hard block scan + open issues count
+3. Returns detailed report with root cause analysis and suggested fixes
 
 ---
 

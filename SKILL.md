@@ -295,16 +295,75 @@ Plugin agents receive the same context as their hook stage (e.g., pre-review get
 
 ---
 
+## Workspace Context
+
+Workspace awareness is opt-in. If `workspace.repos` is not defined in config, everything works
+exactly as before — single-repo mode. When configured, the orchestrator gains cross-repo context
+without performing cross-repo git operations.
+
+### Startup
+
+On startup (after plugin loading, before routing), if `config.workspace.repos` exists:
+
+1. Read the repos array once — do not re-read on every task
+2. For each repo entry, note: `name`, `path`, `stack`, `role`, `dependsOn`
+3. Identify the **current repo** by matching the working directory to a repo path
+4. Build a lightweight workspace map (repo names, roles, and dependency edges — not full analysis)
+
+The workspace map is a summary, not a deep scan. It tells agents what exists and how repos relate.
+
+### What Each Agent Type Sees
+
+Not every agent needs the full picture. Context is scoped by role:
+
+| Agent type | Workspace context |
+|------------|-------------------|
+| Planner | Full workspace map — knows all repos, their stacks, roles, and dependency relationships |
+| Researcher | Full workspace map — can search across repos for patterns and usage |
+| Spec reviewer | Current repo + its `dependsOn` repos — checks that scope doesn't leak across boundaries |
+| Stage 2 reviewers | Current repo context only — they review diffs, not architecture |
+| Documenter | Current repo context only |
+| Shipper | Full workspace map — needs to sequence work that may span dependencies |
+
+### Cross-Repo Awareness Behaviors
+
+The orchestrator provides context but never performs cross-repo git operations (no cross-repo
+commits, checkouts, or merges). Agents use workspace context for awareness only:
+
+**Planning:**
+- When decomposing a feature, if work touches a dependency repo, the planner notes it in the
+  spec's `<workspace-impact>` field (e.g., "requires SDK changes in geins-sdk")
+- Specs that affect multiple repos get explicit call-outs so the user can coordinate
+
+**Reviewing:**
+- Spec reviewer checks whether changes in a dependency repo could break dependents
+- If a spec modifies a shared interface (e.g., an SDK method), the reviewer flags downstream repos
+  that consume it
+
+**Researching:**
+- Researcher can scan dependent repos for patterns, usage examples, and conventions
+- Cross-repo search helps find how an API is consumed before changing it
+
+### Workspace Impact in Spec Execution
+
+If a spec includes `<workspace-impact>`:
+
+1. The orchestrator includes the affected repos in the execution summary
+2. The finish step reports: "This change affects: repo-a, repo-b — coordinate before merging"
+3. No automated cross-repo actions — the user decides how to handle multi-repo changes
+
+---
+
 ## What Agents Receive
 
 Every subagent gets exactly what it needs — no more, no less:
 
 | Agent | Receives |
 |-------|----------|
-| Planner | Feature description OR spec XML + config + hard blocks |
-| Researcher | Question + config |
-| Spec reviewer | Spec XML + git diff |
-| Stage 2 reviewers | Git diff + relevant docs (conventions, business, as configured) |
-| Documenter | File path + file description + change summary |
-| Shipper | Confirmed ship plan + config + hard blocks |
+| Planner | Feature description OR spec XML + config + hard blocks + full workspace map (if configured) |
+| Researcher | Question + config + full workspace map (if configured) |
+| Spec reviewer | Spec XML + git diff + current repo and dependsOn repos from workspace (if configured) |
+| Stage 2 reviewers | Git diff + relevant docs (conventions, business, as configured) + current repo context (if configured) |
+| Documenter | File path + file description + change summary + current repo context (if configured) |
+| Shipper | Confirmed ship plan + config + hard blocks + full workspace map (if configured) |
 | Verifier | Config only |

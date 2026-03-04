@@ -1,0 +1,29 @@
+{
+  "_comment": "Plugin manifest schema — every mint plugin must include a manifest.json following this format",
+
+  "name": "plugin-name",
+  "version": "0.1.0",
+  "description": "What this plugin adds to mint",
+
+  "type": "stack | pm | design | memory",
+
+  "agents": [
+    "agents/example-reviewer.md"
+  ],
+
+  "commands": [
+    "commands/example.md"
+  ],
+
+  "config": {
+    "exampleKey": "default-value"
+  },
+
+  "hooks": {
+    "pre-plan": null,
+    "post-plan": null,
+    "pre-review": "agents/example-reviewer.md",
+    "post-commit": null,
+    "on-init": null
+  }
+}

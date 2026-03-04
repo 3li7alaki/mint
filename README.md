@@ -157,6 +157,31 @@ Auto-update project docs when code changes:
 | `performance-reviewer` | Stage 2 — performance (opt-in) |
 | `documenter` | Auto-updates project documentation |
 
+## Plugins
+
+Plugins extend mint with stack-specific, PM, design, or memory capabilities. A plugin is a directory with a `manifest.json` and optional agents/commands.
+
+**Install a plugin:**
+
+```bash
+# Clone into .mint/plugins/
+git clone https://github.com/user/mint-nuxt .mint/plugins/mint-nuxt
+```
+
+Then add it to `.mint/config.json`:
+
+```json
+{
+  "plugins": [".mint/plugins/mint-nuxt"]
+}
+```
+
+**Plugin types:** `stack` (framework conventions), `pm` (project management), `design` (design tools), `memory` (knowledge persistence).
+
+**Hook points:** `pre-plan`, `post-plan`, `pre-review`, `post-commit`, `on-init`.
+
+See `plugins/mint-nuxt/` for a reference plugin and `templates/plugin-manifest.json` for the manifest schema.
+
 ## Built With mint
 
 Once the core was ready, mint became the first project developed using mint itself — specs, reviews, the full pipeline. Like Git, it manages its own development.

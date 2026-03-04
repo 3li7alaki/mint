@@ -253,6 +253,48 @@ If config doesn't exist when a task comes in, prompt the user:
 
 ---
 
+## Plugin Loading
+
+Plugins extend mint with stack-specific, PM, design, or memory capabilities. A plugin is a
+directory with a `manifest.json`, optional `agents/`, and optional `commands/`.
+
+### Discovery
+
+On startup (before routing), read `config.plugins` array. Each entry is a path to a plugin
+directory (relative to project root or absolute). For each:
+
+1. Resolve the directory path
+2. Read `manifest.json` — must have: name, type, agents
+3. Register plugin agents as `plugin-name:agent-name` (namespaced to avoid conflicts)
+4. Register plugin commands (available to user)
+5. Merge plugin `config` keys into active config (plugin values don't override existing)
+
+### Hook Points
+
+Plugins declare which pipeline stages they inject into via `manifest.hooks`:
+
+| Hook | When it runs | Example use |
+|------|-------------|-------------|
+| `pre-plan` | Before planner decomposes a feature | Stack plugin adds framework-specific context |
+| `post-plan` | After specs are created, before execution | PM plugin syncs specs to issue tracker |
+| `pre-review` | Added to stage 2 parallel reviewers | Stack plugin runs framework-specific checks |
+| `post-commit` | After each atomic commit | Memory plugin saves embeddings |
+| `on-init` | During `mint init` | Stack plugin sets up framework config |
+
+Plugin agents dispatched the same way as core agents — fresh subagent, same isolation rules.
+Plugin agents receive the same context as their hook stage (e.g., pre-review gets git diff).
+
+### Plugin Types
+
+| Type | Purpose |
+|------|---------|
+| `stack` | Framework-specific conventions, reviewers, setup (e.g., Nuxt, React) |
+| `pm` | Project management integration (e.g., Linear, Jira) |
+| `design` | Design tool integration (e.g., Figma) |
+| `memory` | Knowledge persistence (e.g., embeddings, vector search) |
+
+---
+
 ## What Agents Receive
 
 Every subagent gets exactly what it needs — no more, no less:

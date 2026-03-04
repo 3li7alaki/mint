@@ -1,0 +1,25 @@
+{
+  "name": "mint-ssh",
+  "version": "0.1.0",
+  "description": "SSH access to remote servers with Doppler secrets and Docker exec",
+  "type": "infra",
+  "agents": [
+    "agents/ssh-connect.md"
+  ],
+  "commands": [
+    "commands/ssh.md"
+  ],
+  "config": {
+    "ssh": {
+      "key": null,
+      "environments": {}
+    }
+  },
+  "hooks": {
+    "pre-plan": null,
+    "post-plan": null,
+    "pre-review": null,
+    "post-commit": null,
+    "on-init": null
+  }
+}

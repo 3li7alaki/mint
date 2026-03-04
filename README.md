@@ -98,8 +98,9 @@ Every spec goes through:
 2. **Parallel Audit** — 5 reviewers run simultaneously:
    - **Quality** — patterns, types, readability, over-engineering
    - **Security** — injection, XSS, auth, secrets
-   - **Conventions** — naming, file structure, imports
+   - **Conventions** — naming, file structure, imports (reads your convention docs)
    - **Tests** — mock audit, assertion quality, edge cases
+   - **Business** — requirements alignment, domain logic correctness (reads your business docs)
    - **Performance** — re-renders, N+1, bundle impact (opt-in)
 
 Issues are categorized: BLOCKING (must fix), WARNING (should fix), INFO (logged).
@@ -150,8 +151,9 @@ Auto-update project docs when code changes:
 | `spec-reviewer` | Stage 1 gate — spec compliance |
 | `quality-reviewer` | Stage 2 — code quality |
 | `security-auditor` | Stage 2 — security vulnerabilities |
-| `conventions-enforcer` | Stage 2 — project conventions |
+| `conventions-enforcer` | Stage 2 — project conventions (configurable doc paths) |
 | `test-auditor` | Stage 2 — test quality and mock discipline |
+| `business-reviewer` | Stage 2 — business logic and requirements alignment |
 | `performance-reviewer` | Stage 2 — performance (opt-in) |
 | `documenter` | Auto-updates project documentation |
 

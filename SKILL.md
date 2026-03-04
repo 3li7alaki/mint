@@ -121,9 +121,10 @@ For each spec (sequenced by `<depends-on>`):
 - Dispatch ALL enabled reviewers simultaneously:
   - `mint-quality-reviewer` — code quality, patterns, DRY
   - `mint-security-auditor` — injection, XSS, auth, secrets
-  - `mint-conventions-enforcer` — naming, structure, imports
+  - `mint-conventions-enforcer` — naming, structure, imports (reads convention docs)
   - `mint-test-auditor` — test quality, mock audit
   - `mint-performance-reviewer` — re-renders, N+1, bundle
+  - `mint-business-reviewer` — business logic, requirements alignment (reads business docs)
 - Each returns: PASS or issues with severity (BLOCKING/WARNING/INFO)
 - Planner fixes BLOCKING + WARNING issues
 - Only failed auditors re-run (not all of them)
@@ -261,7 +262,7 @@ Every subagent gets exactly what it needs — no more, no less:
 | Planner | Feature description OR spec XML + config + hard blocks |
 | Researcher | Question + config |
 | Spec reviewer | Spec XML + git diff |
-| Stage 2 reviewers | Git diff + relevant convention docs (if any) |
+| Stage 2 reviewers | Git diff + relevant docs (conventions, business, as configured) |
 | Documenter | File path + file description + change summary |
 | Shipper | Confirmed ship plan + config + hard blocks |
 | Verifier | Config only |

@@ -40,7 +40,25 @@ For Python, check for:
 
 If a gate command is missing, warn the user and ask what to use.
 
-### 4. Create `.mint/` directory
+### 4. Detect doc paths
+
+Scan for common convention/business doc locations and auto-populate config:
+
+**Convention docs** — check for and add any found:
+- `docs/conventions/` or `docs/standards/`
+- `docs/adr/`
+- `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`
+- `.editorconfig`
+
+**Business docs** — check for and add any found:
+- `docs/requirements/` or `docs/specs/`
+- `docs/business/`
+- `MENTAL-MAP.md`
+- Any `local-docs/` directory
+
+If convention or business docs are found, enable the corresponding reviewer automatically.
+
+### 5. Create `.mint/` directory
 
 Create `.mint/config.json`:
 ```json
@@ -58,7 +76,14 @@ Create `.mint/config.json`:
     "security": true,
     "conventions": true,
     "tests": true,
+    "business": false,
     "performance": false
+  },
+  "conventions": {
+    "docs": []
+  },
+  "business": {
+    "docs": []
   },
   "isolation": {
     "plan": "worktree",
@@ -108,14 +133,14 @@ _Centralized log. All agent blockers, root causes, and learnings go here._
 
 Create `.mint/tasks/` directory with `.gitkeep`.
 
-### 5. Add to .gitignore
+### 6. Add to .gitignore
 
 Check if `.mint/` is in `.gitignore`. If not, add it.
 
 The `.mint/` directory is project-local working state — not committed to git by default.
 Users can choose to commit config and hard-blocks if they want team-wide settings.
 
-### 6. Report
+### 7. Report
 
 Show the user:
 ```
@@ -135,7 +160,11 @@ Created:
   .mint/tasks/
 
 Reviewers enabled: spec, quality, security, conventions, tests
+Business reviewer: disabled (enable + add docs paths in config.json)
 Performance reviewer: disabled (enable in config.json)
+
+Convention docs: <paths if detected, or "none — add paths to conventions.docs">
+Business docs: <paths if detected, or "none — add paths to business.docs">
 
 ⚠️  Missing gate commands: <list any missing>
     Add these scripts to your project before mint can enforce gates.

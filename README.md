@@ -157,6 +157,10 @@ Auto-update project docs when code changes:
 | `performance-reviewer` | Stage 2 — performance (opt-in) |
 | `documenter` | Auto-updates project documentation |
 
+## Built With mint
+
+Once the core was ready, mint became the first project developed using mint itself — specs, reviews, the full pipeline. Like Git, it manages its own development.
+
 ## License
 
 MIT

@@ -42,6 +42,10 @@ When you reference a ticket in your feature description (e.g., "implement SAL-20
 
 This means your specs automatically include ticket requirements as acceptance criteria.
 
+### Post-Plan: Project Updates
+
+After planning is complete (specs created), the plugin posts a project status update to Linear summarizing what's being worked on, how many specs, and estimated scope. Also posts updates at ship completion and milestone points with health assessment (on track / at risk / off track).
+
 ### Post-Commit: Status Sync
 
 After each spec is committed, the plugin:
@@ -66,4 +70,5 @@ The plugin **never** marks tickets as "Done" — that's always a human decision.
 | Agent | Hook | Role |
 |-------|------|------|
 | `ticket-context.md` | pre-plan | Fetches ticket details as planner context |
+| `project-update.md` | post-plan | Posts project status updates at key milestones |
 | `status-sync.md` | post-commit | Updates ticket status and adds commit comments |

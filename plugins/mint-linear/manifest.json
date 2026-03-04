@@ -5,7 +5,8 @@
   "type": "pm",
   "agents": [
     "agents/ticket-context.md",
-    "agents/status-sync.md"
+    "agents/status-sync.md",
+    "agents/project-update.md"
   ],
   "commands": [],
   "config": {
@@ -21,7 +22,7 @@
   },
   "hooks": {
     "pre-plan": "agents/ticket-context.md",
-    "post-plan": null,
+    "post-plan": "agents/project-update.md",
     "pre-review": null,
     "post-commit": "agents/status-sync.md",
     "on-init": null

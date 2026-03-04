@@ -67,6 +67,34 @@ Every spec must have: `id`, `title`, `goal`, `scope` (with `can-modify` and `can
 Spec-driven commits: `type(mint-NNN): description`
 Non-spec commits: `type(scope): description`
 
+## Git Strategy
+
+### Branching
+
+- `main` — stable, always clean. Never commit directly.
+- `feat/<name>` — feature branches off main. One feature per branch.
+- `fix/<name>` — bug fix branches off main.
+
+### Commits
+
+- **Atomic commits** — one spec = one commit. Don't bundle multiple specs.
+- **Commit message format** — `type(scope): description` (see above)
+- **Never push from agents** — agents commit only. Human reviews and pushes.
+- **No AI attribution** — never add "Co-Authored-By" or mention AI tools in commits.
+
+### Merging
+
+- **Always squash merge** — PRs merge as a single squash commit into main.
+- **Delete branch after merge** — clean up remote and local branches.
+- **PR before merge** — all work goes through a PR, even solo work. No direct merges.
+
+### Post-Merge
+
+After a PR is merged:
+1. `git checkout main && git pull && git fetch --prune`
+2. Delete the local feature branch
+3. Verify main is clean
+
 ## Config Schema
 
 `.mint/config.json` keys:

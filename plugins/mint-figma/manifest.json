@@ -1,0 +1,26 @@
+{
+  "name": "mint-figma",
+  "version": "0.1.0",
+  "description": "Figma integration — fetch design specs, tokens, and screenshots for design-aligned development",
+  "type": "design",
+  "agents": [
+    "agents/design-context.md",
+    "agents/design-reviewer.md"
+  ],
+  "commands": [],
+  "config": {
+    "figma": {
+      "fileId": null,
+      "apiToken": null,
+      "exports": "local-docs/figma-exports",
+      "pages": []
+    }
+  },
+  "hooks": {
+    "pre-plan": "agents/design-context.md",
+    "post-plan": null,
+    "pre-review": "agents/design-reviewer.md",
+    "post-commit": null,
+    "on-init": null
+  }
+}

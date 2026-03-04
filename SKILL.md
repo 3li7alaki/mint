@@ -83,6 +83,20 @@ These are non-negotiable. Violating any of these is a failure.
   to the user. Never attempt a third run with the same spec.
 - **Never push.** Agents commit only. The user reviews and pushes manually.
 
+### Completion check
+
+Before marking a spec as `passed` in `execution.json`, verify all `definitionOfDone` criteria
+from `.mint/config.json`:
+
+- `gatesPassing` — all enabled gates returned green
+- `specReviewPassed` — stage 1 spec reviewer approved
+- `stage2ReviewsPassed` — all enabled stage 2 reviewers approved (no unresolved BLOCKING issues)
+- `screenshotReminder` — if set to `"ui-changes"` and the spec modified UI files (`.vue`, `.tsx`,
+  `.jsx`, `.svelte`, `.html`, `.css`), remind the user: "This spec modified UI files — consider
+  capturing a screenshot before merging." If `"always"`, remind on every spec. If `false`, skip.
+
+The finish step includes DoD status per spec in the summary.
+
 ---
 
 ## Execution Flow — Plan Mode

@@ -133,14 +133,33 @@ _Centralized log. All agent blockers, root causes, and learnings go here._
 
 Create `.mint/tasks/` directory with `.gitkeep`.
 
-### 6. Add to .gitignore
+### 6. Discover plugins
+
+Check for existing plugins:
+- Look for `.mint/plugins/` directory with subdirectories containing `manifest.json`
+- For each valid plugin found, add its path to `config.plugins`
+
+If the detected stack has a known mint plugin, suggest it:
+- Node/TypeScript → "A mint-nuxt or mint-react plugin may be available"
+- Python → "A mint-django or mint-fastapi plugin may be available"
+
+Don't auto-install — just inform the user. Plugin installation is opt-in:
+```
+To install a plugin:
+  git clone <plugin-repo> .mint/plugins/<plugin-name>
+  Then add ".mint/plugins/<plugin-name>" to config.plugins
+```
+
+If plugins are found, run any `on-init` hooks defined in their manifests.
+
+### 7. Add to .gitignore
 
 Check if `.mint/` is in `.gitignore`. If not, add it.
 
 The `.mint/` directory is project-local working state — not committed to git by default.
 Users can choose to commit config and hard-blocks if they want team-wide settings.
 
-### 7. Report
+### 8. Report
 
 Show the user:
 ```
@@ -165,6 +184,7 @@ Performance reviewer: disabled (enable in config.json)
 
 Convention docs: <paths if detected, or "none — add paths to conventions.docs">
 Business docs: <paths if detected, or "none — add paths to business.docs">
+Plugins: <list if found, or "none — see docs for plugin installation">
 
 ⚠️  Missing gate commands: <list any missing>
     Add these scripts to your project before mint can enforce gates.

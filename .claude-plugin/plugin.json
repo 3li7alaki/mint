@@ -1,13 +1,20 @@
 {
   "name": "mint",
-  "description": "Disciplined agentic development — auto-routing orchestrator with XML specs, atomic commits, multi-stage review, and plugin system",
+  "description": "Disciplined agentic development \u2014 auto-routing orchestrator with XML specs, atomic commits, multi-stage review, and plugin system",
   "version": "1.0.0",
   "author": {
     "name": "Ali AlHalaki",
-    "email": "ali.halaki@raincode.tech"
+    "email": "alihalaki@outlook.com"
   },
   "homepage": "https://github.com/3li7alaki/mint",
   "repository": "https://github.com/3li7alaki/mint",
   "license": "MIT",
-  "keywords": ["orchestrator", "agentic", "specs", "review", "quality-gates", "plugins"]
+  "keywords": [
+    "orchestrator",
+    "agentic",
+    "specs",
+    "review",
+    "quality-gates",
+    "plugins"
+  ]
 }

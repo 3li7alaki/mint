@@ -8,8 +8,8 @@
   "plugins": [
     {
       "name": "mint",
-      "description": "Disciplined agentic development — auto-routing orchestrator with XML specs, atomic commits, multi-stage review, and plugin system",
-      "version": "1.0.0",
+      "description": "Disciplined agentic development \u2014 auto-routing orchestrator with XML specs, atomic commits, multi-stage review, and plugin system",
+      "version": "0.1.0",
       "source": "./",
       "author": {
         "name": "Ali AlHalaki",

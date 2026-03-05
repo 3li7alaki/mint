@@ -112,6 +112,7 @@ After a PR is merged:
 | `definitionOfDone` | object | Completion criteria checklist (gates, reviews, screenshot reminder) |
 | `documenters` | array | Auto-doc configurations |
 | `plugins` | array | Plugin directory paths |
+| `autoCommit` | boolean | If `false`, agents run gates but skip committing. Default: `true` |
 | `workspace.repos` | array | Workspace repo registry (see below) |
 
 ### Workspace Registry (`workspace.repos`)

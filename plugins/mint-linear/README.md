@@ -23,7 +23,19 @@ mint-linear ships with mint. After installing mint (`npx skills add 3li7alaki/mi
 
 ## Requirements
 
-Requires Linear MCP tools to be available in your Claude Code environment. The plugin gracefully degrades if tools are unavailable — it logs a warning and lets the pipeline continue.
+**Required:** The `linear` Claude Code plugin must be enabled in your project's `.claude/settings.json`:
+
+```json
+{
+  "enabledPlugins": {
+    "linear@claude-plugins-official": true
+  }
+}
+```
+
+This provides the Linear MCP tools (`get_issue`, `list_issues`, `list_comments`, etc.) that the agents use to fetch and update ticket data.
+
+The plugin gracefully degrades if tools are unavailable — it logs a warning and lets the pipeline continue.
 
 ## What It Does
 

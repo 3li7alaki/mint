@@ -81,6 +81,9 @@ These are non-negotiable. Violating any of these is a failure.
 ### Quality
 
 - **Gates before commit.** Lint + types + tests must pass 100% before any commit.
+- **`autoCommit` control.** If `config.autoCommit` is `false`, agents run gates but do NOT commit.
+  Changes stay staged so the user can review and commit manually (or batch multiple specs into one
+  commit). Default: `true` — agents commit after each spec passes gates.
 - **Never fix bad output.** If a subagent produces wrong code, diagnose root cause, fix the spec,
   rerun from scratch. Never patch the output.
 - **Fail twice → stop.** If the same spec fails gates twice, log to `.mint/issues.md` and escalate
@@ -133,8 +136,10 @@ Update this file at every stage transition — it's the source of truth for what
 **a) Implementation**
 - Set `execution.json` status to `running`, record `startedAt` and new attempt entry
 - Dispatch `mint-planner` subagent with the spec XML (full text, not file path)
-- Planner implements, runs gates, commits if green
-- Update `execution.json`: gate results in `gates`, commit hash in `commit`
+- Planner implements and runs gates
+- If gates green AND `config.autoCommit` is not `false`: commit
+- If gates green AND `config.autoCommit` is `false`: skip commit, changes stay staged
+- Update `execution.json`: gate results in `gates`, commit hash in `commit` (or `null` if no commit)
 - Returns: commit hash + summary, or failure report
 
 **b) Stage 1 — Spec Review (sequential gate)**
@@ -212,8 +217,9 @@ For tasks touching ≤3 files with clear scope.
    - Goal, files to modify, steps, acceptance criteria
 2. Implement in main context
 3. Run gates
-4. If green → commit
-5. If red → one retry with fixed approach, then escalate
+4. If green AND `config.autoCommit` is not `false` → commit
+5. If green AND `config.autoCommit` is `false` → skip commit, inform user changes are ready
+6. If red → one retry with fixed approach, then escalate
 
 **Auto-escalation:** If during implementation you realize the task needs >3 files or has
 architectural decisions, announce: "This is bigger than expected — switching to plan mode."

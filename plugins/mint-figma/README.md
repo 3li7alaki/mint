@@ -20,9 +20,13 @@ mint-figma ships with mint. After installing mint (`npx skills add 3li7alaki/min
 
 ## Requirements
 
-Requires a Figma API token (`figma.apiToken` in config). The plugin uses the Figma REST API directly to fetch file structure, component specs, design variables, styles, and rendered screenshots.
+**Required:** A Figma API personal access token set in `figma.apiToken` in your `.mint/config.json`. Generate one at [Figma > Account Settings > Personal access tokens](https://www.figma.com/developers/api#access-tokens).
 
-Figma MCP tools are used when available. Local exports directory (`figma.exports`) provides supplemental curated data like processed token docs.
+The plugin fetches design data via the **Figma REST API** using `curl` (through the Bash tool). No additional Claude Code plugins are needed.
+
+**Optional:** If the `figma` Claude Code plugin is enabled in `.claude/settings.json`, the agents will prefer Figma MCP tools over raw API calls.
+
+The local exports directory (`figma.exports`) provides supplemental curated data like processed token docs and screenshots.
 
 ## What It Does
 

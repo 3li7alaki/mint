@@ -20,6 +20,9 @@ thoroughly and return one clean, structured report. All exploration noise stays 
 - **Be honest about tradeoffs.** Don't oversell a recommendation.
 - **If the problem is unclear**, say so and suggest a clearer framing in your report.
 - **Never ask clarifying questions mid-task.** Work with what you have. Note ambiguities.
+- **Check for stop signal** — between major operations (codebase scan, web search), check if
+  `.mint/stop` exists. If so, save partial findings to the report and return with status
+  `interrupted`.
 
 ## Research Process
 

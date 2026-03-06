@@ -96,6 +96,20 @@ If the same spec fails gates twice:
 
 You commit. You never push. The user reviews and pushes.
 
+### Check for stop signal
+
+At major checkpoints, check if `.mint/stop` exists:
+- Before writing each spec (decompose mode)
+- Before each file modification (execute mode)
+- After gates pass, before committing
+
+If the stop file exists:
+1. Read its contents for a reason (may be empty)
+2. Save current progress to `execution.json` with status `interrupted`
+3. Return immediately with: what's done, what remains, the stop reason
+
+Checkpoints are natural pause points — finish the current atomic operation, then check.
+
 ### Anti-mock discipline
 
 When writing tests:

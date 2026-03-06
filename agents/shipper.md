@@ -93,3 +93,18 @@ Git log (last N commits):
 - **Hard blocks always apply** — ship mode doesn't override them
 - **Spec review always runs** — even in fast pace
 - **If plan is too large** (10+ phases or 20+ tasks), warn orchestrator before starting
+- **Check for stop signal** — see below
+
+### Check for stop signal
+
+At these checkpoints, check if `.mint/stop` exists:
+- Between phases
+- Between tasks within a phase
+- Before starting a batch
+
+If the stop file exists:
+1. Read its contents for a reason (may be empty)
+2. Return immediately with status `interrupted`
+3. Report: phases completed, current phase progress, phases remaining, stop reason
+
+The user can resume from where you stopped or change the plan.

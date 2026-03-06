@@ -2,6 +2,21 @@
 
 Disciplined agentic development framework for Claude Code. Markdown files only — no runtime, no build step, no dependencies.
 
+## MANDATORY: Use mint for ALL Code Changes
+
+**For ANY task that modifies files in this repo, invoke the `mint` skill FIRST.**
+
+This is not optional. Before writing, editing, or deleting any code:
+1. Invoke `mint` with the task description
+2. mint auto-routes to the right mode (quick/plan/ship/research/verify)
+3. Follow mint's execution flow with gates and reviews
+
+The only exceptions:
+- Pure conversation / answering questions
+- Reading files to understand context (no modifications)
+
+If you catch yourself thinking "this is just a small fix" or "I'll just edit one file" — STOP. Invoke mint. Small fixes use quick mode. mint decides the workflow, not you.
+
 ## What This Is
 
 A Claude Code skill (`SKILL.md`) + agent prompts (`agents/`) + config (`.mint/`). The orchestrator auto-routes tasks to the right mode (quick/plan/ship/research/verify) and delegates to fresh subagents.

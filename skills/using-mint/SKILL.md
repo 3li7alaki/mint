@@ -1,19 +1,32 @@
 ---
 name: using-mint
-description: Use when starting any conversation - establishes mint as the orchestrator for all coding tasks, requiring mint invocation before any implementation work
+description: >
+  ALWAYS LOAD THIS SKILL. Required at conversation start for any project using mint. Establishes
+  that the mint skill MUST be invoked before ANY file modification — features, bugs, refactors,
+  configs, tests, docs. You cannot use Write/Edit tools without invoking mint first. Load this
+  skill when you see .mint/ directory in a project.
 ---
 
-<EXTREMELY-IMPORTANT>
-For ALL coding tasks — features, bug fixes, refactors, anything that touches code — you MUST invoke mint first.
+<MANDATORY-RULE>
+For ANY task that writes, edits, or deletes files — invoke `mint` FIRST.
 
-This is not optional. This is not negotiable. You cannot skip this.
-</EXTREMELY-IMPORTANT>
+This includes:
+- Features (any size)
+- Bug fixes (any size)
+- Refactors
+- Config changes
+- Documentation updates (if modifying .md files)
+- Test additions/changes
+- Dependency updates
+
+You CANNOT use Write, Edit, or Bash (for file ops) tools until mint is invoked.
+</MANDATORY-RULE>
 
 # Using mint
 
 ## The Rule
 
-**Invoke mint BEFORE writing any code.** mint auto-routes to the right mode based on task complexity. You do not decide the workflow — mint does.
+**Invoke mint BEFORE modifying any file.** mint auto-routes to the right mode based on task complexity. You do not decide the workflow — mint does.
 
 ## How to Invoke
 
@@ -32,6 +45,7 @@ Use the `Skill` tool to invoke `mint` with the user's task description. mint wil
 | Config change (≤3 files) | YES — quick mode |
 | Research / investigation | YES — research mode |
 | Check quality gates | YES — verify mode |
+| ANY file modification | YES — always |
 | Pure conversation / questions | No |
 | Reading files for context | No |
 
@@ -42,10 +56,11 @@ These thoughts mean STOP — you're about to skip mint:
 | Thought | Reality |
 |---------|---------|
 | "This is just a small fix" | Small fixes use quick mode. Invoke mint. |
-| "I'll just edit this one file" | mint enforces gates even on single files. |
-| "Let me code first, review later" | mint reviews during execution, not after. |
-| "This doesn't need planning" | mint decides that, not you. |
-| "I know what to do" | Knowing what ≠ disciplined execution. |
+| "I'll just edit this one file" | mint enforces gates even on single files. Invoke mint. |
+| "Let me code first, review later" | mint reviews during execution, not after. Invoke mint. |
+| "This doesn't need planning" | mint decides that, not you. Invoke mint. |
+| "I know what to do" | Knowing what ≠ disciplined execution. Invoke mint. |
+| "I'll use Write/Edit directly" | NO. Invoke mint first. Always. |
 
 ## What mint Provides
 

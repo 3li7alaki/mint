@@ -1,11 +1,11 @@
 ---
 name: mint
 description: >
-  Auto-routing orchestrator for disciplined agentic development. Keeps the main context clean —
-  all heavy work is delegated to fresh subagents. XML specs, atomic commits, multi-stage review,
-  anti-slop gates, issue log with learning loop, and automatic documentation updates. Trigger on
-  any coding task — mint auto-detects the right mode (quick, plan, research, ship, verify) based
-  on task complexity. No manual commands needed.
+  REQUIRED for ALL coding tasks. Invoke this skill BEFORE writing any code, editing any file,
+  or making any changes. Covers: bug fixes, features, refactors, config changes, test updates,
+  documentation edits — anything that modifies files. Auto-routes to quick/plan/ship/research/verify
+  mode. Enforces quality gates, multi-stage review, atomic commits. If you're about to use Write,
+  Edit, or modify files — invoke mint first. No exceptions.
 ---
 
 # mint
@@ -583,3 +583,76 @@ Every subagent gets exactly what it needs — no more, no less:
 | Documenter | File path + file description + change summary + current repo context (if configured) |
 | Shipper | Confirmed ship plan + config + hard blocks + full workspace map (if configured) |
 | Verifier | Config only |
+
+---
+
+## Agent Control — Stop Signal
+
+Agents can be interrupted mid-execution using a stop file. This gives users control over runaway
+or misdirected agents without killing the entire session.
+
+### How It Works
+
+**Stop file location:** `.mint/stop`
+
+**User action:** Create the file to signal agents to stop:
+```bash
+touch .mint/stop
+# Or with a reason:
+echo "wrong approach, need to rethink" > .mint/stop
+```
+
+**Agent behavior:** All agents (planner, shipper, reviewers) check for the stop file at major
+checkpoints (between specs, between review stages, between phases). When detected:
+
+1. Agent stops immediately at the next checkpoint
+2. Saves current progress to `execution.json`
+3. Returns to orchestrator with status: `"interrupted"`
+4. Reports what was completed and what remains
+
+**Orchestrator behavior:** When an agent returns `interrupted`:
+1. Read `.mint/stop` for the reason (if provided)
+2. Delete the stop file (consumed)
+3. Report to user: "Agent interrupted. Completed: X. Remaining: Y. Reason: Z"
+4. Ask user how to proceed: resume / restart with changes / abandon
+
+### Checkpoints
+
+Agents check for stop signal at these points:
+
+| Agent | Checkpoints |
+|-------|-------------|
+| Planner (decompose) | After analyzing codebase, before writing specs |
+| Planner (execute) | Before each file modification, after gates |
+| Shipper | Between phases, between tasks within a phase |
+| Stage 2 reviewers | Before starting (parallel dispatch checks once) |
+| Researcher | Between search/fetch operations |
+
+### Limitations
+
+- **Not instant** — agents finish their current atomic operation before checking
+- **Parallel reviewers** — if already dispatched, they run to completion (but orchestrator
+  won't act on their results if stop was signaled)
+- **No partial commits** — if stopped mid-spec, changes are uncommitted (staged or unstaged)
+
+### Background Execution
+
+For long-running tasks, dispatch agents in background mode:
+
+```
+Agent dispatched in background. Task ID: abc123
+Monitor: tail -f .mint/tasks/<slug>/output.log
+Stop: touch .mint/stop
+```
+
+The orchestrator can periodically check agent output and relay progress to user.
+
+### Recovery
+
+After interruption, the user has options:
+
+1. **Resume** — continue from last checkpoint (orchestrator re-dispatches with remaining work)
+2. **Restart** — discard progress, start fresh with modified approach
+3. **Abandon** — mark specs as `interrupted`, clean up worktree
+
+The stop file is single-use — once consumed, agents run normally until a new stop is created.

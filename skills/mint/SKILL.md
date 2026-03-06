@@ -649,10 +649,44 @@ The orchestrator can periodically check agent output and relay progress to user.
 
 ### Recovery
 
-After interruption, the user has options:
+After interruption, present the user with options:
 
-1. **Resume** — continue from last checkpoint (orchestrator re-dispatches with remaining work)
-2. **Restart** — discard progress, start fresh with modified approach
-3. **Abandon** — mark specs as `interrupted`, clean up worktree
+```
+Agent interrupted.
+
+Completed:
+  ✅ [list completed specs/steps]
+  🔄 [current spec] (partial)
+
+Remaining:
+  ⏳ [list pending specs/steps]
+
+Your feedback: "<contents of .mint/stop>"
+
+How do you want to proceed?
+1. Resume with feedback — agent continues with your correction in context
+2. Restart spec — discard current spec progress, rerun with adjusted approach
+3. Restart task — discard all progress, replan from scratch
+4. Abandon — stop entirely, keep what's committed
+```
+
+**Resume with feedback:**
+- Re-dispatch agent with: remaining work + user's feedback as `<correction>` context
+- Agent adjusts approach based on feedback without full replan
+- Fastest path to course-correct
+
+**Restart spec:**
+- Discard uncommitted changes for current spec
+- Optionally rewrite spec based on feedback
+- Re-execute from scratch
+
+**Restart task:**
+- Discard all uncommitted work
+- Return to decomposition with feedback informing new specs
+
+**Abandon:**
+- Mark incomplete specs as `interrupted`
+- Keep any committed work
+- Clean up worktree
 
 The stop file is single-use — once consumed, agents run normally until a new stop is created.

@@ -38,6 +38,10 @@ You receive a complete XML spec. Your job:
     and `specAdjustment`. Do NOT repeat the same mistakes. The rewritten spec already accounts
     for past failures — trust the adjustments and pay special attention to changed steps,
     narrowed scope, or added context.
+1c. **Check for user correction** — if the orchestrator includes a `<correction>` block, this
+    is a resume after `/stop`. The user interrupted because something was wrong. Read their
+    feedback carefully and adjust your approach accordingly. This takes priority over your
+    original interpretation of the spec.
 2. **Declare scope** — state out loud: "I will only modify: [files from can-modify]"
 3. **Check pre-conditions** — verify everything in `<pre-conditions>` is true
 4. **Read before writing** — scan existing code in `<can-modify>` files for patterns, naming,

@@ -8,13 +8,17 @@ When you dispatch an agent (planner, shipper, researcher), it runs autonomously.
 
 ## Stop Signal
 
-Create `.mint/stop` to interrupt agents at their next checkpoint.
+**Fastest way:** Use the `/mint:stop` command directly in chat:
+
+```
+/mint:stop                          # Simple stop
+/mint:stop wrong approach           # Stop with reason
+```
+
+**Alternative:** Create the file manually:
 
 ```bash
-# Simple stop
 touch .mint/stop
-
-# Stop with reason
 echo "wrong approach - using deprecated API" > .mint/stop
 ```
 

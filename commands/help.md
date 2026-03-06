@@ -83,6 +83,18 @@ After `mint init`, your project has:
 
 ---
 
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/mint:help` | Show this guide |
+| `/mint:init` | Set up mint in a project |
+| `/mint:verify` | Run all quality gates |
+| `/mint:status` | Check running tasks and progress |
+| `/mint:stop [reason]` | Interrupt running agents |
+
+---
+
 ## When something goes wrong
 
 | Symptom | Fix |
@@ -92,5 +104,6 @@ After `mint init`, your project has:
 | Gates pass but feature is wrong | Rewrite `<acceptance>` criteria |
 | Excessive mocks | Add `<no-mocks>` to spec |
 | Same failure on retry | Spec is the problem — rewrite it |
+| Agent going wrong direction | `/mint:stop` then resume with changes |
 
 **Rule:** if the same spec fails twice, stop and rewrite it.

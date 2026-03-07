@@ -1,0 +1,45 @@
+{
+  "name": "mint-shadcn",
+  "version": "0.2.0",
+  "description": "shadcn/ui integration for mint — MCP setup, skills, registries, presets, and component conventions",
+  "type": "stack",
+  "detect": {
+    "files": ["components.json"],
+    "message": "shadcn detected. Enable mint-shadcn plugin for component conventions and AI tooling setup?"
+  },
+  "agents": [
+    "agents/shadcn-reviewer.md",
+    "agents/shadcn-setup.md"
+  ],
+  "commands": [
+    "commands/init.md",
+    "commands/new.md",
+    "commands/add.md",
+    "commands/upgrade.md",
+    "commands/search.md",
+    "commands/docs.md",
+    "commands/info.md",
+    "commands/migrate.md"
+  ],
+  "config": {
+    "shadcn": {
+      "variant": "auto",
+      "base": "radix",
+      "registries": [
+        "@magicui",
+        "@animate-ui",
+        "@aceternity"
+      ],
+      "mcp": {
+        "enabled": true,
+        "clients": ["claude", "cursor", "vscode"]
+      },
+      "skills": true,
+      "presets": []
+    }
+  },
+  "hooks": {
+    "pre-review": "agents/shadcn-reviewer.md",
+    "on-init": "agents/shadcn-setup.md"
+  }
+}

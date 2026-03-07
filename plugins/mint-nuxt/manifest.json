@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "description": "Nuxt-specific conventions and review for mint",
   "type": "stack",
+  "detect": {
+    "files": ["nuxt.config.ts", "nuxt.config.js"],
+    "message": "Nuxt detected. Enable mint-nuxt plugin for framework-specific conventions?"
+  },
   "agents": [
     "agents/nuxt-reviewer.md"
   ],

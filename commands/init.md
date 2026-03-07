@@ -135,9 +135,37 @@ Create `.mint/tasks/` directory with `.gitkeep`.
 
 ### 6. Discover plugins
 
-Check for existing plugins:
+**a) Check installed plugins:**
 - Look for `.mint/plugins/` directory with subdirectories containing `manifest.json`
 - For each valid plugin found, add its path to `config.plugins`
+
+**b) Auto-detect available plugins:**
+
+Scan **all known plugins** (from mint's `plugins/` directory) for auto-detection triggers.
+Each plugin can define a `detect` field in its `manifest.json`:
+
+```json
+{
+  "detect": {
+    "files": ["components.json"],
+    "message": "shadcn detected. Enable mint-shadcn plugin?"
+  }
+}
+```
+
+For each plugin with `detect`:
+1. Check if any file in `detect.files` exists in the project root
+2. If found and plugin is not already enabled, prompt with `detect.message`
+3. If user confirms, add the plugin path to `config.plugins`
+
+**Known plugins with auto-detection:**
+
+| Plugin | Detects | Files |
+|--------|---------|-------|
+| mint-shadcn | shadcn/ui | `components.json` |
+| mint-nuxt | Nuxt | `nuxt.config.ts`, `nuxt.config.js` |
+
+**c) Stack-based suggestions:**
 
 If the detected stack has a known mint plugin, suggest it:
 - Node/TypeScript → "A mint-nuxt or mint-react plugin may be available"
@@ -150,7 +178,7 @@ To install a plugin:
   Then add ".mint/plugins/<plugin-name>" to config.plugins
 ```
 
-If plugins are found, run any `on-init` hooks defined in their manifests.
+If plugins are found or enabled, run any `on-init` hooks defined in their manifests.
 
 ### 7. Detect workspace
 

@@ -1,0 +1,50 @@
+{
+  "name": "mint-ui-ux",
+  "version": "0.2.0",
+  "description": "UI/UX design intelligence for mint — project profile learning, design review, and enhanced ui-ux-pro-max integration",
+  "type": "design",
+  "requires": {
+    "skill": "ui-ux-pro-max",
+    "install": "npm install -g uipro-cli && uipro init --ai claude"
+  },
+  "detect": {
+    "files": [".claude/skills/ui-ux-pro-max/SKILL.md", "design-system.json", "design-tokens.json", ".mint/design-profile.json"],
+    "message": "UI/UX skill detected. Enable mint-ui-ux for design conventions and review?"
+  },
+  "agents": [
+    "agents/design-context.md",
+    "agents/design-reviewer.md",
+    "agents/setup-wizard.md",
+    "agents/profile-builder.md"
+  ],
+  "commands": [
+    "commands/setup.md",
+    "commands/design.md",
+    "commands/review.md",
+    "commands/tokens.md",
+    "commands/profile.md",
+    "commands/notes.md"
+  ],
+  "config": {
+    "uiux": {
+      "conventions": [],
+      "designSystem": null,
+      "brandGuide": null,
+      "stack": "auto",
+      "profile": ".mint/design-profile.json",
+      "notes": ".mint/design-notes.md",
+      "review": {
+        "accessibility": true,
+        "consistency": true,
+        "performance": true,
+        "rtl": true,
+        "brand": true
+      }
+    }
+  },
+  "hooks": {
+    "pre-plan": "agents/design-context.md",
+    "pre-review": "agents/design-reviewer.md",
+    "on-init": "agents/setup-wizard.md"
+  }
+}

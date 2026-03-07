@@ -2,16 +2,47 @@
 
 UI/UX design intelligence plugin for [mint](https://github.com/3li7alaki/mint).
 
-Enhances [ui-ux-pro-max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) with project learning, design review, and mint integration.
+Enforces RTL compatibility, i18n standards, accessibility, and design system consistency.
 
 ## Features
 
-- **Project profile learning** — Analyzes existing UI code to build a design profile
-- **Design notes** — Remembers preferences, rules, and decisions over time
-- **Design review** — Stage 2 auditor for accessibility, consistency, RTL, performance
-- **Convention injection** — Feeds learned patterns into planning
-- **Token management** — Export/sync tokens across CSS, Tailwind, SCSS, JSON
-- **shadcn integration** — Cross-references with mint-shadcn for component awareness
+- **RTL enforcement** — Blocks directional CSS, enforces logical properties
+- **i18n standards** — Blocks hardcoded strings, enforces translation keys
+- **Accessibility** — WCAG 2.1 AA checks, touch targets, viewport units
+- **Design system** — Color tokens, typography scale, spacing consistency
+- **Project learning** — Builds design profile from existing code
+- **shadcn integration** — Component awareness with mint-shadcn
+
+## Standards
+
+The plugin enforces two critical standards documented in `standards/`:
+
+### RTL (Right-to-Left) — `standards/rtl.md`
+
+**BLOCKING violations** (code will not pass review):
+
+| Never Use | Always Use |
+|-----------|------------|
+| `ml-*`, `mr-*` | `ms-*`, `me-*` |
+| `pl-*`, `pr-*` | `ps-*`, `pe-*` |
+| `left-0`, `right-0` | `start-0`, `end-0` |
+| `border-l-*`, `border-r-*` | `border-s-*`, `border-e-*` |
+| `rounded-l-*`, `rounded-r-*` | `rounded-s-*`, `rounded-e-*` |
+
+### i18n (Internationalization) — `standards/i18n.md`
+
+**BLOCKING violations**:
+
+| Pattern | Fix |
+|---------|-----|
+| Hardcoded button labels | Use translation key |
+| Hardcoded error messages | Use translation key |
+| `locale === 'ar' ? ... : ...` | Use i18n system |
+| `t('key') \|\| 'fallback'` | Fix translation file |
+
+**Exceptions** (not violations):
+- Technical identifiers, URLs, console logs
+- API response data displayed as-is
 
 ## How It Learns
 

@@ -1,7 +1,7 @@
 {
   "name": "mint-ui-ux",
-  "version": "0.2.0",
-  "description": "UI/UX design intelligence for mint — project profile learning, design review, and enhanced ui-ux-pro-max integration",
+  "version": "0.3.0",
+  "description": "UI/UX design intelligence for mint — RTL, i18n, accessibility, design system enforcement",
   "type": "design",
   "requires": {
     "skill": "ui-ux-pro-max",
@@ -25,6 +25,10 @@
     "commands/profile.md",
     "commands/notes.md"
   ],
+  "standards": [
+    "standards/rtl.md",
+    "standards/i18n.md"
+  ],
   "config": {
     "uiux": {
       "conventions": [],
@@ -38,6 +42,7 @@
         "consistency": true,
         "performance": true,
         "rtl": true,
+        "i18n": true,
         "brand": true
       }
     }

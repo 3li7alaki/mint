@@ -1,0 +1,27 @@
+{
+  "name": "mint-gws",
+  "version": "0.1.0",
+  "description": "Google Workspace integration — Drive, Gmail, Calendar, Sheets workflows with smart context",
+  "type": "infra",
+  "agents": [
+    "agents/setup-wizard.md",
+    "agents/workflow.md",
+    "agents/workspace-context.md"
+  ],
+  "commands": [
+    "commands/gws.md"
+  ],
+  "config": {
+    "gws": {
+      "services": ["drive", "gmail", "calendar", "sheets"],
+      "toolMode": "compact"
+    }
+  },
+  "hooks": {
+    "pre-plan": null,
+    "post-plan": null,
+    "pre-review": null,
+    "post-commit": null,
+    "on-init": null
+  }
+}

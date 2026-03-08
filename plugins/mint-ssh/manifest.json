@@ -4,7 +4,9 @@
   "description": "SSH access to remote servers with Doppler secrets and Docker exec",
   "type": "infra",
   "agents": [
-    "agents/ssh-connect.md"
+    "agents/ssh-connect.md",
+    "agents/cache-manager.md",
+    "agents/doppler-fetch.md"
   ],
   "commands": [
     "commands/ssh.md"

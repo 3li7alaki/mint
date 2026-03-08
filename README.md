@@ -193,6 +193,7 @@ Plugins extend mint with stack-specific, PM, design, or memory capabilities.
 | [`mint-ui-ux`](plugins/mint-ui-ux/) | design | RTL, i18n, accessibility, design system standards |
 | [`mint-ssh`](plugins/mint-ssh/) | infra | SSH connections, Doppler secrets, remote commands |
 | [`mint-e2e`](plugins/mint-e2e/) | testing | E2E testing with Playwright — semantic locators, flaky test handling |
+| [`mint-gws`](plugins/mint-gws/) | infra | Google Workspace — Drive, Gmail, Calendar, Sheets workflows |
 
 **Enable a plugin** in `.mint/config.json`:
 

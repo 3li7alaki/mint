@@ -4,7 +4,8 @@
   "gates": {
     "lint": false,
     "types": false,
-    "tests": false
+    "tests": false,
+    "coverage": false
   },
   "reviewers": {
     "spec": { "enabled": true, "model": "opus" },
@@ -25,6 +26,18 @@
     "docs": [
       "docs/architecture.md"
     ]
+  },
+  "tdd": {
+    "default": false,
+    "desloppify": true,
+    "coverageThreshold": 80
+  },
+  "instincts": {
+    "enabled": true
+  },
+  "modelRouting": {
+    "enabled": true,
+    "override": {}
   },
   "isolation": {
     "plan": "worktree",

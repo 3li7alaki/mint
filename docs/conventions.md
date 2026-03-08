@@ -55,7 +55,7 @@ Every spec must have: `id`, `title`, `goal`, `scope` (with `can-modify` and `can
 
 ### Optional Fields
 
-`estimate`, `depends-on`, `pre-conditions`, `context`, `references`, `pitfalls`, `anti-patterns`, `no-mocks`, `tests`, `workspace-impact`.
+`estimate`, `depends-on`, `pre-conditions`, `context`, `references`, `pitfalls`, `anti-patterns`, `no-mocks`, `tests`, `workspace-impact`, `tdd`, `test-first`.
 
 ### Scope Rules
 
@@ -105,6 +105,7 @@ After a PR is merged:
 | `stack` | string | Detected framework |
 | `packageManager` | string | npm, pnpm, yarn, bun |
 | `gates` | object | lint/types/tests commands |
+| `gates.coverage` | object | Coverage gate: `{ "command": "...", "threshold": 80 }` |
 | `reviewers` | object | Which reviewers are enabled — values can be `true`/`false` or `{ enabled, model }` |
 | `conventions.docs` | array | Paths to convention docs the enforcer reads |
 | `business.docs` | array | Paths to business docs the reviewer reads |
@@ -113,6 +114,13 @@ After a PR is merged:
 | `documenters` | array | Auto-doc configurations |
 | `plugins` | array | Plugin directory paths |
 | `autoCommit` | boolean | If `false`, agents run gates but skip committing. Default: `true` |
+| `tdd.default` | boolean | If `true`, all specs get TDD by default. Individual specs can override. Default: `false` |
+| `tdd.desloppify` | boolean | Run de-sloppify pass after TDD implementation. Default: `true` |
+| `tdd.coverageThreshold` | number | Default coverage threshold for TDD specs. Default: `80` |
+| `instincts.enabled` | boolean | Enable instinct-based learning from hooks. Default: `true` |
+| `modelRouting.enabled` | boolean | Auto-select model per spec complexity. Default: `true` |
+| `modelRouting.override` | object | Map estimate → model (e.g., `{ "small": "opus" }`) |
+| `hooks.testOnSave` | boolean/object | Auto-run tests on edit. `true`, `false`, or `{ enabled, timeout }`. Default: `false` |
 | `workspace.repos` | array | Workspace repo registry (see below) |
 
 ### Workspace Registry (`workspace.repos`)

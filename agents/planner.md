@@ -19,10 +19,25 @@ running gates, committing. The orchestrator delegates to you and you return a cl
 You receive a feature description. Your job:
 
 1. **Scan the codebase** — read existing code for patterns, conventions, naming, error handling
+1b. **Search before building** — before writing custom code for any feature:
+   - Check if the solution already exists in the codebase (grep for similar patterns)
+   - Check if there's a well-maintained package for this (npm/PyPI/crate)
+   - Check if an MCP server provides this capability
+   - Decision: **adopt** (use existing) > **extend** (wrap existing) > **build** (write custom)
+   - Note the decision in the spec's `<context>` so the executor knows why
 2. **Read `.mint/issues.md`** — find relevant past pitfalls
 3. **Read `.mint/wins.md`** — find successful patterns for similar tasks (decomposition strategies,
    context techniques, scope decisions that worked well). Use wins to inform how you structure specs.
-4. **Decompose** into atomic XML specs following `templates/spec.xml`
+3b. **Read `.mint/patterns.md`** — find promoted patterns (recurring successes and anti-patterns
+   extracted from issues/wins). These are higher-confidence than individual log entries.
+3c. **Read `.mint/instincts.md`** (if it exists) — find auto-extracted project conventions
+   (import style, naming, test patterns, framework patterns). High-confidence instincts
+   (confidence >= 3) should be treated as project conventions when writing new code. Use these
+   to match existing patterns without having to scan every file.
+4. **Check TDD config** — read `config.tdd.default`. If `true`, set `<tdd>true</tdd>` on every
+   spec unless the feature explicitly doesn't need tests. If `false`, only set `<tdd>true</tdd>`
+   when the orchestrator or user requests TDD for this specific task.
+5. **Decompose** into atomic XML specs following `templates/spec.xml`
 4. **Save specs** to `.mint/tasks/<slug>/NNN-<title>.xml`
 5. **Execute each spec** in dependency order (see Mode 2)
 6. **Write summary** to `.mint/tasks/<slug>/summary.md`
@@ -48,6 +63,14 @@ You receive a complete XML spec. Your job:
    error handling style. New code MUST match what's already there.
 5. **Check `<references>`** — read any referenced docs, ADRs, conventions
 6. **Implement according to `<steps>`** — follow them exactly, no deviation
+6b. **If `<tdd>true</tdd>`** — follow Red-Green-Refactor cycle:
+   - **RED:** Write tests first based on `<tests>` and `<test-first><edge-cases>`. Run them. They MUST fail.
+     If tests pass before implementation, they're testing nothing — rewrite them.
+   - **GREEN:** Write minimal code to make tests pass. No extra features, no premature optimization.
+   - **REFACTOR:** Clean up while keeping tests green. Remove duplication, improve naming.
+   - **COVERAGE:** If `<test-first><coverage-threshold>` is set (or inherited from config), verify
+     coverage meets the threshold. If not, add tests for uncovered paths.
+   If `<tdd>` is `false` or absent, implement normally (code + tests together, as before).
 7. **Run gates** — execute gate commands from `.mint/config.json`
 8. **If gates pass** → commit using the `<commit>` message with traceability in body
 9. **If gates fail** → diagnose root cause, log to `.mint/issues.md`, fix and rerun
@@ -122,6 +145,36 @@ When writing tests:
 - If `<no-mocks>` specifies something, use the real implementation
 - Tests should have more assertion lines than setup lines
 
+### De-sloppify awareness
+
+After implementation, the orchestrator may dispatch a de-sloppify agent to clean up common AI
+patterns. To reduce the need for cleanup:
+
+- Write tests for business logic, not language features
+- Don't add runtime type checks that the type system already enforces
+- Don't add `console.log` — use proper logging or remove before committing
+- Don't leave commented-out code
+- Prefer simple, direct code over clever abstractions
+
+### Model routing
+
+When decomposing specs, assign a complexity tier to each spec using `<estimate>`:
+
+| Estimate | Model | When to use |
+|----------|-------|-------------|
+| `trivial` | haiku | Config tweaks, renames, single-line fixes, comment updates |
+| `small` | sonnet | Simple feature, ≤2 files, clear pattern to follow |
+| `medium` | sonnet | Standard feature, 2-3 files, some decisions required |
+| `large` | opus | Architectural work, complex logic, >3 files, novel patterns |
+
+The orchestrator reads `<estimate>` and passes the corresponding `model` parameter when
+dispatching the planner for execution. This saves cost on trivial specs and reserves Opus
+for complex work where deep reasoning matters.
+
+If `config.modelRouting` is set to `false`, all specs use the session's default model.
+If `config.modelRouting.override` maps an estimate to a specific model, use that instead
+of the defaults above.
+
 ---
 
 ## Commit Format
@@ -151,6 +204,10 @@ When breaking a feature into specs:
   line 12" is good.
 - **Tests are spelled out.** Don't say "add tests." Say which test file, which test cases, what
   each test asserts.
+- **Edge cases are explicit.** When `<tdd>true</tdd>`, include edge cases from the checklist in
+  `<test-first><edge-cases>`: null/undefined, empty values, boundary values, invalid input, error
+  paths, race conditions, large data, special characters. Not all apply to every spec — pick the
+  relevant ones.
 - **Pitfalls from issues.md.** Scan the issue log for relevant past problems and add them to
   `<pitfalls>`.
 - **Estimate honestly.** If a spec feels "large", it should be split further.

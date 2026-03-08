@@ -46,6 +46,9 @@ Subagent Pool (fresh context per dispatch)
   ├─ Business Reviewer ──── stage 2 (requirements alignment)
   ├─ Performance Reviewer ─ stage 2 (performance, opt-in)
   ├─ Documenter ─────────── updates project documentation
+  ├─ De-sloppifier ──────── post-implementation cleanup
+  ├─ Build Error Resolver ─ minimal build/type error fixes
+  ├─ Refactor Cleaner ───── dead code detection and removal
   └─ Plugin Agents ──────── stack/PM/design/memory extensions
 ```
 
@@ -84,6 +87,8 @@ Why parallel? Because reviewers don't depend on each other. Quality review doesn
 
 Two complementary logs feed the planner:
 
+**Instincts** (`.mint/instincts.md`) — auto-extracted by hooks observing every Edit/Write. Tracks import styles, naming conventions, test patterns, and framework usage. Confidence increases when the same pattern appears across multiple files. High-confidence instincts (>= 3) are treated as project conventions by the planner. Controlled by `config.instincts.enabled`.
+
 **Issue log** (`.mint/issues.md`) — tracks failures. Columns: Date, Task, Severity, Issue, Root Cause, Resolution, Spec Fix. Root cause categories: `bad-spec`, `missing-context`, `scope-leak`, `environment`, `hard-block`, `unknown-pattern`. Relevant issues become `<pitfalls>` in new specs.
 
 **Wins log** (`.mint/wins.md`) — tracks successes. Columns: Date, Task, Pattern, Why It Worked. Logged by the orchestrator after full task completion. Wins inform spec decomposition strategy.
@@ -112,6 +117,54 @@ Four plugin types map to four extension dimensions:
 - **PM** — project management tool sync
 - **Design** — design tool integration
 - **Memory** — knowledge persistence and retrieval
+
+## Hooks System
+
+Real-time Claude Code hooks provide instant feedback during development:
+
+- **PostToolUse (Edit)** — auto-format, typecheck, console.log warning
+- **PostToolUse (Edit|Write)** — quality gate (lint check)
+- **PreToolUse (Bash)** — git push safety reminder
+- **PreCompact** — save execution state before context compaction
+- **Stop** — cost tracking per session
+
+Hooks are lightweight Node.js scripts in `hooks/scripts/`. They fire deterministically on every
+tool use — no probability, no skipping. Hook scripts are the one exception to mint's "no runtime"
+rule: they're standalone scripts with no dependencies beyond Node.js.
+
+## TDD Support
+
+When `<tdd>true</tdd>` is set in a spec:
+
+1. **RED** — planner writes tests first, verifies they fail
+2. **GREEN** — implements minimal code to make tests pass
+3. **REFACTOR** — cleans up while keeping tests green
+4. **COVERAGE** — verifies coverage meets threshold
+5. **DE-SLOPPIFY** — optional cleanup pass in fresh context
+
+The edge case checklist (null, empty, boundary, error paths, race conditions, special chars) is
+auto-injected into TDD specs.
+
+## Eval-Driven Development
+
+Evals are "unit tests for agent quality" — stored in `.mint/evals/`:
+
+- **Capability evals** — can the agent do something it couldn't before?
+- **Regression evals** — did changes break existing functionality?
+- **pass@k** — success within k attempts (practical reliability)
+- **pass^k** — all k attempts succeed (stability gate)
+
+## Model Routing
+
+The orchestrator auto-selects which Claude model executes each spec based on complexity:
+
+| Estimate | Model | Rationale |
+|----------|-------|-----------|
+| `trivial` | Haiku | Config tweaks, renames — speed and cost |
+| `small`/`medium` | Sonnet | Standard implementation — fast and capable |
+| `large` | Opus | Architecture, novel patterns — deep reasoning |
+
+Model routing is configured via `config.modelRouting`. Per-reviewer model config (already supported) is separate — this adds per-spec routing for the planner/executor. The planner assigns estimates during decomposition; the orchestrator maps estimates to models during dispatch.
 
 ## Golden Rules
 

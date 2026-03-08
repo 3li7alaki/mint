@@ -32,8 +32,16 @@ Evaluate in this order:
 2. **Verify** — user says "verify", "check gates", "audit", "run checks"
    → Delegate to `mint-verifier` subagent
 
+2b. **Build Fix** — user says "build is broken", "fix build errors", "type errors", gate output shows
+   build/type failures, or a planner reports gate failures that look like build issues
+   → Delegate to `mint-build-error-resolver` subagent
+
 3. **Research** — user says "research", "how to", "what's the best", "compare", "should I use"
    → Delegate to `mint-researcher` subagent
+
+3b. **Refactor/Cleanup** — user says "clean up", "dead code", "unused imports", "remove unused",
+   "refactor cleanup"
+   → Delegate to `mint-refactor-cleaner` subagent
 
 4. **Quick** — task touches ≤3 files AND scope is obvious (rename, typo, config tweak, bug fix)
    → Run in main context. No subagent. Gates still enforced.
@@ -81,6 +89,14 @@ These are non-negotiable. Violating any of these is a failure.
 ### Quality
 
 - **Gates before commit.** Lint + types + tests must pass 100% before any commit.
+- **Coverage gate.** If `config.gates.coverage` is configured, coverage must meet the threshold
+  before commit. Coverage is checked as part of the test gate — if tests pass but coverage is
+  below threshold, the commit is blocked.
+- **`tdd` control.** If `config.tdd.default` is `true`, ALL specs get `<tdd>true</tdd>` unless
+  the spec explicitly sets `<tdd>false</tdd>`. If `config.tdd.default` is `false` (default),
+  specs only use TDD when explicitly opted in via `<tdd>true</tdd>`. This mirrors how `autoCommit`
+  works — a global default that individual specs can override. The planner MUST check this config
+  before writing specs and set `<tdd>` accordingly.
 - **`autoCommit` control.** If `config.autoCommit` is `false`, agents run gates but do NOT commit.
   Changes stay staged so the user can review and commit manually (or batch multiple specs into one
   commit). Default: `true` — agents commit after each spec passes gates.
@@ -135,12 +151,29 @@ Update this file at every stage transition — it's the source of truth for what
 
 **a) Implementation**
 - Set `execution.json` status to `running`, record `startedAt` and new attempt entry
+- **Model routing:** Read the spec's `<estimate>` field and select the execution model:
+  - `trivial` → dispatch with `model: "haiku"`
+  - `small` or `medium` → dispatch with `model: "sonnet"`
+  - `large` → dispatch with `model: "opus"`
+  - If `config.modelRouting` is `false`, use session default for all specs
+  - If `config.modelRouting.override` has a mapping for this estimate, use that model
 - Dispatch `mint-planner` subagent with the spec XML (full text, not file path)
 - Planner implements and runs gates
 - If gates green AND `config.autoCommit` is not `false`: commit
 - If gates green AND `config.autoCommit` is `false`: skip commit, changes stay staged
 - Update `execution.json`: gate results in `gates`, commit hash in `commit` (or `null` if no commit)
 - Returns: commit hash + summary, or failure report
+
+**a2) De-sloppify (optional)**
+- Runs when ANY of these are true:
+  - The spec has `<tdd>true</tdd>` (explicitly or inherited from `config.tdd.default`)
+  - `config.tdd.desloppify` is `true` AND the spec has tests
+- If triggered:
+  - Dispatch `mint-de-sloppifier` subagent with: git diff + spec XML + gate commands
+  - De-sloppifier cleans up AI-generated slop (framework tests, over-defensive code, console.log)
+  - Runs tests after cleanup to verify nothing broke
+  - Returns cleanup report
+- Skipped entirely when `config.tdd.desloppify` is `false`
 
 **b) Stage 1 — Spec Review (sequential gate)**
 - Dispatch `mint-spec-reviewer` subagent with: spec XML + git diff
@@ -382,8 +415,13 @@ Before creating any new specs, the planner MUST:
 
 1. Read `.mint/issues.md` — find relevant past failures (same files, similar patterns)
 2. Read `.mint/wins.md` — find relevant successful patterns (similar task types, decomposition strategies)
-3. Add relevant past issues as `<pitfalls>` in the new specs
-4. Use winning patterns to inform `<steps>` structure and spec decomposition strategy
+3. Read `.mint/patterns.md` — find promoted patterns (recurring successes and anti-patterns with
+   higher confidence than individual log entries)
+3b. Read `.mint/instincts.md` (if it exists) — find auto-extracted project conventions (import
+   style, naming, test patterns). These are observed by hooks during normal development and grow
+   in confidence as patterns repeat. Controlled by `config.instincts.enabled` (default: `true`).
+4. Add relevant past issues as `<pitfalls>` in the new specs
+5. Use winning patterns to inform `<steps>` structure and spec decomposition strategy
 
 This is how mint gets smarter over time. Past mistakes become future prevention. Past wins
 become future guidance.
@@ -415,6 +453,17 @@ rule, it graduates:
 The orchestrator should flag promotion candidates when it notices repeated patterns during the
 learning loop read. Present them to the user: "This pattern has appeared N times — promote to
 a permanent rule?"
+
+### Eval-Driven Development
+
+For tracking agent quality over time, use eval templates (see `templates/eval.md`):
+
+- **Capability evals** — define what the implementation must be able to do before coding
+- **Regression evals** — ensure changes don't break existing functionality
+- **pass@k metrics** — track reliability (pass@3 >= 90% for capabilities, pass^3 = 100% for regressions)
+- Store evals in `.mint/evals/<feature>.md`
+
+Evals are optional but recommended for critical features where agent reliability matters.
 
 ---
 
@@ -583,6 +632,9 @@ Every subagent gets exactly what it needs — no more, no less:
 | Documenter | File path + file description + change summary + current repo context (if configured) |
 | Shipper | Confirmed ship plan + config + hard blocks + full workspace map (if configured) |
 | Verifier | Config only |
+| De-sloppifier | Git diff + spec XML + gate commands |
+| Build Error Resolver | Build/type error output + config + in-scope files |
+| Refactor Cleaner | Config + detection tool output + files to analyze |
 
 ---
 

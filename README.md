@@ -73,6 +73,36 @@ You describe a feature
   You review the final result
 ```
 
+### TDD Support
+
+mint supports test-first development. TDD is toggleable via `config.tdd.default` — set to `true`
+to enable TDD for all specs by default, or leave as `false` and opt in per-spec with `<tdd>true</tdd>`:
+
+1. **RED** — write tests first, verify they fail
+2. **GREEN** — implement minimal code to pass tests
+3. **REFACTOR** — clean up while keeping tests green
+4. **COVERAGE** — verify coverage meets threshold
+5. **DE-SLOPPIFY** — optional cleanup pass in fresh context
+
+Edge cases (null, empty, boundary, error paths, race conditions, special chars) are auto-injected.
+Coverage gating blocks commits below the configured threshold.
+
+### Hooks
+
+Real-time Claude Code hooks provide instant feedback:
+
+| Hook | Trigger | What it does |
+|------|---------|-------------|
+| Auto-format | PostToolUse (Edit) | Formats JS/TS with Biome or Prettier |
+| Typecheck | PostToolUse (Edit) | Runs tsc on edited .ts/.tsx files |
+| Console warn | PostToolUse (Edit) | Warns about console.log statements |
+| Quality gate | PostToolUse (Edit/Write) | Runs lint check on edited file |
+| Git push safety | PreToolUse (Bash) | Reminds before git push |
+| Pre-compact | PreCompact | Saves state before context compaction |
+| Instinct observer | PostToolUse (Edit/Write) | Extracts project patterns for learning |
+| Test-on-save | PostToolUse (Edit) | Auto-runs matching tests (configurable) |
+| Cost tracker | Stop | Tracks token usage to ~/.claude/metrics/ |
+
 ## XML Specs
 
 The core artifact. Each task gets a structured spec:
@@ -124,15 +154,22 @@ Key config options in `.mint/config.json`:
 |-----|---------|-------------|
 | `stack` | auto-detected | Framework (nuxt, react, etc.) |
 | `packageManager` | auto-detected | npm, pnpm, yarn, bun |
-| `gates` | `{}` | lint/types/tests commands |
+| `gates` | `{}` | lint/types/tests/coverage commands |
+| `gates.coverage` | `false` | Coverage gate: `{ "command": "...", "threshold": 80 }` |
+| `tdd.default` | `false` | Enable TDD-first by default for all specs |
+| `tdd.desloppify` | `true` | Run de-sloppify pass after TDD implementation |
+| `tdd.coverageThreshold` | `80` | Default coverage threshold for TDD specs |
 | `reviewers` | all enabled | Which reviewers run (boolean or `{enabled, model}`) |
 | `autoCommit` | `true` | Set `false` to skip commits — changes stay staged |
+| `instincts.enabled` | `true` | Auto-extract project patterns via hooks |
+| `modelRouting.enabled` | `true` | Auto-select model per spec complexity tier |
+| `hooks.testOnSave` | `false` | Auto-run matching tests on file edit |
 | `plugins` | `[]` | Plugin directory paths |
 | `workspace.repos` | `[]` | Multi-repo workspace registry |
 
 ## Learning Loop
 
-`.mint/issues.md` tracks every blocker and gotcha. `.mint/wins.md` tracks successful patterns. The planner reads both before creating new specs — turning mistakes into prevention and wins into guidance.
+`.mint/issues.md` tracks every blocker and gotcha. `.mint/wins.md` tracks successful patterns. `.mint/patterns.md` captures recurring patterns promoted from issues/wins (higher confidence). `.mint/instincts.md` is auto-populated by hooks that observe coding patterns (imports, naming, test styles) — confidence grows as patterns repeat across files. The planner reads all four before creating new specs — turning mistakes into prevention, wins into guidance, patterns into best practices, and instincts into convention matching.
 
 ## Plugins
 
@@ -145,7 +182,10 @@ Plugins extend mint with stack-specific, PM, design, or memory capabilities.
 | [`mint-nuxt`](plugins/mint-nuxt/) | stack | Nuxt file structure, auto-imports, server patterns |
 | [`mint-linear`](plugins/mint-linear/) | pm | Ticket context, status sync, project updates |
 | [`mint-figma`](plugins/mint-figma/) | design | Design specs, tokens, alignment review |
+| [`mint-shadcn`](plugins/mint-shadcn/) | stack | shadcn/ui component conventions and patterns |
+| [`mint-ui-ux`](plugins/mint-ui-ux/) | design | RTL, i18n, accessibility, design system standards |
 | [`mint-ssh`](plugins/mint-ssh/) | infra | SSH connections, Doppler secrets, remote commands |
+| [`mint-e2e`](plugins/mint-e2e/) | testing | E2E testing with Playwright — semantic locators, flaky test handling |
 
 **Enable a plugin** in `.mint/config.json`:
 
@@ -188,6 +228,19 @@ Optional multi-repo awareness:
 | `business-reviewer` | Stage 2 — business logic and requirements |
 | `performance-reviewer` | Stage 2 — performance (opt-in) |
 | `documenter` | Auto-updates project documentation |
+| `build-error-resolver` | Fixes build/type errors with minimal changes |
+| `de-sloppifier` | Post-implementation cleanup of AI-generated slop |
+| `refactor-cleaner` | Dead code detection and safe removal |
+
+## Documentation
+
+| Doc | What it covers |
+|-----|---------------|
+| [Plugin Guide](docs/plugin-guide.md) | Creating custom plugins |
+| [Conventions](docs/conventions.md) | File formats, naming, config schema, git strategy |
+| [Architecture](docs/architecture.md) | System design, philosophy, isolation rules |
+| [Autonomous Loops](docs/autonomous-loops.md) | Patterns for CI/CD and scripted workflows |
+| [Agent Harness](docs/agent-harness.md) | Optimizing agent configurations |
 
 ## Golden Rules
 

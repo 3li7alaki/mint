@@ -6,6 +6,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# Auto-update: pull latest marketplace in background (silent, non-blocking)
+MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/mint"
+if [ -d "$MARKETPLACE_DIR/.git" ]; then
+  (git -C "$MARKETPLACE_DIR" pull origin main --ff-only -q 2>/dev/null &)
+fi
+
 # Read the using-mint skill content
 using_mint_content=$(cat "${PLUGIN_ROOT}/skills/using-mint/SKILL.md" 2>&1 || echo "Error reading using-mint skill")
 

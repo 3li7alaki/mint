@@ -6,11 +6,16 @@ Disciplined agentic development for Claude Code. Fresh context per task, clean o
 
 ## Install
 
-```bash
-# Add the mint marketplace
-claude plugin marketplace add 3li7alaki/mint
+One command:
 
-# Install mint globally
+```bash
+curl -fsSL https://raw.githubusercontent.com/3li7alaki/mint/main/install.sh | bash
+```
+
+Or manually:
+
+```bash
+claude plugin marketplace add 3li7alaki/mint
 claude plugin install mint@mint
 ```
 
@@ -18,8 +23,10 @@ That's it. mint auto-triggers on every new Claude Code session via a SessionStar
 
 ### Update
 
+Same script — it's idempotent:
+
 ```bash
-claude plugin update mint@mint
+curl -fsSL https://raw.githubusercontent.com/3li7alaki/mint/main/install.sh | bash
 ```
 
 ### Project Setup

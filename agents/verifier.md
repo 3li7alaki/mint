@@ -29,6 +29,26 @@ pnpm test
 
 Run ALL checks even if one fails. Report each individually.
 
+### 1b. Coverage gate
+
+If `config.gates.coverage` is configured:
+
+1. Run the coverage command: e.g., `npm test -- --coverage`
+2. Parse the output for coverage percentage
+3. Compare against `config.gates.coverage.threshold`
+4. Report: coverage % vs threshold, pass/fail
+
+```json
+"gates": {
+  "coverage": {
+    "command": "npm test -- --coverage",
+    "threshold": 80
+  }
+}
+```
+
+If coverage is below threshold → FAIL with specific uncovered files/functions listed.
+
 ### 2. Mock audit
 
 Scan test files for internal mocking:
@@ -65,6 +85,7 @@ mint verification report
 Lint        ✅ | ❌ (N errors)
 Types       ✅ | ❌ (N errors)
 Tests       ✅ | ❌ (N passing, N failing)
+Coverage    ✅ | ❌ (N% — threshold: N%)
 Mock audit  ✅ | ⚠️ (N internal mocks — file:line)
 Hard blocks ✅ | ❌ (violations listed)
 Open issues N (see .mint/issues.md)

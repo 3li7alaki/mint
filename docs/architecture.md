@@ -46,6 +46,9 @@ Subagent Pool (fresh context per dispatch)
   ├─ Business Reviewer ──── stage 2 (requirements alignment)
   ├─ Performance Reviewer ─ stage 2 (performance, opt-in)
   ├─ Documenter ─────────── updates project documentation
+  ├─ De-sloppifier ──────── post-implementation cleanup
+  ├─ Build Error Resolver ─ minimal build/type error fixes
+  ├─ Refactor Cleaner ───── dead code detection and removal
   └─ Plugin Agents ──────── stack/PM/design/memory extensions
 ```
 
@@ -112,6 +115,42 @@ Four plugin types map to four extension dimensions:
 - **PM** — project management tool sync
 - **Design** — design tool integration
 - **Memory** — knowledge persistence and retrieval
+
+## Hooks System
+
+Real-time Claude Code hooks provide instant feedback during development:
+
+- **PostToolUse (Edit)** — auto-format, typecheck, console.log warning
+- **PostToolUse (Edit|Write)** — quality gate (lint check)
+- **PreToolUse (Bash)** — git push safety reminder
+- **PreCompact** — save execution state before context compaction
+- **Stop** — cost tracking per session
+
+Hooks are lightweight Node.js scripts in `hooks/scripts/`. They fire deterministically on every
+tool use — no probability, no skipping. Hook scripts are the one exception to mint's "no runtime"
+rule: they're standalone scripts with no dependencies beyond Node.js.
+
+## TDD Support
+
+When `<tdd>true</tdd>` is set in a spec:
+
+1. **RED** — planner writes tests first, verifies they fail
+2. **GREEN** — implements minimal code to make tests pass
+3. **REFACTOR** — cleans up while keeping tests green
+4. **COVERAGE** — verifies coverage meets threshold
+5. **DE-SLOPPIFY** — optional cleanup pass in fresh context
+
+The edge case checklist (null, empty, boundary, error paths, race conditions, special chars) is
+auto-injected into TDD specs.
+
+## Eval-Driven Development
+
+Evals are "unit tests for agent quality" — stored in `.mint/evals/`:
+
+- **Capability evals** — can the agent do something it couldn't before?
+- **Regression evals** — did changes break existing functionality?
+- **pass@k** — success within k attempts (practical reliability)
+- **pass^k** — all k attempts succeed (stability gate)
 
 ## Golden Rules
 

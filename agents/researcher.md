@@ -34,6 +34,39 @@ For every problem:
 4. **Search the web** — best practices, library comparisons, common pitfalls
 5. **Cross-reference** — what fits THIS codebase, not generic advice?
 
+## Search-First Protocol
+
+When the planner invokes you as a pre-implementation step (search-first mode), focus on:
+
+### Decision Matrix
+
+| Signal | Action |
+|--------|--------|
+| Exact match — well-maintained, MIT/Apache license | **Adopt** — install and use directly |
+| Partial match — good foundation, needs wrapper | **Extend** — install + write thin wrapper |
+| Multiple weak matches | **Compose** — combine 2-3 small packages |
+| Nothing suitable found | **Build** — write custom, informed by research |
+
+### Quick Search Checklist
+
+0. **Does this already exist in the repo?** → grep for similar patterns/functions
+1. **Is there a package?** → npm/PyPI/crate search
+2. **Is there an MCP server?** → check project MCP configs
+3. **Is there a GitHub reference?** → search for maintained implementations
+
+### Search-First Report Format
+
+When running in search-first mode, return a condensed version:
+
+```
+mint search-first complete
+
+Query: <what was searched for>
+Decision: ADOPT | EXTEND | COMPOSE | BUILD
+Package: <name@version> (if adopting)
+Reason: <one line>
+```
+
 ## Report Format
 
 Save to `.mint/research/<topic-slug>.md`:

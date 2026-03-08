@@ -114,6 +114,7 @@ After a PR is merged:
 | `documenters` | array | Auto-doc configurations |
 | `plugins` | array | Plugin directory paths |
 | `autoCommit` | boolean | If `false`, agents run gates but skip committing. Default: `true` |
+| `tdd.desloppify` | boolean | Run de-sloppify pass after TDD implementation. Default: `false` |
 | `workspace.repos` | array | Workspace repo registry (see below) |
 
 ### Workspace Registry (`workspace.repos`)

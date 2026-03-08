@@ -75,7 +75,8 @@ You describe a feature
 
 ### TDD Support
 
-mint supports test-first development when `<tdd>true</tdd>` is set in a spec:
+mint supports test-first development. TDD is toggleable via `config.tdd.default` — set to `true`
+to enable TDD for all specs by default, or leave as `false` and opt in per-spec with `<tdd>true</tdd>`:
 
 1. **RED** — write tests first, verify they fail
 2. **GREEN** — implement minimal code to pass tests
@@ -98,6 +99,8 @@ Real-time Claude Code hooks provide instant feedback:
 | Quality gate | PostToolUse (Edit/Write) | Runs lint check on edited file |
 | Git push safety | PreToolUse (Bash) | Reminds before git push |
 | Pre-compact | PreCompact | Saves state before context compaction |
+| Instinct observer | PostToolUse (Edit/Write) | Extracts project patterns for learning |
+| Test-on-save | PostToolUse (Edit) | Auto-runs matching tests (configurable) |
 | Cost tracker | Stop | Tracks token usage to ~/.claude/metrics/ |
 
 ## XML Specs
@@ -158,12 +161,15 @@ Key config options in `.mint/config.json`:
 | `tdd.coverageThreshold` | `80` | Default coverage threshold for TDD specs |
 | `reviewers` | all enabled | Which reviewers run (boolean or `{enabled, model}`) |
 | `autoCommit` | `true` | Set `false` to skip commits — changes stay staged |
+| `instincts.enabled` | `true` | Auto-extract project patterns via hooks |
+| `modelRouting.enabled` | `true` | Auto-select model per spec complexity tier |
+| `hooks.testOnSave` | `false` | Auto-run matching tests on file edit |
 | `plugins` | `[]` | Plugin directory paths |
 | `workspace.repos` | `[]` | Multi-repo workspace registry |
 
 ## Learning Loop
 
-`.mint/issues.md` tracks every blocker and gotcha. `.mint/wins.md` tracks successful patterns. `.mint/patterns.md` captures recurring patterns promoted from issues/wins (higher confidence). The planner reads all three before creating new specs — turning mistakes into prevention, wins into guidance, and patterns into best practices.
+`.mint/issues.md` tracks every blocker and gotcha. `.mint/wins.md` tracks successful patterns. `.mint/patterns.md` captures recurring patterns promoted from issues/wins (higher confidence). `.mint/instincts.md` is auto-populated by hooks that observe coding patterns (imports, naming, test styles) — confidence grows as patterns repeat across files. The planner reads all four before creating new specs — turning mistakes into prevention, wins into guidance, patterns into best practices, and instincts into convention matching.
 
 ## Plugins
 

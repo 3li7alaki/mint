@@ -87,6 +87,8 @@ Why parallel? Because reviewers don't depend on each other. Quality review doesn
 
 Two complementary logs feed the planner:
 
+**Instincts** (`.mint/instincts.md`) — auto-extracted by hooks observing every Edit/Write. Tracks import styles, naming conventions, test patterns, and framework usage. Confidence increases when the same pattern appears across multiple files. High-confidence instincts (>= 3) are treated as project conventions by the planner. Controlled by `config.instincts.enabled`.
+
 **Issue log** (`.mint/issues.md`) — tracks failures. Columns: Date, Task, Severity, Issue, Root Cause, Resolution, Spec Fix. Root cause categories: `bad-spec`, `missing-context`, `scope-leak`, `environment`, `hard-block`, `unknown-pattern`. Relevant issues become `<pitfalls>` in new specs.
 
 **Wins log** (`.mint/wins.md`) — tracks successes. Columns: Date, Task, Pattern, Why It Worked. Logged by the orchestrator after full task completion. Wins inform spec decomposition strategy.
@@ -151,6 +153,18 @@ Evals are "unit tests for agent quality" — stored in `.mint/evals/`:
 - **Regression evals** — did changes break existing functionality?
 - **pass@k** — success within k attempts (practical reliability)
 - **pass^k** — all k attempts succeed (stability gate)
+
+## Model Routing
+
+The orchestrator auto-selects which Claude model executes each spec based on complexity:
+
+| Estimate | Model | Rationale |
+|----------|-------|-----------|
+| `trivial` | Haiku | Config tweaks, renames — speed and cost |
+| `small`/`medium` | Sonnet | Standard implementation — fast and capable |
+| `large` | Opus | Architecture, novel patterns — deep reasoning |
+
+Model routing is configured via `config.modelRouting`. Per-reviewer model config (already supported) is separate — this adds per-spec routing for the planner/executor. The planner assigns estimates during decomposition; the orchestrator maps estimates to models during dispatch.
 
 ## Golden Rules
 

@@ -39,6 +39,16 @@
         "matcher": "Edit|Write",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/quality-gate.js\"", "async": true, "timeout": 15 }],
         "description": "Run quality gate checks after file edits"
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/instinct-observer.js\"", "async": true, "timeout": 5 }],
+        "description": "Observe patterns for instinct-based learning"
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit-test-runner.js\"", "async": true, "timeout": 30 }],
+        "description": "Auto-run relevant tests after editing source files (configurable)"
       }
     ],
     "PreCompact": [

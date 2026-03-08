@@ -92,6 +92,11 @@ These are non-negotiable. Violating any of these is a failure.
 - **Coverage gate.** If `config.gates.coverage` is configured, coverage must meet the threshold
   before commit. Coverage is checked as part of the test gate — if tests pass but coverage is
   below threshold, the commit is blocked.
+- **`tdd` control.** If `config.tdd.default` is `true`, ALL specs get `<tdd>true</tdd>` unless
+  the spec explicitly sets `<tdd>false</tdd>`. If `config.tdd.default` is `false` (default),
+  specs only use TDD when explicitly opted in via `<tdd>true</tdd>`. This mirrors how `autoCommit`
+  works — a global default that individual specs can override. The planner MUST check this config
+  before writing specs and set `<tdd>` accordingly.
 - **`autoCommit` control.** If `config.autoCommit` is `false`, agents run gates but do NOT commit.
   Changes stay staged so the user can review and commit manually (or batch multiple specs into one
   commit). Default: `true` — agents commit after each spec passes gates.
@@ -146,6 +151,12 @@ Update this file at every stage transition — it's the source of truth for what
 
 **a) Implementation**
 - Set `execution.json` status to `running`, record `startedAt` and new attempt entry
+- **Model routing:** Read the spec's `<estimate>` field and select the execution model:
+  - `trivial` → dispatch with `model: "haiku"`
+  - `small` or `medium` → dispatch with `model: "sonnet"`
+  - `large` → dispatch with `model: "opus"`
+  - If `config.modelRouting` is `false`, use session default for all specs
+  - If `config.modelRouting.override` has a mapping for this estimate, use that model
 - Dispatch `mint-planner` subagent with the spec XML (full text, not file path)
 - Planner implements and runs gates
 - If gates green AND `config.autoCommit` is not `false`: commit
@@ -154,12 +165,15 @@ Update this file at every stage transition — it's the source of truth for what
 - Returns: commit hash + summary, or failure report
 
 **a2) De-sloppify (optional)**
-- If the spec has `<tdd>true</tdd>` OR config has `tdd.desloppify` enabled:
+- Runs when ANY of these are true:
+  - The spec has `<tdd>true</tdd>` (explicitly or inherited from `config.tdd.default`)
+  - `config.tdd.desloppify` is `true` AND the spec has tests
+- If triggered:
   - Dispatch `mint-de-sloppifier` subagent with: git diff + spec XML + gate commands
   - De-sloppifier cleans up AI-generated slop (framework tests, over-defensive code, console.log)
   - Runs tests after cleanup to verify nothing broke
   - Returns cleanup report
-- This step is skipped for non-TDD specs unless explicitly configured
+- Skipped entirely when `config.tdd.desloppify` is `false`
 
 **b) Stage 1 — Spec Review (sequential gate)**
 - Dispatch `mint-spec-reviewer` subagent with: spec XML + git diff
@@ -403,6 +417,9 @@ Before creating any new specs, the planner MUST:
 2. Read `.mint/wins.md` — find relevant successful patterns (similar task types, decomposition strategies)
 3. Read `.mint/patterns.md` — find promoted patterns (recurring successes and anti-patterns with
    higher confidence than individual log entries)
+3b. Read `.mint/instincts.md` (if it exists) — find auto-extracted project conventions (import
+   style, naming, test patterns). These are observed by hooks during normal development and grow
+   in confidence as patterns repeat. Controlled by `config.instincts.enabled` (default: `true`).
 4. Add relevant past issues as `<pitfalls>` in the new specs
 5. Use winning patterns to inform `<steps>` structure and spec decomposition strategy
 

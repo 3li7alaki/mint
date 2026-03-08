@@ -30,7 +30,14 @@ You receive a feature description. Your job:
    context techniques, scope decisions that worked well). Use wins to inform how you structure specs.
 3b. **Read `.mint/patterns.md`** — find promoted patterns (recurring successes and anti-patterns
    extracted from issues/wins). These are higher-confidence than individual log entries.
-4. **Decompose** into atomic XML specs following `templates/spec.xml`
+3c. **Read `.mint/instincts.md`** (if it exists) — find auto-extracted project conventions
+   (import style, naming, test patterns, framework patterns). High-confidence instincts
+   (confidence >= 3) should be treated as project conventions when writing new code. Use these
+   to match existing patterns without having to scan every file.
+4. **Check TDD config** — read `config.tdd.default`. If `true`, set `<tdd>true</tdd>` on every
+   spec unless the feature explicitly doesn't need tests. If `false`, only set `<tdd>true</tdd>`
+   when the orchestrator or user requests TDD for this specific task.
+5. **Decompose** into atomic XML specs following `templates/spec.xml`
 4. **Save specs** to `.mint/tasks/<slug>/NNN-<title>.xml`
 5. **Execute each spec** in dependency order (see Mode 2)
 6. **Write summary** to `.mint/tasks/<slug>/summary.md`
@@ -148,6 +155,25 @@ patterns. To reduce the need for cleanup:
 - Don't add `console.log` — use proper logging or remove before committing
 - Don't leave commented-out code
 - Prefer simple, direct code over clever abstractions
+
+### Model routing
+
+When decomposing specs, assign a complexity tier to each spec using `<estimate>`:
+
+| Estimate | Model | When to use |
+|----------|-------|-------------|
+| `trivial` | haiku | Config tweaks, renames, single-line fixes, comment updates |
+| `small` | sonnet | Simple feature, ≤2 files, clear pattern to follow |
+| `medium` | sonnet | Standard feature, 2-3 files, some decisions required |
+| `large` | opus | Architectural work, complex logic, >3 files, novel patterns |
+
+The orchestrator reads `<estimate>` and passes the corresponding `model` parameter when
+dispatching the planner for execution. This saves cost on trivial specs and reserves Opus
+for complex work where deep reasoning matters.
+
+If `config.modelRouting` is set to `false`, all specs use the session's default model.
+If `config.modelRouting.override` maps an estimate to a specific model, use that instead
+of the defaults above.
 
 ---
 

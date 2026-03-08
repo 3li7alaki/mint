@@ -32,6 +32,13 @@
     "desloppify": true,
     "coverageThreshold": 80
   },
+  "instincts": {
+    "enabled": true
+  },
+  "modelRouting": {
+    "enabled": true,
+    "override": {}
+  },
   "isolation": {
     "plan": "worktree",
     "ship": "worktree",

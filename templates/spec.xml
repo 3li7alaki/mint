@@ -61,6 +61,28 @@
     - e.g., "Use real zod validation — no mocking zod"
   </no-mocks>
 
+  <tdd>false</tdd>
+  <!-- When tdd=true, planner follows Red-Green-Refactor:
+       1. Write tests first (they must FAIL)
+       2. Implement minimal code to make tests PASS
+       3. Refactor while keeping tests green
+       4. Verify coverage meets threshold -->
+
+  <test-first>
+    <edge-cases>
+      - Null/undefined input
+      - Empty arrays/strings/objects
+      - Boundary values (0, -1, MAX_INT, empty string vs whitespace)
+      - Invalid types / malformed input
+      - Error paths (network failures, timeouts, permission denied)
+      - Race conditions (concurrent operations)
+      - Large data sets (performance with 10k+ items)
+      - Special characters (Unicode, emojis, SQL injection chars, path traversal)
+    </edge-cases>
+    <coverage-threshold>inherit</coverage-threshold>
+    <!-- "inherit" uses config.gates.coverage.threshold, or specify a number like 80 -->
+  </test-first>
+
   <!-- Optional: which workspace repos are affected by this spec -->
   <!-- <workspace-impact>repo-name-1, repo-name-2</workspace-impact> -->
 

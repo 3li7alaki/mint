@@ -55,7 +55,7 @@ Every spec must have: `id`, `title`, `goal`, `scope` (with `can-modify` and `can
 
 ### Optional Fields
 
-`estimate`, `depends-on`, `pre-conditions`, `context`, `references`, `pitfalls`, `anti-patterns`, `no-mocks`, `tests`, `workspace-impact`.
+`estimate`, `depends-on`, `pre-conditions`, `context`, `references`, `pitfalls`, `anti-patterns`, `no-mocks`, `tests`, `workspace-impact`, `tdd`, `test-first`.
 
 ### Scope Rules
 
@@ -105,6 +105,7 @@ After a PR is merged:
 | `stack` | string | Detected framework |
 | `packageManager` | string | npm, pnpm, yarn, bun |
 | `gates` | object | lint/types/tests commands |
+| `gates.coverage` | object | Coverage gate: `{ "command": "...", "threshold": 80 }` |
 | `reviewers` | object | Which reviewers are enabled — values can be `true`/`false` or `{ enabled, model }` |
 | `conventions.docs` | array | Paths to convention docs the enforcer reads |
 | `business.docs` | array | Paths to business docs the reviewer reads |

@@ -73,6 +73,33 @@ You describe a feature
   You review the final result
 ```
 
+### TDD Support
+
+mint supports test-first development when `<tdd>true</tdd>` is set in a spec:
+
+1. **RED** — write tests first, verify they fail
+2. **GREEN** — implement minimal code to pass tests
+3. **REFACTOR** — clean up while keeping tests green
+4. **COVERAGE** — verify coverage meets threshold
+5. **DE-SLOPPIFY** — optional cleanup pass in fresh context
+
+Edge cases (null, empty, boundary, error paths, race conditions, special chars) are auto-injected.
+Coverage gating blocks commits below the configured threshold.
+
+### Hooks
+
+Real-time Claude Code hooks provide instant feedback:
+
+| Hook | Trigger | What it does |
+|------|---------|-------------|
+| Auto-format | PostToolUse (Edit) | Formats JS/TS with Biome or Prettier |
+| Typecheck | PostToolUse (Edit) | Runs tsc on edited .ts/.tsx files |
+| Console warn | PostToolUse (Edit) | Warns about console.log statements |
+| Quality gate | PostToolUse (Edit/Write) | Runs lint check on edited file |
+| Git push safety | PreToolUse (Bash) | Reminds before git push |
+| Pre-compact | PreCompact | Saves state before context compaction |
+| Cost tracker | Stop | Tracks token usage to ~/.claude/metrics/ |
+
 ## XML Specs
 
 The core artifact. Each task gets a structured spec:
@@ -146,6 +173,7 @@ Plugins extend mint with stack-specific, PM, design, or memory capabilities.
 | [`mint-linear`](plugins/mint-linear/) | pm | Ticket context, status sync, project updates |
 | [`mint-figma`](plugins/mint-figma/) | design | Design specs, tokens, alignment review |
 | [`mint-ssh`](plugins/mint-ssh/) | infra | SSH connections, Doppler secrets, remote commands |
+| [`mint-e2e`](plugins/mint-e2e/) | testing | E2E testing with Playwright — semantic locators, flaky test handling |
 
 **Enable a plugin** in `.mint/config.json`:
 
@@ -188,6 +216,19 @@ Optional multi-repo awareness:
 | `business-reviewer` | Stage 2 — business logic and requirements |
 | `performance-reviewer` | Stage 2 — performance (opt-in) |
 | `documenter` | Auto-updates project documentation |
+| `build-error-resolver` | Fixes build/type errors with minimal changes |
+| `de-sloppifier` | Post-implementation cleanup of AI-generated slop |
+| `refactor-cleaner` | Dead code detection and safe removal |
+
+## Documentation
+
+| Doc | What it covers |
+|-----|---------------|
+| [Plugin Guide](docs/plugin-guide.md) | Creating custom plugins |
+| [Conventions](docs/conventions.md) | File formats, naming, config schema, git strategy |
+| [Architecture](docs/architecture.md) | System design, philosophy, isolation rules |
+| [Autonomous Loops](docs/autonomous-loops.md) | Patterns for CI/CD and scripted workflows |
+| [Agent Harness](docs/agent-harness.md) | Optimizing agent configurations |
 
 ## Golden Rules
 

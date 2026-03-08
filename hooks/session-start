@@ -6,11 +6,36 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Auto-update: pull latest marketplace in background (silent, non-blocking)
+# Auto-update: pull latest and sync cache if needed (background, non-blocking)
 MARKETPLACE_DIR="$HOME/.claude/plugins/marketplaces/mint"
-if [ -d "$MARKETPLACE_DIR/.git" ]; then
-  (git -C "$MARKETPLACE_DIR" pull origin main --ff-only -q 2>/dev/null &)
-fi
+CACHE_DIR="$HOME/.claude/plugins/cache/mint"
+(
+  if [ -d "$MARKETPLACE_DIR/.git" ]; then
+    # Pull latest
+    git -C "$MARKETPLACE_DIR" fetch origin main -q 2>/dev/null || exit 0
+    LOCAL_SHA=$(git -C "$MARKETPLACE_DIR" rev-parse HEAD 2>/dev/null)
+    REMOTE_SHA=$(git -C "$MARKETPLACE_DIR" rev-parse origin/main 2>/dev/null)
+
+    if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
+      git -C "$MARKETPLACE_DIR" reset --hard origin/main -q 2>/dev/null || exit 0
+
+      # Sync cache — find the installed version dir and update its contents
+      if [ -d "$CACHE_DIR" ]; then
+        for version_dir in "$CACHE_DIR"/mint/*/; do
+          if [ -d "$version_dir" ]; then
+            # Copy marketplace contents into cache (skip .git and user data)
+            cd "$MARKETPLACE_DIR" && find . -not -path './.git/*' -not -path './.git' \
+              -not -name '.git' -type f | while read -r f; do
+              dir=$(dirname "$version_dir/$f")
+              mkdir -p "$dir" 2>/dev/null
+              cp "$MARKETPLACE_DIR/$f" "$version_dir/$f" 2>/dev/null
+            done
+          fi
+        done
+      fi
+    fi
+  fi
+) &
 
 # Read the using-mint skill content
 using_mint_content=$(cat "${PLUGIN_ROOT}/skills/using-mint/SKILL.md" 2>&1 || echo "Error reading using-mint skill")

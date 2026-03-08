@@ -57,7 +57,7 @@ Evaluate in this order:
 Always tell the user what you picked and why:
 
 - "This is a quick fix — I'll handle it directly with gates enforced."
-- "This needs decomposition — I'll plan it into specs and execute each one in a worktree."
+- "This needs decomposition — I'll plan it into specs and execute each one."
 - "Let me research this first before we build anything."
 - "Multiple features — let me interview you on scope, then ship them in phases."
 
@@ -129,7 +129,10 @@ This is the primary workflow for non-trivial tasks.
 ### 1. Setup
 
 - Check `.mint/config.json` exists (if not, prompt user to run `mint init`)
-- Create worktree: `.mint/worktrees/<task-slug>`
+- **Isolation:** Check `config.isolation.plan` (default: `"worktree"`):
+  - `"worktree"` — create worktree at `.mint/worktrees/<task-slug>`, work there
+  - `"branch"` — create a feature branch, work in the main checkout
+  - `"none"` — work directly on current branch, no isolation
 - Read `.mint/issues.md` for relevant past pitfalls
 - Check for resumable specs (see "Resuming Interrupted Work" below)
 

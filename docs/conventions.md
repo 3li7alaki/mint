@@ -109,7 +109,7 @@ After a PR is merged:
 | `reviewers` | object | Which reviewers are enabled — values can be `true`/`false` or `{ enabled, model }` |
 | `conventions.docs` | array | Paths to convention docs the enforcer reads |
 | `business.docs` | array | Paths to business docs the reviewer reads |
-| `isolation` | object | Worktree/branch strategy per mode |
+| `isolation` | object | Isolation per mode: `"worktree"`, `"branch"`, or `"none"` |
 | `definitionOfDone` | object | Completion criteria checklist (gates, reviews, screenshot reminder) |
 | `documenters` | array | Auto-doc configurations |
 | `plugins` | array | Plugin directory paths |

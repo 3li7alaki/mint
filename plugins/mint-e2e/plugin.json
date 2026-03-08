@@ -1,0 +1,16 @@
+{
+  "name": "mint-e2e",
+  "version": "0.1.0",
+  "type": "stack",
+  "description": "E2E testing specialist — Playwright-based, semantic locators, flaky test handling, artifact management",
+  "agents": ["agents/e2e-runner.md"],
+  "commands": [],
+  "config": {},
+  "hooks": {
+    "pre-plan": null,
+    "post-plan": null,
+    "pre-review": "agents/e2e-runner.md",
+    "post-commit": null,
+    "on-init": null
+  }
+}

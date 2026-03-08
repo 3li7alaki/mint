@@ -28,6 +28,8 @@ You receive a feature description. Your job:
 2. **Read `.mint/issues.md`** — find relevant past pitfalls
 3. **Read `.mint/wins.md`** — find successful patterns for similar tasks (decomposition strategies,
    context techniques, scope decisions that worked well). Use wins to inform how you structure specs.
+3b. **Read `.mint/patterns.md`** — find promoted patterns (recurring successes and anti-patterns
+   extracted from issues/wins). These are higher-confidence than individual log entries.
 4. **Decompose** into atomic XML specs following `templates/spec.xml`
 4. **Save specs** to `.mint/tasks/<slug>/NNN-<title>.xml`
 5. **Execute each spec** in dependency order (see Mode 2)

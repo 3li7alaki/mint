@@ -32,6 +32,10 @@ Evaluate in this order:
 2. **Verify** — user says "verify", "check gates", "audit", "run checks"
    → Delegate to `mint-verifier` subagent
 
+2b. **Build Fix** — user says "build is broken", "fix build errors", "type errors", gate output shows
+   build/type failures, or a planner reports gate failures that look like build issues
+   → Delegate to `mint-build-error-resolver` subagent
+
 3. **Research** — user says "research", "how to", "what's the best", "compare", "should I use"
    → Delegate to `mint-researcher` subagent
 
@@ -81,6 +85,9 @@ These are non-negotiable. Violating any of these is a failure.
 ### Quality
 
 - **Gates before commit.** Lint + types + tests must pass 100% before any commit.
+- **Coverage gate.** If `config.gates.coverage` is configured, coverage must meet the threshold
+  before commit. Coverage is checked as part of the test gate — if tests pass but coverage is
+  below threshold, the commit is blocked.
 - **`autoCommit` control.** If `config.autoCommit` is `false`, agents run gates but do NOT commit.
   Changes stay staged so the user can review and commit manually (or batch multiple specs into one
   commit). Default: `true` — agents commit after each spec passes gates.
@@ -141,6 +148,14 @@ Update this file at every stage transition — it's the source of truth for what
 - If gates green AND `config.autoCommit` is `false`: skip commit, changes stay staged
 - Update `execution.json`: gate results in `gates`, commit hash in `commit` (or `null` if no commit)
 - Returns: commit hash + summary, or failure report
+
+**a2) De-sloppify (optional)**
+- If the spec has `<tdd>true</tdd>` OR config has `tdd.desloppify` enabled:
+  - Dispatch `mint-de-sloppifier` subagent with: git diff + spec XML + gate commands
+  - De-sloppifier cleans up AI-generated slop (framework tests, over-defensive code, console.log)
+  - Runs tests after cleanup to verify nothing broke
+  - Returns cleanup report
+- This step is skipped for non-TDD specs unless explicitly configured
 
 **b) Stage 1 — Spec Review (sequential gate)**
 - Dispatch `mint-spec-reviewer` subagent with: spec XML + git diff
@@ -583,6 +598,9 @@ Every subagent gets exactly what it needs — no more, no less:
 | Documenter | File path + file description + change summary + current repo context (if configured) |
 | Shipper | Confirmed ship plan + config + hard blocks + full workspace map (if configured) |
 | Verifier | Config only |
+| De-sloppifier | Git diff + spec XML + gate commands |
+| Build Error Resolver | Build/type error output + config + in-scope files |
+| Refactor Cleaner | Config + detection tool output + files to analyze |
 
 ---
 

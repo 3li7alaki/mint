@@ -151,7 +151,11 @@ Key config options in `.mint/config.json`:
 |-----|---------|-------------|
 | `stack` | auto-detected | Framework (nuxt, react, etc.) |
 | `packageManager` | auto-detected | npm, pnpm, yarn, bun |
-| `gates` | `{}` | lint/types/tests commands |
+| `gates` | `{}` | lint/types/tests/coverage commands |
+| `gates.coverage` | `false` | Coverage gate: `{ "command": "...", "threshold": 80 }` |
+| `tdd.default` | `false` | Enable TDD-first by default for all specs |
+| `tdd.desloppify` | `true` | Run de-sloppify pass after TDD implementation |
+| `tdd.coverageThreshold` | `80` | Default coverage threshold for TDD specs |
 | `reviewers` | all enabled | Which reviewers run (boolean or `{enabled, model}`) |
 | `autoCommit` | `true` | Set `false` to skip commits — changes stay staged |
 | `plugins` | `[]` | Plugin directory paths |
@@ -159,7 +163,7 @@ Key config options in `.mint/config.json`:
 
 ## Learning Loop
 
-`.mint/issues.md` tracks every blocker and gotcha. `.mint/wins.md` tracks successful patterns. The planner reads both before creating new specs — turning mistakes into prevention and wins into guidance.
+`.mint/issues.md` tracks every blocker and gotcha. `.mint/wins.md` tracks successful patterns. `.mint/patterns.md` captures recurring patterns promoted from issues/wins (higher confidence). The planner reads all three before creating new specs — turning mistakes into prevention, wins into guidance, and patterns into best practices.
 
 ## Plugins
 
@@ -172,6 +176,8 @@ Plugins extend mint with stack-specific, PM, design, or memory capabilities.
 | [`mint-nuxt`](plugins/mint-nuxt/) | stack | Nuxt file structure, auto-imports, server patterns |
 | [`mint-linear`](plugins/mint-linear/) | pm | Ticket context, status sync, project updates |
 | [`mint-figma`](plugins/mint-figma/) | design | Design specs, tokens, alignment review |
+| [`mint-shadcn`](plugins/mint-shadcn/) | stack | shadcn/ui component conventions and patterns |
+| [`mint-ui-ux`](plugins/mint-ui-ux/) | design | RTL, i18n, accessibility, design system standards |
 | [`mint-ssh`](plugins/mint-ssh/) | infra | SSH connections, Doppler secrets, remote commands |
 | [`mint-e2e`](plugins/mint-e2e/) | testing | E2E testing with Playwright — semantic locators, flaky test handling |
 

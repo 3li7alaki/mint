@@ -39,6 +39,10 @@ Evaluate in this order:
 3. **Research** — user says "research", "how to", "what's the best", "compare", "should I use"
    → Delegate to `mint-researcher` subagent
 
+3b. **Refactor/Cleanup** — user says "clean up", "dead code", "unused imports", "remove unused",
+   "refactor cleanup"
+   → Delegate to `mint-refactor-cleaner` subagent
+
 4. **Quick** — task touches ≤3 files AND scope is obvious (rename, typo, config tweak, bug fix)
    → Run in main context. No subagent. Gates still enforced.
 
@@ -397,8 +401,10 @@ Before creating any new specs, the planner MUST:
 
 1. Read `.mint/issues.md` — find relevant past failures (same files, similar patterns)
 2. Read `.mint/wins.md` — find relevant successful patterns (similar task types, decomposition strategies)
-3. Add relevant past issues as `<pitfalls>` in the new specs
-4. Use winning patterns to inform `<steps>` structure and spec decomposition strategy
+3. Read `.mint/patterns.md` — find promoted patterns (recurring successes and anti-patterns with
+   higher confidence than individual log entries)
+4. Add relevant past issues as `<pitfalls>` in the new specs
+5. Use winning patterns to inform `<steps>` structure and spec decomposition strategy
 
 This is how mint gets smarter over time. Past mistakes become future prevention. Past wins
 become future guidance.
@@ -430,6 +436,17 @@ rule, it graduates:
 The orchestrator should flag promotion candidates when it notices repeated patterns during the
 learning loop read. Present them to the user: "This pattern has appeared N times — promote to
 a permanent rule?"
+
+### Eval-Driven Development
+
+For tracking agent quality over time, use eval templates (see `templates/eval.md`):
+
+- **Capability evals** — define what the implementation must be able to do before coding
+- **Regression evals** — ensure changes don't break existing functionality
+- **pass@k metrics** — track reliability (pass@3 >= 90% for capabilities, pass^3 = 100% for regressions)
+- Store evals in `.mint/evals/<feature>.md`
+
+Evals are optional but recommended for critical features where agent reliability matters.
 
 ---
 

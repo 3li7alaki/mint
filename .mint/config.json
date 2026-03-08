@@ -39,6 +39,10 @@
     "enabled": true,
     "override": {}
   },
+  "autoCommit": true,
+  "hooks": {
+    "testOnSave": false
+  },
   "isolation": {
     "plan": "worktree",
     "ship": "worktree",

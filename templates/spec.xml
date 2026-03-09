@@ -86,7 +86,7 @@
   <!-- Optional: which workspace repos are affected by this spec -->
   <!-- <workspace-impact>repo-name-1, repo-name-2</workspace-impact> -->
 
-  <commit>type(mint-NNN): short description</commit>
+  <commit>type(scope): short description</commit>
 
   <gates>lint, types, tests</gates>
 </task>

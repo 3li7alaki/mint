@@ -65,8 +65,10 @@ Every spec must have: `id`, `title`, `goal`, `scope` (with `can-modify` and `can
 
 ### Commit Messages
 
-Spec-driven commits: `type(mint-NNN): description`
-Non-spec commits: `type(scope): description`
+All commits: `type(scope): description`
+
+Scope is the component or area changed (e.g., `planner`, `auth`, `api`). Do NOT use mint
+task IDs (`mint-NNN`) or include spec file paths in commit messages.
 
 ## Git Strategy
 

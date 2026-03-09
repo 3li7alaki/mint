@@ -61,7 +61,7 @@ Format: `type(scope): description`
 - `refactor` — restructuring without changing behavior
 - `chore` — maintenance (gitignore, CI, etc.)
 
-**Scope:** use the file or component name. For spec-driven work, use `mint-NNN`.
+**Scope:** use the file or component name (e.g., `planner`, `auth`, `config`).
 
 **Examples:**
 ```

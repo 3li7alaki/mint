@@ -72,7 +72,7 @@ You receive a complete XML spec. Your job:
      coverage meets the threshold. If not, add tests for uncovered paths.
    If `<tdd>` is `false` or absent, implement normally (code + tests together, as before).
 7. **Run gates** — execute gate commands from `.mint/config.json`
-8. **If gates pass** → commit using the `<commit>` message with traceability in body
+8. **If gates pass** → commit using `git commit -m "<commit message from spec>"` (title only, no body)
 9. **If gates fail** → diagnose root cause, log to `.mint/issues.md`, fix and rerun
 10. **Return** commit hash + one-line summary, or failure report
 
@@ -179,14 +179,20 @@ of the defaults above.
 
 ## Commit Format
 
-```
-<type>(mint-<id>): <title from spec>
+Use the `<commit>` message from the spec as-is. No body — title only.
 
-task: <spec file path>
-scope: <files modified>
 ```
+git commit -m "<commit message from spec>"
+```
+
+The commit message follows: `type(scope): description` where scope is the component or area
+changed (e.g., `planner`, `auth`, `api`). Do NOT include mint task IDs, spec file paths,
+or lists of modified files in the commit message or body.
 
 Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+
+**How to commit:** Always use `git add <specific files>` then `git commit -m "message"`.
+Never use heredocs, `cat <<EOF`, or multiline bash for commits. Single `-m` flag only.
 
 ---
 

@@ -4,10 +4,12 @@
 
 1. Fork the repo
 2. Clone your fork
-3. Create a feature branch: `git checkout -b feat/your-feature`
-4. Make your changes
-5. Commit with the conventions below
-6. Push and open a PR
+3. `bun install`
+4. Create a feature branch: `git checkout -b feat/your-feature`
+5. Make your changes
+6. Run tests: `bun test`
+7. Commit with the conventions below
+8. Push and open a PR
 
 ## Project Structure
 
@@ -26,28 +28,44 @@ mint/
 │   ├── conventions-enforcer.md
 │   ├── test-auditor.md
 │   ├── performance-reviewer.md
-│   └── business-reviewer.md
+│   ├── business-reviewer.md
+│   ├── browser-runner.md      # Core — PinchTab browser automation
+│   ├── browser-reviewer.md    # Core — UI verification
+│   ├── browser-context.md     # Core — pre-plan page state
+│   ├── browser-debugger.md    # Core — live app debugging
+│   └── browser-setup.md       # Core — PinchTab install/config
 ├── commands/                # User-invocable commands
 │   ├── init.md
 │   ├── verify.md
-│   └── help.md
+│   ├── help.md
+│   ├── browse.md
+│   ├── screenshot.md
+│   └── scrape.md
+├── cli/                     # mint CLI (bun + @clack/prompts)
+│   ├── mint.js              # Entry point
+│   ├── commands/            # init, config, doctor, update
+│   └── lib/                 # detect.js — stack/PM/gates detection
+├── tests/                   # Test suite — bun test
+├── references/              # PinchTab API docs, token strategy
 ├── templates/               # Templates and schemas
 │   ├── spec.xml
 │   └── plugin-manifest.json
-├── plugins/                 # Reference and community plugins
+├── hooks/                   # Claude Code hooks
+│   ├── hooks.json
+│   └── scripts/
+├── plugins/                 # Community plugins
 ├── docs/                    # Documentation
 │   ├── architecture.md
-│   └── conventions.md
-└── .mint/                   # Project config (partially committed)
+│   ├── conventions.md
+│   └── plugin-guide.md
+└── .mint/                   # Project config
     ├── config.json          # Committed — shared project settings
-    │   ├── gates, reviewers, stack config
-    │   ├── plugins[]        # Enabled plugins
-    │   └── workspace.repos[]# Opt-in multi-repo awareness (name, path, stack, role, dependsOn)
     ├── hard-blocks.md       # Committed — rules everyone follows
-    ├── issues.md            # Committed — institutional knowledge
+    ├── issues.md            # Committed — failure log
+    ├── wins.md              # Committed — success patterns
+    ├── instincts.md         # Committed — auto-learned conventions
     ├── tasks/               # Gitignored — in-progress specs
-    ├── research/            # Gitignored — local research reports
-    └── plugins/             # Gitignored — installed plugins
+    └── research/            # Gitignored — local research reports
 ```
 
 ## Commit Conventions
@@ -61,14 +79,14 @@ Format: `type(scope): description`
 - `refactor` — restructuring without changing behavior
 - `chore` — maintenance (gitignore, CI, etc.)
 
-**Scope:** use the file or component name (e.g., `planner`, `auth`, `config`).
+**Scope:** use the file or component name (e.g., `planner`, `cli`, `config`).
 
 **Examples:**
 ```
 feat(planner): add dependency resolution to decompose step
 fix(security-auditor): clarify input validation checks
 docs(readme): add plugin installation guide
-refactor(skill): simplify auto-routing decision logic
+feat(cli): add mint config plugins interactive mode
 ```
 
 ## Writing Agents
@@ -95,7 +113,7 @@ Commands are markdown files in `commands/`. They're invoked by the user or orche
 
 ## Writing Plugins
 
-Plugins live in their own directories with a `manifest.json`.
+Plugins live in their own directories with a `manifest.json`. Browser is a core feature, not a plugin.
 
 **Conventions:**
 - Follow `templates/plugin-manifest.json` schema exactly
@@ -106,25 +124,25 @@ Plugins live in their own directories with a `manifest.json`.
 - Bundled plugins live in `plugins/` and ship with mint
 - Community plugins are standalone repos cloned into `.mint/plugins/`
 
-## Writing XML Specs
+## Tests
 
-Specs follow `templates/spec.xml`. Key rules:
-- `<scope>` is strict — agents cannot modify files outside it
-- `<no-mocks>` explains what to use instead of mocks
-- `<anti-patterns>` lists what NOT to do
-- `<pitfalls>` includes lessons from `.mint/issues.md`
-- `<commit>` defines the exact commit message
+Run the full suite before submitting a PR:
+
+```bash
+bun test
+```
+
+Tests cover CLI commands (init, config, doctor), stack detection, and integration flows.
 
 ## PRs
 
 - One logical change per PR
 - Reference the spec ID if applicable (e.g., "Implements mint-004")
 - Keep PRs small — if it touches more than 5 files, consider splitting
-- All markdown must be well-formed (no broken links, valid JSON in code blocks)
+- All tests must pass
 
 ## What Not to Do
 
-- Don't add runtime dependencies — mint is markdown files only
-- Don't add npm/package.json — mint has no build step
 - Don't break backwards compatibility with existing SKILL.md format
 - Don't add features without updating documentation
+- Don't add features without tests

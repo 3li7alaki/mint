@@ -15,46 +15,46 @@
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-bash-git-push.js\"" }],
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-bash-git-push.cjs\"" }],
         "description": "Safety reminder before git push"
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Edit",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit-format.js\"" }],
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit-format.cjs\"" }],
         "description": "Auto-format JS/TS files after edits"
       },
       {
         "matcher": "Edit",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit-typecheck.js\"" }],
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit-typecheck.cjs\"" }],
         "description": "TypeScript check after editing .ts/.tsx files"
       },
       {
         "matcher": "Edit",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit-console-warn.js\"" }],
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit-console-warn.cjs\"" }],
         "description": "Warn about console.log in edited files"
       },
       {
         "matcher": "Edit|Write",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/quality-gate.js\"", "async": true, "timeout": 15 }],
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/quality-gate.cjs\"", "async": true, "timeout": 15 }],
         "description": "Run quality gate checks after file edits"
       },
       {
         "matcher": "Edit|Write",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/instinct-observer.js\"", "async": true, "timeout": 5 }],
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/instinct-observer.cjs\"", "async": true, "timeout": 5 }],
         "description": "Observe patterns for instinct-based learning"
       },
       {
         "matcher": "Edit",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit-test-runner.js\"", "async": true, "timeout": 30 }],
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/post-edit-test-runner.cjs\"", "async": true, "timeout": 30 }],
         "description": "Auto-run relevant tests after editing source files (configurable)"
       }
     ],
     "Stop": [
       {
         "matcher": "*",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/cost-tracker.js\"", "async": true, "timeout": 10 }],
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/cost-tracker.cjs\"", "async": true, "timeout": 10 }],
         "description": "Track token and cost metrics per session"
       }
     ]

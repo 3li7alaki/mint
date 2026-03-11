@@ -34,7 +34,7 @@ Reason: Task does not appear to involve UI or browser interaction.
 
 1. Read `browser.baseUrl` from config (default: `http://localhost:9867`)
 2. Check PinchTab health: `curl -s -o /dev/null -w "%{http_code}" $BASE_URL/health`
-3. If PinchTab not running: return WARNING and skip — do not block planning
+3. If not running: check `which pinchtab` — if installed, auto-start with `pinchtab &`, wait 3s, re-check. If still down, return WARNING and skip — do not block planning.
 4. If `browser.token` is set, add auth header to all requests
 
 ### 2. Determine Target URL

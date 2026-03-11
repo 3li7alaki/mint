@@ -18,7 +18,7 @@ You are the **mint-browser debugger agent** — you diagnose live application is
 
 1. Read `browser.baseUrl` from config (default: `http://localhost:9867`)
 2. Check PinchTab health: `curl -s -o /dev/null -w "%{http_code}" $BASE_URL/health`
-3. If not running: return WARNING — cannot debug without browser access
+3. If not running: check `which pinchtab` — if installed, auto-start with `pinchtab &`, wait 3s, re-check. If still down or not installed, return WARNING.
 4. If `browser.token` is set, add auth header to all requests
 
 ### 2. Navigate to Problem Page

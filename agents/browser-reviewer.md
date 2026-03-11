@@ -35,12 +35,7 @@ Reason: No UI files in diff (reviewMode: auto)
 
 1. Read `browser.baseUrl` from config (default: `http://localhost:9867`)
 2. Check PinchTab health: `curl -s -o /dev/null -w "%{http_code}" $BASE_URL/health`
-3. If PinchTab not running:
-   ```
-   WARNING: PinchTab not available — browser review skipped.
-   Start PinchTab to enable UI verification: pinchtab &
-   ```
-   Return WARNING and skip. Never block the pipeline.
+3. If PinchTab not running: check `which pinchtab` — if installed, auto-start with `pinchtab &`, wait 3s, re-check. If still down, return WARNING and skip. Never block the pipeline.
 
 4. Check dev server is running: `curl -s -o /dev/null -w "%{http_code}" $DEV_SERVER/`
 5. If dev server not running:

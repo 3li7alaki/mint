@@ -36,7 +36,11 @@ Before any browser operation:
 
 1. Read `browser.baseUrl` from config (default: `http://localhost:9867`)
 2. Check PinchTab is running: `curl -s -o /dev/null -w "%{http_code}" $BASE_URL/health`
-3. If not running (non-200): return WARNING with message "PinchTab not running at $BASE_URL. Start it with: pinchtab &"
+3. If not running (non-200):
+   a. Check if PinchTab is installed: `which pinchtab`
+   b. If installed: **auto-start it** — run `pinchtab &` then wait 3 seconds and re-check health
+   c. If still not running after auto-start: return WARNING with the error
+   d. If not installed: return WARNING with install instructions
 4. If `browser.token` is set, add `-H "Authorization: Bearer $TOKEN"` to all curl commands
 
 ### 1. Navigate
@@ -129,12 +133,22 @@ navigate → wait 3s → snapshot → act → snapshot(diff) → verify → repe
 
 ### On PinchTab Unavailable
 
+If PinchTab is installed but not running, auto-start it:
+
+```bash
+pinchtab &
+sleep 3
+curl -s $BASE_URL/health
+```
+
+If it still won't start or isn't installed:
+
 ```
 ## Browser Task Skipped
 
-WARNING: PinchTab not running at http://localhost:9867
-Start PinchTab: pinchtab &
-Or install: curl -fsSL https://pinchtab.com/install.sh | sh
+WARNING: PinchTab not available at http://localhost:9867
+Install: curl -fsSL https://pinchtab.com/install.sh | sh
+WSL2: also run: sudo apt install -y chromium-browser
 ```
 
 ### On Action Failure

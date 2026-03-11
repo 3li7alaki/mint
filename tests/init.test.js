@@ -156,6 +156,31 @@ describe('mint init --yes', () => {
     expect(content).toBe('custom rules');
   });
 
+  test('adds mint state files to .gitignore', () => {
+    run('init --yes');
+    const gitignore = fs.readFileSync(path.join(TMP, '.gitignore'), 'utf8');
+    expect(gitignore).toContain('.mint/tasks/');
+    expect(gitignore).toContain('.mint/ssh-cache.json');
+    // instincts.md should NOT be gitignored — it's learned knowledge
+    expect(gitignore).not.toContain('.mint/instincts.md');
+  });
+
+  test('does not duplicate gitignore entries on re-init', () => {
+    run('init --yes');
+    run('init --yes');
+    const gitignore = fs.readFileSync(path.join(TMP, '.gitignore'), 'utf8');
+    const matches = gitignore.match(/mint local state/g);
+    expect(matches.length).toBe(1);
+  });
+
+  test('appends to existing .gitignore', () => {
+    fs.writeFileSync(path.join(TMP, '.gitignore'), 'node_modules/\n');
+    run('init --yes');
+    const gitignore = fs.readFileSync(path.join(TMP, '.gitignore'), 'utf8');
+    expect(gitignore).toContain('node_modules/');
+    expect(gitignore).toContain('.mint/tasks/');
+  });
+
   test('output includes version', () => {
     const output = run('init --yes');
     expect(output).toContain('mint configured');

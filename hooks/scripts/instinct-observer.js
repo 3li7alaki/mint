@@ -4,9 +4,9 @@
  * Trigger: PostToolUse (Edit|Write)
  * Observes patterns in agent behavior and records instincts to .mint/instincts.md
  *
- * Lightweight version of pattern extraction — watches for recurring code patterns,
- * naming conventions, import styles, and test patterns. Records observations that
- * the planner can use to write better specs.
+ * Watches for recurring code patterns, naming conventions, import styles, and test
+ * patterns. Confidence grows as the same pattern is seen across different files.
+ * Patterns with confidence >= 3 are high-confidence conventions.
  */
 'use strict';
 
@@ -35,8 +35,7 @@ function extractPatterns(filePath, content) {
   const patterns = [];
   const ext = path.extname(filePath);
 
-  // Detect import style
-  if (/\.(ts|tsx|js|jsx)$/.test(ext) && content) {
+  if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(ext) && content) {
     const lines = content.split('\n').slice(0, 50);
     const imports = lines.filter(l => l.startsWith('import '));
     if (imports.length > 0) {
@@ -46,66 +45,84 @@ function extractPatterns(filePath, content) {
       if (hasAbsolute) patterns.push({ category: 'imports', observation: 'alias-imports', file: filePath });
     }
 
-    // Detect naming convention
     const funcDefs = lines.filter(l => /^(export )?(const|function|async function) /.test(l.trim()));
     const hasCamel = funcDefs.some(l => /\b[a-z][a-zA-Z]+\b/.test(l));
     const hasSnake = funcDefs.some(l => /\b[a-z]+_[a-z]+\b/.test(l));
     if (hasCamel && !hasSnake) patterns.push({ category: 'naming', observation: 'camelCase-functions', file: filePath });
     if (hasSnake && !hasCamel) patterns.push({ category: 'naming', observation: 'snake_case-functions', file: filePath });
 
-    // Detect test patterns
     if (filePath.includes('test') || filePath.includes('spec')) {
-      const hasDescribe = content.includes('describe(');
-      const hasTest = content.includes('test(') || content.includes('it(');
-      const hasExpect = content.includes('expect(');
-      const hasAssert = content.includes('assert.');
-      if (hasDescribe && hasTest) patterns.push({ category: 'tests', observation: 'describe-it-pattern', file: filePath });
-      if (hasExpect) patterns.push({ category: 'tests', observation: 'expect-assertions', file: filePath });
-      if (hasAssert) patterns.push({ category: 'tests', observation: 'assert-assertions', file: filePath });
+      if (content.includes('describe(') && (content.includes('test(') || content.includes('it('))) {
+        patterns.push({ category: 'tests', observation: 'describe-it-pattern', file: filePath });
+      }
+      if (content.includes('expect(')) patterns.push({ category: 'tests', observation: 'expect-assertions', file: filePath });
+      if (content.includes('assert.')) patterns.push({ category: 'tests', observation: 'assert-assertions', file: filePath });
     }
   }
 
-  // Detect Vue/React patterns
   if (/\.vue$/.test(ext)) patterns.push({ category: 'framework', observation: 'vue-sfc', file: filePath });
   if (/\.(tsx|jsx)$/.test(ext) && content && content.includes('React')) {
     patterns.push({ category: 'framework', observation: 'react-component', file: filePath });
   }
+  if (/\.py$/.test(ext)) patterns.push({ category: 'framework', observation: 'python', file: filePath });
+  if (/\.go$/.test(ext)) patterns.push({ category: 'framework', observation: 'go', file: filePath });
+  if (/\.rs$/.test(ext)) patterns.push({ category: 'framework', observation: 'rust', file: filePath });
 
   return patterns;
 }
+
+const HEADER = `# Instincts
+
+Auto-extracted patterns from code observations. The planner reads this to match
+existing project conventions. Confidence grows as patterns repeat across files.
+
+**High-confidence (>= 3):** Follow by default when writing new code.
+**Low-confidence (1-2):** Observed but not yet established — use judgment.
+
+| Category | Pattern | Files Seen | Confidence | Last Updated |
+|----------|---------|-----------|------------|--------------|
+`;
 
 function recordInstinct(mintDir, pattern) {
   const instinctsPath = path.join(mintDir, 'instincts.md');
   let existing = '';
   try { existing = fs.readFileSync(instinctsPath, 'utf8'); } catch { /* new file */ }
 
-  // Check if this pattern already exists — increment confidence if so
-  const key = `${pattern.category}:${pattern.observation}`;
+  const key = `| ${pattern.category} | ${pattern.observation} |`;
+  const fileName = path.basename(pattern.file);
+  const today = new Date().toISOString().split('T')[0];
+
   if (existing.includes(key)) {
-    // Pattern already recorded — don't duplicate
-    return;
-  }
+    // Pattern exists — increment confidence and update files seen
+    const lines = existing.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith(key)) {
+        const cols = lines[i].split('|').map(c => c.trim());
+        // cols: ['', category, observation, filesSeen, confidence, date, '']
+        const seenFiles = cols[3] || '';
+        const confidence = parseInt(cols[4]) || 1;
 
-  // Append new observation
-  const entry = `| ${pattern.category} | ${pattern.observation} | ${path.basename(pattern.file)} | 1 | ${new Date().toISOString().split('T')[0]} |\n`;
-
-  if (!existing) {
-    // Create the file with header
-    const header = `# Instincts
-
-Auto-extracted patterns from agent observations. The planner reads this file to match
-existing project conventions when writing new code.
-
-Confidence increases when the same pattern is observed across multiple files.
-Patterns with confidence >= 3 are high-confidence and should be followed by default.
-
-## Observations
-
-| Category | Pattern | Last Seen In | Confidence | Date |
-|----------|---------|-------------|------------|------|
-`;
-    fs.writeFileSync(instinctsPath, header + entry);
+        // Only bump confidence if this is a different file
+        if (!seenFiles.includes(fileName)) {
+          const newSeen = seenFiles ? `${seenFiles}, ${fileName}` : fileName;
+          // Cap the files list to avoid mega-long rows
+          const truncatedSeen = newSeen.length > 60 ? newSeen.substring(0, 57) + '...' : newSeen;
+          cols[3] = truncatedSeen;
+          cols[4] = String(confidence + 1);
+          cols[5] = today;
+          lines[i] = `| ${cols[1]} | ${cols[2]} | ${cols[3]} | ${cols[4]} | ${cols[5]} |`;
+        }
+        break;
+      }
+    }
+    fs.writeFileSync(instinctsPath, lines.join('\n'));
+  } else if (!existing) {
+    // New file
+    const entry = `| ${pattern.category} | ${pattern.observation} | ${fileName} | 1 | ${today} |\n`;
+    fs.writeFileSync(instinctsPath, HEADER + entry);
   } else {
+    // Append new pattern
+    const entry = `| ${pattern.category} | ${pattern.observation} | ${fileName} | 1 | ${today} |\n`;
     fs.appendFileSync(instinctsPath, entry);
   }
 }
@@ -123,9 +140,8 @@ process.stdin.on('end', () => {
     try {
       const config = JSON.parse(fs.readFileSync(path.join(mintDir, 'config.json'), 'utf8'));
       if (config.instincts?.enabled === false) { process.stdout.write(data); return; }
-    } catch { /* no config or parse error — proceed with defaults */ }
+    } catch { /* proceed with defaults */ }
 
-    // Read the file content for pattern extraction
     const resolved = path.resolve(filePath);
     let content = '';
     try { content = fs.readFileSync(resolved, 'utf8'); } catch { /* file may not exist yet */ }

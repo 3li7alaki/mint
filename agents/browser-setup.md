@@ -115,13 +115,15 @@ kill $PINCHTAB_PID 2>/dev/null
 
 If health check passes, report success. If it fails, report the issue with troubleshooting steps.
 
-### 8. Add Plugin to Config
+### 8. Enable Browser in Config
 
-Ensure `plugins/mint-browser` is in the `plugins` array in `.mint/config.json`:
+Ensure `browser.enabled` is `true` in `.mint/config.json`:
 
 ```json
 {
-  "plugins": ["plugins/mint-browser"]
+  "browser": {
+    "enabled": true
+  }
 }
 ```
 

@@ -1,0 +1,21 @@
+{
+  "name": "@3li7alaki/mint",
+  "version": "0.4.0",
+  "description": "Disciplined agentic development — CLI for project setup, config, and management",
+  "type": "module",
+  "bin": {
+    "mint": "./cli/mint.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/3li7alaki/mint.git"
+  },
+  "author": "Ali AlHalaki <alihalaki@outlook.com>",
+  "license": "MIT",
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.1.0"
+  }
+}

@@ -1,4 +1,10 @@
-# mint working state (local, per-developer)
+# Dependencies
+node_modules/
+package-lock.json
+bun.lockb
+bun.lock
+
+# mint local state (transient, per-session)
 .mint/tasks/
 .mint/research/
 .mint/worktrees/

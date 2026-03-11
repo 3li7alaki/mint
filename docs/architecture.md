@@ -125,7 +125,6 @@ Real-time Claude Code hooks provide instant feedback during development:
 - **PostToolUse (Edit)** — auto-format, typecheck, console.log warning
 - **PostToolUse (Edit|Write)** — quality gate (lint check)
 - **PreToolUse (Bash)** — git push safety reminder
-- **PreCompact** — save execution state before context compaction
 - **Stop** — cost tracking per session
 
 Hooks are lightweight Node.js scripts in `hooks/scripts/`. They fire deterministically on every

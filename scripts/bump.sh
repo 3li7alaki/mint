@@ -10,6 +10,7 @@ set -euo pipefail
 
 PLUGIN_JSON=".claude-plugin/plugin.json"
 MARKETPLACE_JSON=".claude-plugin/marketplace.json"
+PACKAGE_JSON="package.json"
 
 # Get current version
 CURRENT=$(grep -o '"version": "[^"]*"' "$PLUGIN_JSON" | head -1 | grep -o '[0-9][0-9.]*')
@@ -36,7 +37,7 @@ esac
 echo "$CURRENT → $NEW"
 
 # Update all version locations
-for file in "$PLUGIN_JSON" "$MARKETPLACE_JSON"; do
+for file in "$PLUGIN_JSON" "$MARKETPLACE_JSON" "$PACKAGE_JSON"; do
   if [ -f "$file" ]; then
     sed -i "s/\"version\": \"$CURRENT\"/\"version\": \"$NEW\"/g" "$file"
     echo "  Updated $file"

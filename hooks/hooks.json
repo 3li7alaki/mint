@@ -51,13 +51,6 @@
         "description": "Auto-run relevant tests after editing source files (configurable)"
       }
     ],
-    "PreCompact": [
-      {
-        "matcher": "*",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-compact.js\"" }],
-        "description": "Save execution state before context compaction"
-      }
-    ],
     "Stop": [
       {
         "matcher": "*",

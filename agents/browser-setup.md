@@ -41,7 +41,17 @@ PinchTab not found. Install options:
 Which would you like? (or skip to configure manually later)
 ```
 
-Wait for user response. If the user chooses an option, run the install command. If they skip, configure the plugin as disabled and return.
+Wait for user response. If the user chooses an option, run the install command. If they skip, configure browser as disabled and return.
+
+### 2b. WSL2: Install Linux Chromium
+
+If running on WSL2 (check `uname -r` for `microsoft` or `WSL`), PinchTab needs Linux-side Chromium — Windows Chrome at `/mnt/c/...` doesn't work across the boundary:
+
+```bash
+sudo apt install -y chromium-browser
+```
+
+This is required even if Chrome is installed on the Windows side.
 
 ### 3. Verify PinchTab Works
 

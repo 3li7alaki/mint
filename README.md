@@ -91,6 +91,9 @@ Built-in browser automation powered by [PinchTab](https://github.com/pinchtab/pi
 # Install PinchTab (mint init offers to do this)
 curl -fsSL https://pinchtab.com/install.sh | sh
 
+# WSL2: also install Linux-side Chromium
+sudo apt install -y chromium-browser
+
 # Start it
 pinchtab &
 ```

@@ -29,6 +29,10 @@ Evaluate in this order:
    "run migrations on", "tinker on", or any remote server command
    → Run in main context using ssh config from `.mint/config.json`. See "SSH Execution" below.
 
+1b. **Browse** — user says "browse to", "open", "go to", "scrape", "check the site",
+   "fill out the form", "screenshot", "what does X look like", "debug in browser"
+   → Delegate to browser-runner agent (or browser-debugger for debug tasks). See "Browser Execution" below.
+
 2. **Verify** — user says "verify", "check gates", "audit", "run checks"
    → Delegate to `mint-verifier` subagent
 
@@ -370,6 +374,63 @@ Read `.mint/config.json` for SSH settings:
 - Container names may change between deploys — use `docker ps --filter 'name={container}' --format '{{.Names}}' | head -1` to find current name
 - For interactive commands (tinker, shell), inform user this requires a terminal
 - Always expand `~` in key path to actual home directory
+
+---
+
+## Execution Flow — Browse Mode
+
+For browser automation tasks. Requires `mint-browser` plugin and `browser` config in `.mint/config.json`.
+
+### When to route here
+
+User intent involves a browser or web page:
+- "browse to", "open", "go to" + URL
+- "scrape", "extract from" + URL
+- "screenshot", "what does X look like"
+- "fill out the form", "click the button", "check the site"
+- "debug in browser", "check console errors"
+
+### Config lookup
+
+Read `.mint/config.json` for browser settings:
+
+```json
+{
+  "browser": {
+    "enabled": true,
+    "baseUrl": "http://localhost:9867",
+    "token": null,
+    "headless": true,
+    "devServer": "http://localhost:3000",
+    "timeout": 30,
+    "blockImages": false
+  }
+}
+```
+
+### Execution flow
+
+1. **Check plugin is enabled** — `browser.enabled` must be `true`
+2. **Pre-flight** — verify PinchTab is running at `browser.baseUrl` via `/health`
+3. **Route to agent:**
+   - Debug tasks → `browser-debugger` agent
+   - Everything else → `browser-runner` agent
+4. **Agent executes** — navigate, snapshot, act, verify loop via PinchTab HTTP API (curl)
+5. **Return result** — page state, extracted data, task confirmation, or debug report
+
+### Graceful degradation
+
+If PinchTab is not running:
+- Return WARNING with start instructions: `pinchtab &`
+- Never block the user's workflow
+- Suggest installing PinchTab if the binary is not found
+
+### Commands
+
+Users can invoke browser operations directly:
+- `/browse <url> [task]` — navigate and interact
+- `/screenshot [url]` — capture page screenshot
+- `/scrape <url> [what]` — extract structured data
 
 ---
 

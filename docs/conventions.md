@@ -124,6 +124,15 @@ After a PR is merged:
 | `modelRouting.override` | object | Map estimate → model (e.g., `{ "small": "opus" }`) |
 | `hooks.testOnSave` | boolean/object | Auto-run tests on edit. `true`, `false`, or `{ enabled, timeout }`. Default: `false` |
 | `workspace.repos` | array | Workspace repo registry (see below) |
+| `browser.enabled` | boolean | Enable/disable browser plugin. Default: `true` |
+| `browser.baseUrl` | string | PinchTab API base URL. Default: `http://localhost:9867` |
+| `browser.token` | string | Bearer token for PinchTab auth. Default: `null` |
+| `browser.headless` | boolean | Run Chrome headless. Default: `true` |
+| `browser.devServer` | string | Local dev server URL. Default: `http://localhost:3000` |
+| `browser.uiFilePatterns` | string[] | File patterns that trigger browser review. Default: `["*.vue", "*.tsx", "*.jsx", "*.svelte", "*.html", "*.css", "*.scss"]` |
+| `browser.reviewMode` | string | When to run browser review: `"auto"`, `"always"`, `"off"`. Default: `"auto"` |
+| `browser.timeout` | number | Navigation timeout in seconds. Default: `30` |
+| `browser.blockImages` | boolean | Block image loading globally. Default: `false` |
 
 ### Workspace Registry (`workspace.repos`)
 

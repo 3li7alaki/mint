@@ -144,6 +144,18 @@ Every spec goes through multi-stage review:
 
 Issues are categorized: BLOCKING (must fix), WARNING (should fix), INFO (logged). Each reviewer can use a different Claude model.
 
+## Learning
+
+mint learns your project's conventions automatically. Three mechanisms:
+
+- **Instincts** (`.mint/instincts.md`) — a PostToolUse hook observes every file edit and extracts patterns: import style, naming conventions, test framework, component patterns. Confidence grows as the same pattern appears across different files. The planner reads this before writing specs so new code matches existing conventions without scanning every file. High-confidence patterns (>= 3) are treated as project conventions.
+
+- **Issues** (`.mint/issues.md`) — every blocker, root cause, and resolution is logged. The planner reads this to avoid repeating mistakes.
+
+- **Wins** (`.mint/wins.md`) — successful patterns and why they worked. The planner reads this to replicate what works.
+
+All three are committed to git — they're shared team knowledge, not throwaway state.
+
 ## Plugins
 
 Plugins extend mint with stack-specific or integration capabilities.

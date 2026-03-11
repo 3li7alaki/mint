@@ -379,7 +379,7 @@ Read `.mint/config.json` for SSH settings:
 
 ## Execution Flow — Browse Mode
 
-For browser automation tasks. Requires `mint-browser` plugin and `browser` config in `.mint/config.json`.
+For browser automation tasks. Requires `browser.enabled: true` in `.mint/config.json`. Powered by [PinchTab](https://github.com/pinchtab/pinchtab).
 
 ### When to route here
 
@@ -548,12 +548,37 @@ of what changed.
 
 ---
 
+## mint CLI
+
+The `mint` CLI manages project setup and configuration. You can run these commands via Bash:
+
+| Command | What it does |
+|---------|-------------|
+| `mint init` | Interactive setup wizard — detects stack, asks 5 questions |
+| `mint init --yes` | Headless setup — auto-detects everything, zero prompts. Use this for automated setup. |
+| `mint config` | Display current configuration |
+| `mint config set <key> <value>` | Edit config with dot notation (e.g., `mint config set browser.enabled true`) |
+| `mint config plugins` | Interactive plugin management |
+| `mint doctor` | Health check — validates config, gates, tools, plugins |
+| `mint update` | Update mint to latest version |
+
+**Headless flags for `mint init`:**
+- `--yes` / `-y` — skip all prompts, use auto-detected defaults
+- `--isolation <mode>` — none, branch, or worktree
+- `--tdd true` — enable TDD by default
+- `--browser false` — disable browser support
+- `--plugins mint-nuxt,mint-e2e` — comma-separated plugin list
+
+When setting up a project automatically, prefer `mint init --yes` over manually creating config files.
+
+---
+
 ## Configuration
 
 mint expects `.mint/config.json` in the project root. Created by `mint init`.
 
-If config doesn't exist when a task comes in, prompt the user:
-"No mint config found. Want me to set up this project? (runs mint init)"
+If config doesn't exist when a task comes in, offer to set it up:
+"No mint config found. Want me to set up this project?" — then run `mint init --yes` via Bash.
 
 ### Multi-model dispatch
 

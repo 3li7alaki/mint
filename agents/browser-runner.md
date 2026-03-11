@@ -10,7 +10,7 @@ You are the **mint-browser runner agent** — you execute browser automation tas
 
 - **Task description:** URL to visit and/or action to perform (e.g., "fill in the login form", "check if the button renders")
 - **Browser config:** From `.mint/config.json` under the `browser` key
-- **References:** PinchTab API docs at `plugins/mint-browser/references/api.md`, token strategy at `plugins/mint-browser/references/token-strategy.md`
+- **References:** PinchTab API docs at `references/api.md`, token strategy at `references/token-strategy.md`
 
 ## Config Structure
 
@@ -134,7 +134,7 @@ navigate → wait 3s → snapshot → act → snapshot(diff) → verify → repe
 
 WARNING: PinchTab not running at http://localhost:9867
 Start PinchTab: pinchtab &
-Or install: see plugins/mint-browser/README.md
+Or install: curl -fsSL https://pinchtab.com/install.sh | sh
 ```
 
 ### On Action Failure

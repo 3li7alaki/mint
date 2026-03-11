@@ -1,6 +1,16 @@
-# mint
+```
+             __         __
+   ____ ___ /\_\ ___   /\ \__
+  /\  _` \/\ \/  _`\ \ \ ,_\
+  \ \ \/\ \\ \ \ \ \/\ \\ \ \/
+   \ \ \ \ \\ \ \ \ \ \ \\ \ \_
+    \ \_\ \_\\ \_\ \_\ \_\\ \__\
+     \/_/\/_/ \/_/\/_/\/_/ \/__/
+```
 
-Disciplined agentic development for Claude Code. Fresh context per task, clean orchestration, zero slop.
+### Disciplined agentic development for Claude Code
+
+> v0.4.0 — Fresh context per task. Clean orchestration. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 

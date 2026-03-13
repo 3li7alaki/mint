@@ -39,8 +39,9 @@ A Claude Code skill (`SKILL.md`) + agent prompts (`agents/`) + CLI (`cli/`) + co
 | `agents/*.md` | One prompt per agent — planner, reviewers, browser, researcher, etc. |
 | `cli/` | mint CLI — init, config, doctor, update |
 | `tests/` | Test suite — `bun test` |
-| `references/` | PinchTab API docs, token strategy |
-| `.mint/config.json` | Gates, reviewers, browser, plugins, workspace config |
+| `references/` | PinchTab API docs, token strategy, context-mode API, context-mode strategy |
+| `agents/context-setup.md` | Context Mode setup agent — detection, installation, configuration |
+| `.mint/config.json` | Gates, reviewers, browser, context, plugins, workspace config |
 | `.mint/hard-blocks.md` | Immutable constraints agents can never violate |
 | `.mint/issues.md` | Failure log — planner reads before writing specs |
 | `.mint/instincts.md` | Auto-learned conventions — committed, shared knowledge |

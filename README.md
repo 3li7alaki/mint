@@ -9,7 +9,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.4.0 — Fresh context per task. Clean orchestration. Zero slop.
+> v0.5.0 — Fresh context per task. Clean orchestration. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 
@@ -123,6 +123,38 @@ Enable/disable in config:
 }
 ```
 
+## Context Mode
+
+Optional integration with [context-mode](https://github.com/mksglu/context-mode) for sandboxed execution, session continuity, and FTS5 full-text search. Not a plugin -- a core feature. Keeps raw tool output out of the context window so agents stay focused.
+
+**What it does:**
+- **Sandboxed execution** -- test runners, build tools, and lint output stay out of context via `ctx_execute`. Only errors/failures return.
+- **FTS5 search** -- index files, URLs, and command output into a full-text search database. Query with `ctx_search` instead of loading raw content.
+- **Session continuity** -- file operations, task state, and decisions survive context compaction automatically.
+- **Intent-driven filtering** -- add an `intent` parameter to large outputs and only relevant sections return.
+
+**Setup:**
+```bash
+# Install via MCP server (mint init offers to do this)
+claude mcp add context-mode -- npx -y context-mode
+```
+
+**How agents use it:** When `context.enabled` is `true`, every agent activates its Context Mode section automatically. Test runs use `ctx_execute` with `intent: "errors"`, file analysis uses `ctx_execute_file`, URL fetching uses `ctx_fetch_and_index` + `ctx_search`. Standard tools are the fallback if context-mode is unavailable.
+
+**Token savings:** ~97% on test output, ~99% on URL fetching, ~90% on file analysis.
+
+Enable/disable in config:
+```json
+{
+  "context": {
+    "enabled": true,
+    "autoRoute": true,
+    "sandbox": { "timeout": 30000 },
+    "session": { "enabled": true }
+  }
+}
+```
+
 ## TDD Support
 
 Test-first development built into the pipeline. Toggle via config or per-spec:
@@ -205,6 +237,7 @@ Key config in `.mint/config.json`:
 | `autoCommit` | `true` | Commit after passing gates |
 | `tdd.default` | `false` | TDD-first by default |
 | `browser.enabled` | `true` | Browser automation via PinchTab |
+| `context.enabled` | `false` | Context Mode via context-mode |
 | `reviewers` | smart defaults | Which reviewers run and their models |
 | `isolation` | `none` | Work isolation: none, branch, or worktree |
 | `plugins` | `[]` | Plugin paths |

@@ -34,6 +34,7 @@ function showConfig() {
   console.log(`  Auto-commit: ${config.autoCommit !== false ? g('on') : r()}`);
   console.log(`  TDD:         ${config.tdd?.default ? g('on') : r()}`);
   console.log(`  Browser:     ${config.browser?.enabled ? g('on') : r()}`);
+  console.log(`  Context:     ${config.context?.enabled ? g('on') : r()}`);
 
   console.log(`\n  \x1b[1mGates\x1b[0m`);
   for (const key of ['lint', 'types', 'tests']) {

@@ -1,7 +1,7 @@
 import * as p from '@clack/prompts';
 import path from 'path';
 import { execSync } from 'child_process';
-import { readJsonSafe, fileExists, detectStack, detectTool } from '../lib/detect.js';
+import { readJsonSafe, fileExists, detectStack, detectTool, detectContextMode } from '../lib/detect.js';
 
 export async function run() {
   const cwd = process.cwd();
@@ -56,6 +56,13 @@ export async function run() {
     ok('Browser: enabled');
     if (detectTool('pinchtab')) ok('PinchTab installed');
     else warn('PinchTab not installed — run: curl -fsSL https://pinchtab.com/install.sh | sh');
+  }
+
+  // Context Mode (core feature)
+  if (config.context?.enabled) {
+    ok('Context Mode: enabled');
+    if (detectContextMode()) ok('context-mode installed');
+    else warn('context-mode not installed — install via: claude mcp add context-mode -- npx -y context-mode');
   }
 
   // Plugins

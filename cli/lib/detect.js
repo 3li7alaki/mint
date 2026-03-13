@@ -121,6 +121,56 @@ export function detectTool(name) {
   catch { return false; }
 }
 
+export function detectContextMode() {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+
+  // Check Claude Code plugin dirs
+  try {
+    const pluginDir = path.join(home, '.claude', 'plugins');
+    if (fs.existsSync(pluginDir)) {
+      const dirs = fs.readdirSync(pluginDir);
+      for (const d of dirs) {
+        const sub = path.join(pluginDir, d, 'context-mode');
+        if (fs.existsSync(sub)) return true;
+      }
+    }
+  } catch { /* ignore */ }
+
+  // Check installed_plugins.json
+  try {
+    const pluginsFile = path.join(home, '.claude', 'installed_plugins.json');
+    if (fs.existsSync(pluginsFile)) {
+      const content = fs.readFileSync(pluginsFile, 'utf8');
+      if (content.includes('context-mode')) return true;
+    }
+  } catch { /* ignore */ }
+
+  // Check MCP config file directly (avoids slow `claude mcp list` health checks)
+  try {
+    const mcpConfigPaths = [
+      path.join(home, '.claude', 'claude_desktop_config.json'),
+      path.join(home, '.claude.json'),
+    ];
+    for (const mcpPath of mcpConfigPaths) {
+      if (fs.existsSync(mcpPath)) {
+        const content = fs.readFileSync(mcpPath, 'utf8');
+        if (content.includes('context-mode')) return true;
+      }
+    }
+  } catch { /* ignore */ }
+
+  // Check npm global
+  try { execSync('which context-mode', { stdio: 'ignore', timeout: 2000 }); return true; }
+  catch { /* ignore */ }
+
+  return false;
+}
+
+export function installContextMode() {
+  execSync('claude mcp add context-mode -- npx -y context-mode', { stdio: 'pipe', timeout: 60000 });
+  return detectContextMode();
+}
+
 export function detectPlugins(stack) {
   const map = { nuxt: 'mint-nuxt', vue: 'mint-nuxt' };
   return map[stack] ? [map[stack]] : [];

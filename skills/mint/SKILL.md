@@ -266,6 +266,9 @@ architectural decisions, announce: "This is bigger than expected — switching t
 
 No worktree. No reviewers. No spec files. Just gates.
 
+When context-mode is enabled, gate runs use `ctx_execute` to keep output sandboxed even in
+quick mode.
+
 ---
 
 ## Execution Flow — Ship Mode
@@ -447,6 +450,10 @@ gates in main context" — these are quick pass/fail checks, not heavy analysis)
 1. Run each enabled gate command from `config.gates` (lint, types, tests)
 2. If ALL pass → report "All gates green. No issues found." — done, no subagent needed
 3. If ANY fail → proceed to layer 2
+
+When context-mode is enabled, Layer 1 gate runs can use `ctx_execute` for cleaner output,
+but this is optional -- the main benefit is in Layer 2 where the verifier agent uses it for
+deep analysis.
 
 ### Layer 2 — Deep analysis (subagent)
 
@@ -646,6 +653,48 @@ Plugin agents receive the same context as their hook stage (e.g., pre-review get
 | `pm` | Project management integration (e.g., Linear, Jira) |
 | `design` | Design tool integration (e.g., Figma) |
 | `memory` | Knowledge persistence (e.g., embeddings, vector search) |
+
+---
+
+## Context Mode
+
+Context mode is an optional integration with [context-mode](https://github.com/mksglu/context-mode),
+an MCP server that keeps raw tool output out of the context window via sandboxed execution and
+provides FTS5 full-text search over indexed content.
+
+### Startup Detection
+
+On startup (after plugin loading, before routing), check `config.context.enabled`:
+
+1. If `false` or not present: skip context mode entirely. All agents use standard tools.
+2. If `true`: verify context-mode MCP tools respond by calling `ctx_doctor` or a simple
+   `ctx_execute(language: "shell", code: "echo ok")` test.
+   - If tools respond: set internal flag. All agents activate their Context Mode sections
+     and prefer sandboxed execution for data-heavy operations.
+   - If tools do not respond: log WARNING ("Context mode enabled in config but context-mode
+     MCP tools are unavailable. Agents will fall back to standard tools."). Set internal flag
+     to disabled. Agents fall back to normal tools transparently.
+
+### Agent Dispatch Context
+
+When `config.context.enabled` is `true` and context-mode is verified available, all agents also
+receive a reference to `references/context-mode-api.md` and `references/context-mode-strategy.md`.
+Agents don't receive the full reference content in their dispatch -- they have routing guidance in
+their prompt sections. The config flag tells them to activate their Context Mode behavior.
+
+### Context Protection Enhancement
+
+When context-mode is enabled, the existing context protection rules are enforced automatically
+via sandboxed execution. Agents use `ctx_execute` instead of raw Bash for data-heavy operations,
+`ctx_execute_file` instead of Read for large files, and `ctx_fetch_and_index` instead of WebFetch
+for URLs. This makes context protection structural rather than relying on agent discipline alone.
+
+### Session Continuity
+
+context-mode's session hooks (PreCompact, SessionStart) automatically track file operations,
+task state, errors, and decisions. After context compaction, agents can use
+`ctx_search(queries: [...], source: "session-events")` to recover working state. No
+mint-specific session code is needed -- context-mode handles this natively.
 
 ---
 

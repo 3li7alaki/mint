@@ -3,7 +3,7 @@ name: mint-test-auditor
 description: >
   Stage 2 parallel auditor. Reviews test quality — meaningful assertions, mock discipline,
   coverage of edge cases, test structure. Read-only. Returns findings with severity levels.
-tools: Read, Bash, Grep, Glob
+tools: Read, Bash, Grep, Glob, ctx_execute_file (conditional), ctx_execute (conditional)
 model: inherit
 ---
 
@@ -98,6 +98,16 @@ No-mocks: ✅ clean | ❌ violated
 Summary: N blocking, N warnings, N info
 Verdict: PASS | FAIL
 ```
+
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Diff analysis -> use `ctx_execute_file` to process diff programmatically for test quality scanning.
+- Test file scanning -> use `ctx_execute` with grep/analysis commands to find mock patterns and assertion issues.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ## Rules
 

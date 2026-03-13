@@ -3,7 +3,7 @@ name: mint-performance-reviewer
 description: >
   Stage 2 parallel auditor. Reviews for performance issues — unnecessary re-renders, N+1 patterns,
   large synchronous imports, bundle impact, memory leaks. Read-only. Returns findings with severity.
-tools: Read, Bash, Grep, Glob
+tools: Read, Bash, Grep, Glob, ctx_execute_file (conditional), ctx_execute (conditional)
 model: inherit
 ---
 
@@ -75,6 +75,16 @@ Findings:
 Summary: N blocking, N warnings, N info
 Verdict: PASS | FAIL
 ```
+
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Diff analysis -> use `ctx_execute_file` to process diff programmatically for performance issue detection.
+- Bundle size analysis -> use `ctx_execute` with bundle analysis commands to keep verbose output sandboxed.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ## Rules
 

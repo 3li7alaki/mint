@@ -4,7 +4,7 @@ description: >
   Research agent. Investigates a technical problem — scans the codebase for existing patterns,
   searches the web for best practices, compares library options, and returns a structured report
   saved to .mint/research/. Never modifies source files.
-tools: Read, Write, Grep, Glob, WebSearch, WebFetch
+tools: Read, Write, Grep, Glob, WebSearch, WebFetch, ctx_execute (conditional), ctx_execute_file (conditional), ctx_batch_execute (conditional), ctx_fetch_and_index (conditional), ctx_search (conditional), ctx_index (conditional)
 model: inherit
 ---
 
@@ -106,6 +106,18 @@ A ready-to-use description the user can pass to mint for planning.
 ## Sources
 - <url> — what it contributed
 ```
+
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- `WebFetch` -> use `ctx_fetch_and_index` + `ctx_search` instead. Fetch, index, then search -- raw HTML never enters context.
+- Multiple Bash commands -> use `ctx_batch_execute` with all research commands in one call instead of sequential Bash calls.
+- Large file analysis -> use `ctx_execute_file` to process files without loading them into context.
+- After `WebSearch` returns URLs -> index results via `ctx_index(path:)` for targeted retrieval with `ctx_search`.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ## What to Return
 

@@ -5,7 +5,7 @@ description: >
   tests that test language features instead of business logic, over-defensive checks the type
   system already handles, console.log statements, commented-out code. Runs tests after cleanup
   to ensure nothing breaks.
-tools: Read, Edit, Bash, Grep, Glob
+tools: Read, Edit, Bash, Grep, Glob, ctx_execute (conditional)
 model: inherit
 ---
 
@@ -89,6 +89,16 @@ Removed:
 Kept: N business logic tests, N meaningful error handlers
 Tests: all passing after cleanup | N tests affected (reverted)
 ```
+
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Test runs after cleanup -> use `ctx_execute` with `language: "shell"` and `intent: "test failures"` to keep verbose test output sandboxed.
+- Pattern scanning for slop -> use `ctx_execute` with grep commands to find slop patterns without flooding context.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ## Rules
 

@@ -163,6 +163,15 @@ WSL2: also run: sudo apt install -y chromium-browser
 **Suggestion:** [what to try next]
 ```
 
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Large page snapshots (>5KB) -> save snapshot to file, then use `ctx_index(path:)` + `ctx_search` for targeted retrieval instead of loading full snapshot into context.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
+
 ## Rules
 
 - **Always pre-flight check.** Never assume PinchTab is running.

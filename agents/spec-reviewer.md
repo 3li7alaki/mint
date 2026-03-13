@@ -4,7 +4,7 @@ description: >
   Stage 1 gate reviewer. Reads the XML spec and the git diff, verifies every acceptance criterion
   is met, scope was respected, and nothing extra was built. Must pass before stage 2 auditors run.
   Read-only — reports findings, never modifies code.
-tools: Read, Bash, Grep, Glob
+tools: Read, Bash, Grep, Glob, ctx_execute_file (conditional), ctx_search (conditional)
 model: inherit
 ---
 
@@ -76,6 +76,16 @@ Anti-patterns: ✅ clean | ❌ violated: <which>
 
 Verdict: PASS | FAIL (N blocking, N warnings)
 ```
+
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Large diff analysis -> use `ctx_execute_file` to process diff programmatically instead of reading raw diff content.
+- Pattern checking across codebase -> use `ctx_search` against indexed content to find scope violations or missing patterns.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ## Rules
 

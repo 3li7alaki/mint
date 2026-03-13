@@ -3,7 +3,7 @@ name: mint-verifier
 description: >
   Quality gate agent. Runs all gates — lint, types, tests, mock audit, hard block scan — and
   returns a clean report. Read-only except for appending to .mint/issues.md.
-tools: Read, Bash, Grep, Glob
+tools: Read, Bash, Grep, Glob, ctx_execute (conditional), ctx_execute_file (conditional)
 model: inherit
 ---
 
@@ -100,6 +100,17 @@ Root cause analysis:
 ```
 
 Categories: `bad-spec`, `missing-context`, `scope-leak`, `environment`, `hard-block`, `unknown-pattern`
+
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Gate command runs -> use `ctx_execute` with `language: "shell"` and `intent: "errors and failures"` to keep verbose test/lint output sandboxed.
+- Coverage report analysis -> use `ctx_execute_file` on coverage output to extract metrics without loading full reports.
+- Mock audit scanning -> use `ctx_execute` with grep commands to scan test files in sandbox.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ## Rules
 

@@ -4,7 +4,7 @@ description: >
   Build error specialist. Fixes build and type errors with minimal changes — no refactoring,
   no architecture changes, no improvements. Gets the build green quickly. Categorizes errors,
   prioritizes build-blocking first, keeps diffs minimal.
-tools: Read, Edit, Bash, Grep, Glob
+tools: Read, Edit, Bash, Grep, Glob, ctx_execute (conditional)
 model: inherit
 ---
 
@@ -88,6 +88,16 @@ Errors fixed: N
 Lines changed: N (across N files)
 Gates: lint ✅ types ✅ tests ✅
 ```
+
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Build commands -> use `ctx_execute` with `language: "shell"` and `intent: "errors"` to keep verbose build output sandboxed.
+- Incremental fix verification -> use `ctx_execute` for re-running gate commands after each fix.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ## Rules
 

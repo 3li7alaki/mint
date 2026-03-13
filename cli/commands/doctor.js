@@ -1,7 +1,7 @@
 import * as p from '@clack/prompts';
 import path from 'path';
 import { execSync } from 'child_process';
-import { readJsonSafe, fileExists, detectStack, detectTool } from '../lib/detect.js';
+import { readJsonSafe, fileExists, detectStack, detectTool, detectContextMode } from '../lib/detect.js';
 
 export async function run() {
   const cwd = process.cwd();
@@ -58,6 +58,13 @@ export async function run() {
     else warn('PinchTab not installed — run: curl -fsSL https://pinchtab.com/install.sh | sh');
   }
 
+  // Context Mode (core feature)
+  if (config.context?.enabled) {
+    ok('Context Mode: enabled');
+    if (detectContextMode()) ok('context-mode installed');
+    else warn('context-mode not installed — install via: claude mcp add context-mode -- npx -y context-mode');
+  }
+
   // Plugins
   const home = process.env.HOME || process.env.USERPROFILE || '';
   const marketplaceDir = path.join(home, '.claude', 'plugins', 'marketplaces', 'mint');
@@ -82,6 +89,18 @@ export async function run() {
   }
 
   // Tools
+  // Runtime tools
+  if (detectTool('bun')) {
+    try {
+      const bunVersion = execSync('bun --version', { encoding: 'utf8', timeout: 5000 }).trim();
+      ok(`Bun: ${bunVersion} (required for mint CLI)`);
+    } catch {
+      ok('Bun: installed (required for mint CLI)');
+    }
+  } else {
+    fail('Bun not installed — mint CLI requires Bun. Install: curl -fsSL https://bun.sh/install | bash');
+  }
+
   if (detectTool('claude')) ok('Claude CLI installed');
   else warn('Claude CLI not found');
 

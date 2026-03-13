@@ -4,7 +4,7 @@ description: >
   Dead code and dependency cleanup specialist. Uses detection tools (knip, depcheck, ts-prune)
   to find unused code, exports, and dependencies. Removes safely — categorizes by risk, tests
   after each batch, commits incrementally.
-tools: Read, Edit, Bash, Grep, Glob
+tools: Read, Edit, Bash, Grep, Glob, ctx_batch_execute (conditional), ctx_execute (conditional)
 model: inherit
 ---
 
@@ -97,6 +97,16 @@ Impact:
   Lines removed: N
   Gates: lint ✅ types ✅ tests ✅
 ```
+
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Detection tools (knip, depcheck, ts-prune) -> use `ctx_batch_execute` to run all detection commands in one call instead of sequential Bash.
+- Gate verification after removal -> use `ctx_execute` with `intent: "errors"` for build/test re-runs.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ## Rules
 

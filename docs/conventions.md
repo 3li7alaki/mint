@@ -29,6 +29,22 @@ Every agent file follows this order:
 - Agent dispatch names: `mint-kebab-case` (e.g., `mint-spec-reviewer`)
 - Plugin agent names: `plugin-name:agent-name` (e.g., `mint-nuxt:nuxt-reviewer`)
 
+### Conditional Sections
+
+Agents may include conditional sections gated by config flags. The standard pattern:
+
+```markdown
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- [specific tool mappings for this agent]
+- If context-mode tools are unavailable, fall back to standard tools transparently.
+```
+
+Conditional tools are listed in the frontmatter with `(conditional)` suffix.
+
 ### Tool Lists
 
 Every agent explicitly lists the tools it needs. Never assume tool availability.
@@ -124,6 +140,10 @@ After a PR is merged:
 | `modelRouting.override` | object | Map estimate → model (e.g., `{ "small": "opus" }`) |
 | `hooks.testOnSave` | boolean/object | Auto-run tests on edit. `true`, `false`, or `{ enabled, timeout }`. Default: `false` |
 | `workspace.repos` | array | Workspace repo registry (see below) |
+| `context.enabled` | boolean | Enable/disable Context Mode (sandboxed execution via context-mode). Default: `false` |
+| `context.autoRoute` | boolean | Auto-route data-heavy operations to sandbox. Default: `true` |
+| `context.sandbox.timeout` | number | Sandbox execution timeout in ms. Default: `30000` |
+| `context.session.enabled` | boolean | Enable session continuity via context-mode hooks. Default: `true` |
 | `browser.enabled` | boolean | Enable/disable browser plugin. Default: `true` |
 | `browser.baseUrl` | string | PinchTab API base URL. Default: `http://localhost:9867` |
 | `browser.token` | string | Bearer token for PinchTab auth. Default: `null` |

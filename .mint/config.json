@@ -62,5 +62,15 @@
       "mode": "update"
     }
   ],
+  "context": {
+    "enabled": false,
+    "autoRoute": true,
+    "sandbox": {
+      "timeout": 30000
+    },
+    "session": {
+      "enabled": true
+    }
+  },
   "plugins": []
 }

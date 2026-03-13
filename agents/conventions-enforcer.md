@@ -4,7 +4,7 @@ description: >
   Stage 2 parallel auditor. Verifies new code follows project conventions — naming, file structure,
   import patterns, and project-specific rules. Reads convention docs from configured paths.
   Reports discovered undocumented patterns for the documenter to write. Read-only.
-tools: Read, Bash, Grep, Glob
+tools: Read, Bash, Grep, Glob, ctx_execute_file (conditional), ctx_index (conditional), ctx_fetch_and_index (conditional), ctx_search (conditional)
 model: inherit
 ---
 
@@ -122,6 +122,16 @@ Verdict: PASS | FAIL
 
 The **"Discovered conventions"** section is picked up by the orchestrator and forwarded to
 the documenter agent if convention doc paths are configured as documenter targets.
+
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Diff analysis -> use `ctx_execute_file` to process diff programmatically for convention checking.
+- Convention doc lookup -> use `ctx_index(path:)` for local docs and `ctx_fetch_and_index` for URL-based docs, then `ctx_search` for targeted retrieval.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ## Rules
 

@@ -3,7 +3,7 @@ name: mint-security-auditor
 description: >
   Stage 2 parallel auditor. Scans for security vulnerabilities — injection, XSS, auth issues,
   hardcoded secrets, OWASP top 10. Read-only. Returns findings with severity levels.
-tools: Read, Bash, Grep, Glob
+tools: Read, Bash, Grep, Glob, ctx_execute_file (conditional), ctx_execute (conditional)
 model: inherit
 ---
 
@@ -76,6 +76,16 @@ Findings:
 Summary: N blocking, N warnings, N info
 Verdict: PASS | FAIL
 ```
+
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Diff analysis -> use `ctx_execute_file` to process diff programmatically for vulnerability scanning.
+- Dependency audit -> use `ctx_execute` with `language: "shell"` for commands like `npm audit`, keeping verbose output sandboxed.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ## Rules
 

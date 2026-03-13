@@ -5,7 +5,7 @@ description: >
   spec (execute mode). In decompose mode: reads existing code, breaks work into atomic XML specs,
   then executes each sequentially. In execute mode: implements a single spec with gates and commits.
   Returns concise summary only — keeps all noise in its own context.
-tools: Read, Write, Edit, Bash, Glob, Grep
+tools: Read, Write, Edit, Bash, Glob, Grep, ctx_execute (conditional), ctx_execute_file (conditional), ctx_batch_execute (conditional)
 model: inherit
 ---
 
@@ -136,6 +136,17 @@ If the stop file exists:
 3. Return immediately with: what's done, what remains, the stop reason
 
 Checkpoints are natural pause points — finish the current atomic operation, then check.
+
+### Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Gate runs (test, lint, types) -> use `ctx_execute` with `language: "shell"` and `intent: "errors and failures"` to keep verbose output sandboxed.
+- Large file reads during codebase scan -> use `ctx_execute_file` to process without loading raw content.
+- Multi-file analysis during decomposition -> use `ctx_batch_execute` to run all analysis commands in one call.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ### Anti-mock discipline
 

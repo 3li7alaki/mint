@@ -10,6 +10,8 @@ import {
   detectGates,
   detectPlugins,
   detectTool,
+  detectContextMode,
+  installContextMode,
   fileExists,
   readJsonSafe,
 } from '../lib/detect.js';
@@ -60,13 +62,19 @@ export async function run(flags = {}) {
     const autoCommit = flags.autocommit !== 'false';
     const tdd = flags.tdd === 'true';
     const browser = flags.browser !== 'false';
+    const context = flags.context === 'true' ? true : (flags.context === 'false' ? false : detectContextMode());
     const pluginList = flags.plugins
       ? flags.plugins.split(',').map(s => s.trim())
       : suggestedPlugins;
 
+    // Auto-install context-mode in headless mode if not detected but enabled
+    if (context && !detectContextMode()) {
+      try { installContextMode(); } catch { /* graceful degradation */ }
+    }
+
     const config = buildConfig({
       stack, packageManager, gates: detectedGates,
-      isolation: isoMode, autoCommit, tdd, browser,
+      isolation: isoMode, autoCommit, tdd, browser, context,
       plugins: pluginList, defaults,
     });
 
@@ -130,6 +138,11 @@ export async function run(flags = {}) {
       initialValue: defaults.browser?.enabled ?? true,
     }),
 
+    context: () => p.confirm({
+      message: 'Context Mode? (sandboxed execution, session continuity, FTS5 search)',
+      initialValue: defaults.context?.enabled ?? false,
+    }),
+
     plugins: () => p.multiselect({
       message: 'Plugins',
       options: [
@@ -174,6 +187,25 @@ export async function run(flags = {}) {
     }
   }
 
+  // ─── Context Mode install offer ──────────────────────────────────────────
+
+  if (answers.context && !detectContextMode()) {
+    const install = await p.confirm({
+      message: 'context-mode not found. Install now?',
+      initialValue: true,
+    });
+    if (!p.isCancel(install) && install) {
+      const s = p.spinner();
+      s.start('Installing context-mode...');
+      try {
+        installContextMode();
+        s.stop('context-mode installed');
+      } catch {
+        s.stop('context-mode install failed — install manually: claude mcp add context-mode -- npx -y context-mode');
+      }
+    }
+  }
+
   // ─── Build and write config ────────────────────────────────────────────────
 
   const config = buildConfig({
@@ -182,6 +214,7 @@ export async function run(flags = {}) {
     autoCommit: answers.autoCommit,
     tdd: answers.tdd,
     browser: answers.browser,
+    context: answers.context,
     plugins: answers.plugins,
     defaults,
   });
@@ -193,7 +226,7 @@ export async function run(flags = {}) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function buildConfig({ stack, packageManager, gates, isolation, autoCommit, tdd, browser, plugins, defaults }) {
+function buildConfig({ stack, packageManager, gates, isolation, autoCommit, tdd, browser, context, plugins, defaults }) {
   const reviewerModels = {
     spec: 'opus', quality: 'sonnet', security: 'sonnet',
     conventions: 'haiku', tests: 'sonnet', business: 'opus', performance: 'sonnet',
@@ -234,6 +267,12 @@ function buildConfig({ stack, packageManager, gates, isolation, autoCommit, tdd,
       enabled: browser,
       ...(defaults.browser?.baseUrl ? { baseUrl: defaults.browser.baseUrl } : {}),
       ...(defaults.browser?.devServer ? { devServer: defaults.browser.devServer } : {}),
+    },
+    context: {
+      enabled: context,
+      autoRoute: defaults.context?.autoRoute ?? true,
+      sandbox: defaults.context?.sandbox ?? { timeout: 30000 },
+      session: defaults.context?.session ?? { enabled: true },
     },
     documenters: defaults.documenters || [],
     plugins: plugins.map(name => `plugins/${name}`),

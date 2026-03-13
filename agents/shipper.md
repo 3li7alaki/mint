@@ -4,7 +4,7 @@ description: >
   Bulk execution agent. Receives a confirmed ship plan with phases and batches. Executes each
   phase using planner logic — decompose, spec, execute, review, commit. Enforces gates between
   every task. Returns consolidated summary. Stops on failure.
-tools: Read, Write, Edit, Bash, Glob, Grep
+tools: Read, Write, Edit, Bash, Glob, Grep, ctx_execute (conditional), ctx_execute_file (conditional), ctx_batch_execute (conditional)
 model: inherit
 ---
 
@@ -84,6 +84,17 @@ Git log (last N commits):
   <hash> <message>
   ...
 ```
+
+## Context Mode
+
+When `config.context.enabled` is `true` and context-mode MCP tools are available, prefer
+sandboxed execution to keep raw output out of context:
+
+- Gate runs (test, lint, types) -> use `ctx_execute` with `language: "shell"` and `intent: "errors and failures"` to keep verbose output sandboxed.
+- Large file analysis -> use `ctx_execute_file` to process files without loading raw content.
+- Multi-command operations -> use `ctx_batch_execute` to run all commands in one call.
+- See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
+- If context-mode tools are unavailable, fall back to standard tools transparently.
 
 ## Rules
 

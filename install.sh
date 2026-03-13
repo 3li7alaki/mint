@@ -34,20 +34,38 @@ else
   MODE="install"
 fi
 
-# ─── Step 2: Make CLI globally available ──────────────────────────────────────
+# ─── Step 2: Ensure Bun is installed (required — CLI shebang is #!/usr/bin/env bun) ─
+
+if ! command -v bun &>/dev/null; then
+  echo "  Bun not found — installing (required for mint CLI)..."
+  curl -fsSL https://bun.sh/install | bash 2>/dev/null || {
+    echo "  ✗ Bun install failed. Install manually: https://bun.sh"
+    echo "    mint CLI requires Bun to run."
+    exit 1
+  }
+  # Source bun into current shell
+  export BUN_INSTALL="$HOME/.bun"
+  export PATH="$BUN_INSTALL/bin:$PATH"
+  if command -v bun &>/dev/null; then
+    echo "  ✓ Bun $(bun --version) installed"
+  else
+    echo "  ✗ Bun installed but not in PATH. Add to your shell profile:"
+    echo "    export BUN_INSTALL=\"\$HOME/.bun\""
+    echo "    export PATH=\"\$BUN_INSTALL/bin:\$PATH\""
+    exit 1
+  fi
+else
+  echo "  ✓ Bun $(bun --version) found"
+fi
+
+# ─── Step 3: Make CLI globally available ──────────────────────────────────────
 
 MINT_BIN="$MINT_HOME/cli/mint.js"
 if [ -f "$MINT_BIN" ]; then
   chmod +x "$MINT_BIN"
 
   # Install dependencies
-  if command -v bun &>/dev/null; then
-    (cd "$MINT_HOME" && bun install --frozen-lockfile 2>/dev/null || bun install 2>/dev/null) || true
-  elif command -v npm &>/dev/null; then
-    (cd "$MINT_HOME" && npm install --omit=dev 2>/dev/null) || true
-  else
-    echo "  ⚠ Neither bun nor npm found — install one to use the CLI"
-  fi
+  (cd "$MINT_HOME" && bun install --frozen-lockfile 2>/dev/null || bun install 2>/dev/null) || true
 
   mkdir -p "$LINK_DIR"
   ln -sf "$MINT_BIN" "$LINK_DIR/mint"
@@ -68,7 +86,7 @@ case ":$PATH:" in
     ;;
 esac
 
-# ─── Step 3: Claude Code plugin (optional) ───────────────────────────────────
+# ─── Step 4: Claude Code plugin (optional) ───────────────────────────────────
 
 if command -v claude &>/dev/null; then
   echo "  Claude CLI detected — installing plugin..."

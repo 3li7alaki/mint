@@ -118,6 +118,17 @@ Four plugin types map to four extension dimensions:
 - **Design** — design tool integration
 - **Memory** — knowledge persistence and retrieval
 
+## Context Mode
+
+Optional infrastructure layer powered by [context-mode](https://github.com/mksglu/context-mode). When `config.context.enabled` is `true`, agents prefer sandboxed execution tools (`ctx_execute`, `ctx_execute_file`, `ctx_batch_execute`) over raw Bash/Read for data-heavy operations. This keeps verbose tool output out of the context window structurally rather than relying on agent discipline.
+
+Three capabilities:
+1. **Sandboxed execution** -- commands run in isolated subprocesses. Only filtered output enters context. Supports 11 languages.
+2. **FTS5 knowledge base** -- files, URLs, and command output are chunked and indexed into SQLite FTS5 tables. Agents query with `ctx_search` instead of loading raw content.
+3. **Session continuity** -- hooks (PreCompact, SessionStart, PostToolUse) track file operations, task state, errors, and decisions in a per-project SQLite database. After context compaction, agents search `source: "session-events"` to recover working state.
+
+context-mode is an external dependency (ELv2 license). mint wraps it, never forks or embeds. Graceful degradation -- all agents fall back to standard tools if context-mode is unavailable.
+
 ## Hooks System
 
 Real-time Claude Code hooks provide instant feedback during development:

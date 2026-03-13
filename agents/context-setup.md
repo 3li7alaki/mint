@@ -102,7 +102,27 @@ Write the `context` section to `.mint/config.json`:
 }
 ```
 
-### 5. Health Check
+### 5. Verify Bun for Performance
+
+context-mode runs **3-5x faster** for JavaScript/TypeScript execution when Bun is available
+(mint already requires Bun, so this should always be the case).
+
+Check that Bun is detected:
+
+```bash
+which bun && bun --version
+```
+
+If Bun is present, context-mode automatically uses it for JS/TS sandbox execution. No extra
+configuration needed — it detects Bun at runtime.
+
+If Bun is somehow missing (shouldn't happen since mint requires it), install it:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+### 6. Health Check
 
 Verify ctx_execute works with a simple test:
 
@@ -112,7 +132,7 @@ ctx_execute(language: "shell", code: "echo hello")
 
 If this returns "hello", context-mode is fully operational.
 
-### 6. Return Result
+### 7. Return Result
 
 Three-tier result:
 

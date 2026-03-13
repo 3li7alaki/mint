@@ -121,6 +121,15 @@ export function detectTool(name) {
   catch { return false; }
 }
 
+export function installBun() {
+  try {
+    execSync('curl -fsSL https://bun.sh/install | bash', { stdio: 'pipe', timeout: 120000 });
+    return detectTool('bun');
+  } catch {
+    return false;
+  }
+}
+
 export function detectContextMode() {
   const home = process.env.HOME || process.env.USERPROFILE || '';
 

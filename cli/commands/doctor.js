@@ -89,6 +89,18 @@ export async function run() {
   }
 
   // Tools
+  // Runtime tools
+  if (detectTool('bun')) {
+    try {
+      const bunVersion = execSync('bun --version', { encoding: 'utf8', timeout: 5000 }).trim();
+      ok(`Bun: ${bunVersion} (required for mint CLI)`);
+    } catch {
+      ok('Bun: installed (required for mint CLI)');
+    }
+  } else {
+    fail('Bun not installed — mint CLI requires Bun. Install: curl -fsSL https://bun.sh/install | bash');
+  }
+
   if (detectTool('claude')) ok('Claude CLI installed');
   else warn('Claude CLI not found');
 

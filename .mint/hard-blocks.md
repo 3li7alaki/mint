@@ -12,7 +12,7 @@
 
 ## Project-Specific
 - NEVER break backwards compatibility with v1 skill format
-- NEVER add runtime dependencies to the core framework — mint is markdown files only. Hook scripts (hooks/scripts/) are the exception — lightweight Node.js scripts that enhance developer experience.
+- NEVER add runtime dependencies without making them optional — core must work with markdown files alone. Structured storage (SQLite, vector DB) is opt-in, not required.
 - NEVER merge plugin system code without a working reference plugin
 
 ## Release & CLI Integrity

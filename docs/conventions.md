@@ -101,11 +101,12 @@ task IDs (`mint-NNN`) or include spec file paths in commit messages.
 - **Never push from agents** — agents commit only. Human reviews and pushes.
 - **No AI attribution** — never add "Co-Authored-By" or mention AI tools in commits.
 
-### Merging
+### PRs
 
 - **Always squash merge** — PRs merge as a single squash commit into main.
 - **Delete branch after merge** — clean up remote and local branches.
 - **PR before merge** — all work goes through a PR, even solo work. No direct merges.
+- **Version bump check** — before creating a PR, verify that the version has been bumped in `package.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` if the changes warrant a release (new features = minor, fixes = patch).
 
 ### Post-Merge
 
@@ -186,6 +187,31 @@ Each entry in `workspace.repos` describes a repository in the workspace:
 - New config key → update docs/conventions.md config schema table
 - Pipeline change → update SKILL.md and README pipeline diagram
 - New plugin hook → update SKILL.md plugin loading section
+
+### Adding a Core Feature (like browser, context, design)
+
+Core features are toggleable capabilities with their own config, agents, and CLI integration. When adding one, hit every touchpoint:
+
+| # | File | What to do |
+|---|------|------------|
+| 1 | `agents/<feature>-*.md` | Create core agents (context, reviewer, setup, etc.) |
+| 2 | `commands/<feature>*.md` | Create user-facing commands |
+| 3 | `standards/<feature>/` | Add reference docs, standards if applicable |
+| 4 | `skills/mint/SKILL.md` | Add routing decision, execution flow section, startup detection, stage 2 reviewer if applicable |
+| 5 | `cli/commands/init.js` | Add confirm prompt, install hook (if external dep), add to `buildConfig()`, add to headless mode |
+| 6 | `cli/commands/doctor.js` | Add health checks (enabled status, deps installed, assets present) |
+| 7 | `cli/commands/config.js` | Add status display line, remove from plugins list if migrated |
+| 8 | `cli/commands/update.js` | Add to `NEW_CONFIG_KEYS` (for upgrade prompts), add dep updater to `DEPS`, add update dispatch |
+| 9 | `docs/conventions.md` | Add all config keys to schema table |
+| 10 | `docs/architecture.md` | Add feature section explaining how it works |
+| 11 | `CLAUDE.md` | Update key files table |
+| 12 | `package.json` + `.claude-plugin/*.json` | Bump version |
+
+**Config pattern**: top-level key with `enabled` boolean + feature-specific settings. Not under `plugins`.
+
+**Agent pattern**: agents live in `agents/` prefixed with feature name (`design-context.md`, `browser-runner.md`). Not in a plugin directory.
+
+**Hooks**: core features use hardcoded hook logic in SKILL.md (pre-plan, pre-review, startup detection), not the generic plugin hook system.
 
 ### Where Things Live
 

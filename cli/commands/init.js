@@ -63,6 +63,7 @@ export async function run(flags = {}) {
     const tdd = flags.tdd === 'true';
     const browser = flags.browser !== 'false';
     const context = flags.context === 'true' ? true : (flags.context === 'false' ? false : detectContextMode());
+    const design = flags.design !== 'false';
     const pluginList = flags.plugins
       ? flags.plugins.split(',').map(s => s.trim())
       : suggestedPlugins;
@@ -74,7 +75,7 @@ export async function run(flags = {}) {
 
     const config = buildConfig({
       stack, packageManager, gates: detectedGates,
-      isolation: isoMode, autoCommit, tdd, browser, context,
+      isolation: isoMode, autoCommit, tdd, browser, context, design,
       plugins: pluginList, defaults,
     });
 
@@ -143,6 +144,11 @@ export async function run(flags = {}) {
       initialValue: defaults.context?.enabled ?? false,
     }),
 
+    design: () => p.confirm({
+      message: 'Design & UI/UX? (design profiling, typography/color/motion expertise, anti-pattern detection, RTL, i18n, accessibility review)',
+      initialValue: defaults.design?.enabled ?? true,
+    }),
+
     plugins: () => p.multiselect({
       message: 'Plugins',
       options: [
@@ -153,7 +159,6 @@ export async function run(flags = {}) {
         { value: 'mint-shadcn', label: 'shadcn/ui', hint: 'component management' },
         { value: 'mint-ssh', label: 'SSH', hint: 'remote server access' },
         { value: 'mint-gws', label: 'Google Workspace', hint: 'Sheets, Gmail, Calendar' },
-        { value: 'mint-ui-ux', label: 'UI/UX', hint: 'RTL, i18n, accessibility standards' },
       ],
       initialValues: [
         ...(defaults.plugins || []).map(p => path.basename(p)),
@@ -187,6 +192,29 @@ export async function run(flags = {}) {
     }
   }
 
+  // ─── Impeccable install offer ────────────────────────────────────────────
+
+  if (answers.design && !detectTool('npx skills list 2>/dev/null | grep -q impeccable')) {
+    const hasImpeccable = fileExists(path.join(cwd, '.claude', 'skills', 'frontend-design', 'SKILL.md'))
+      || fileExists(path.join(process.env.HOME, '.claude', 'skills', 'frontend-design', 'SKILL.md'));
+    if (!hasImpeccable) {
+      const install = await p.confirm({
+        message: 'Install Impeccable? (design steering commands — optional, design works without it)',
+        initialValue: false,
+      });
+      if (!p.isCancel(install) && install) {
+        const s = p.spinner();
+        s.start('Installing Impeccable...');
+        try {
+          execSync('npx skills add pbakaus/impeccable', { stdio: 'pipe', timeout: 60000 });
+          s.stop('Impeccable installed');
+        } catch {
+          s.stop('Impeccable install failed — install manually: npx skills add pbakaus/impeccable');
+        }
+      }
+    }
+  }
+
   // ─── Context Mode install offer ──────────────────────────────────────────
 
   if (answers.context && !detectContextMode()) {
@@ -215,6 +243,7 @@ export async function run(flags = {}) {
     tdd: answers.tdd,
     browser: answers.browser,
     context: answers.context,
+    design: answers.design,
     plugins: answers.plugins,
     defaults,
   });
@@ -226,7 +255,7 @@ export async function run(flags = {}) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function buildConfig({ stack, packageManager, gates, isolation, autoCommit, tdd, browser, context, plugins, defaults }) {
+function buildConfig({ stack, packageManager, gates, isolation, autoCommit, tdd, browser, context, design, plugins, defaults }) {
   const reviewerModels = {
     spec: 'opus', quality: 'sonnet', security: 'sonnet',
     conventions: 'haiku', tests: 'sonnet', business: 'opus', performance: 'sonnet',
@@ -273,6 +302,21 @@ function buildConfig({ stack, packageManager, gates, isolation, autoCommit, tdd,
       autoRoute: defaults.context?.autoRoute ?? true,
       sandbox: defaults.context?.sandbox ?? { timeout: 30000 },
       session: defaults.context?.session ?? { enabled: true },
+    },
+    design: {
+      enabled: design,
+      stack: defaults.design?.stack ?? 'auto',
+      profile: defaults.design?.profile ?? '.mint/design-profile.json',
+      notes: defaults.design?.notes ?? '.mint/design-notes.md',
+      conventions: defaults.design?.conventions ?? [],
+      review: {
+        accessibility: defaults.design?.review?.accessibility ?? true,
+        consistency: defaults.design?.review?.consistency ?? true,
+        performance: defaults.design?.review?.performance ?? true,
+        rtl: defaults.design?.review?.rtl ?? false,
+        i18n: defaults.design?.review?.i18n ?? false,
+        brand: defaults.design?.review?.brand ?? false,
+      },
     },
     documenters: defaults.documenters || [],
     plugins: plugins.map(name => `plugins/${name}`),

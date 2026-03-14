@@ -65,6 +65,21 @@ export async function run() {
     else warn('context-mode not installed — install via: claude mcp add context-mode -- npx -y context-mode');
   }
 
+  // Design Intelligence (core feature)
+  if (config.design?.enabled) {
+    ok('Design: enabled');
+    const reviewChecks = config.design.review || {};
+    const enabledChecks = Object.entries(reviewChecks).filter(([, v]) => v).map(([k]) => k);
+    ok(`Design checks: ${enabledChecks.join(', ') || 'none'}`);
+    if (fileExists(path.join(mintDir, 'design-profile.json'))) ok('Design profile exists');
+    else warn('No design profile — run /design:profile build or it will auto-build on first UI task');
+
+    // Check for Impeccable (optional)
+    const hasImpeccable = fileExists(path.join(cwd, '.claude', 'skills', 'frontend-design', 'SKILL.md'))
+      || fileExists(path.join(process.env.HOME || '', '.claude', 'skills', 'frontend-design', 'SKILL.md'));
+    if (hasImpeccable) ok('Impeccable skill installed (steering commands available)');
+  }
+
   // Plugins
   const home = process.env.HOME || process.env.USERPROFILE || '';
   const marketplaceDir = path.join(home, '.claude', 'plugins', 'marketplaces', 'mint');

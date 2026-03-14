@@ -35,6 +35,7 @@ function showConfig() {
   console.log(`  TDD:         ${config.tdd?.default ? g('on') : r()}`);
   console.log(`  Browser:     ${config.browser?.enabled ? g('on') : r()}`);
   console.log(`  Context:     ${config.context?.enabled ? g('on') : r()}`);
+  console.log(`  Design:      ${config.design?.enabled ? g('on') : r()}`);
 
   console.log(`\n  \x1b[1mGates\x1b[0m`);
   for (const key of ['lint', 'types', 'tests']) {
@@ -115,7 +116,6 @@ async function managePlugins(action, pluginName) {
     { value: 'mint-shadcn', label: 'shadcn/ui', hint: 'components' },
     { value: 'mint-ssh', label: 'SSH', hint: 'remote access' },
     { value: 'mint-gws', label: 'Google Workspace', hint: 'Sheets, Gmail' },
-    { value: 'mint-ui-ux', label: 'UI/UX', hint: 'accessibility' },
   ];
 
   const selected = await p.multiselect({

@@ -9,7 +9,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.5.0 — Fresh context per task. Clean orchestration. Zero slop.
+> v0.6.0 — Fresh context per task. Clean orchestration. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 
@@ -29,7 +29,7 @@ mint init --yes    # headless — auto-detect everything, zero prompts
 mint config        # view current config
 mint config set    # edit config (dot notation)
 mint doctor        # health check
-mint update        # update to latest
+mint update        # update to latest (core + dependencies)
 ```
 
 ### Project Setup
@@ -38,10 +38,12 @@ Run `mint init` in your project:
 
 ```
 .mint/
-├── config.json       — gates, reviewers, browser, plugins
+├── config.json       — gates, reviewers, browser, design, plugins
 ├── hard-blocks.md    — what agents can never do
 ├── issues.md         — failure log — what went wrong and why
-└── wins.md           — success log — what worked and why
+├── wins.md           — success log — what worked and why
+├── instincts.md      — auto-learned conventions
+└── patterns.md       — graduated recurring patterns
 ```
 
 ## How It Works
@@ -56,6 +58,7 @@ You describe what you want. mint auto-detects the right approach:
 | "Browse to", "scrape", "debug in browser" | **Browse** — PinchTab-powered browser automation |
 | "How should I...", "Compare..." | **Research** — investigates, saves structured report |
 | "Check quality", "Audit" | **Verify** — runs all gates and audits |
+| "Design review", "Design profile" | **Design** — design intelligence commands |
 
 No commands to memorize. Just describe what you want to build.
 
@@ -74,14 +77,28 @@ You describe a feature
   Stage 1: Spec reviewer (gate)
         │
   Stage 2 (parallel):
-    Quality + Security + Conventions + Tests + Business + Performance
+    Quality + Security + Conventions + Tests + Business + Performance + Design
         │
   Atomic commit per spec
         │
   You review the final result
 ```
 
-## Browser Support
+## Ecosystem & Integrations
+
+mint integrates with best-in-class external tools. Each is optional and toggleable — mint works without any of them, but they make it significantly more capable.
+
+| Tool | What it does for mint | Install |
+|------|----------------------|---------|
+| [PinchTab](https://github.com/pinchtab/pinchtab) | Browser automation — navigate, scrape, debug, screenshot via lightweight Go binary + Chrome. Agents talk to it via HTTP API, get compact accessibility tree (~800 tokens vs 10k+ raw DOM). | `curl -fsSL https://pinchtab.com/install.sh \| sh` |
+| [context-mode](https://github.com/mksglu/context-mode) | Sandboxed execution + FTS5 search + session continuity. Keeps verbose tool output out of context window. ~97% token savings on test output, ~99% on URL fetching. | `claude mcp add context-mode -- npx -y context-mode` |
+| [Impeccable](https://impeccable.style) | Design steering commands (`/polish`, `/audit`, `/critique`, `/bolder`, etc.) with curated anti-patterns and design vocabulary. By Paul Bakaus, Apache 2.0. | `npx skills add pbakaus/impeccable` |
+
+`mint init` offers to install each one. `mint update` keeps them current. `mint doctor` checks their health.
+
+## Core Features
+
+### Browser Support
 
 Built-in browser automation powered by [PinchTab](https://github.com/pinchtab/pinchtab). Not a plugin — a core feature. Agents can navigate pages, fill forms, scrape data, take screenshots, and debug live apps.
 
@@ -123,7 +140,7 @@ Enable/disable in config:
 }
 ```
 
-## Context Mode
+### Context Mode
 
 Optional integration with [context-mode](https://github.com/mksglu/context-mode) for sandboxed execution, session continuity, and FTS5 full-text search. Not a plugin -- a core feature. Keeps raw tool output out of the context window so agents stay focused.
 
@@ -151,6 +168,44 @@ Enable/disable in config:
     "autoRoute": true,
     "sandbox": { "timeout": 30000 },
     "session": { "enabled": true }
+  }
+}
+```
+
+### Design Intelligence
+
+Automatic UI/UX awareness powered by vendored [Impeccable](https://impeccable.style) reference knowledge (Apache 2.0) merged with project-specific design learning. Not a plugin — a core feature. When enabled, every UI task automatically gets design context injected into planning and design quality checked during review.
+
+**What it does:**
+- **Pre-plan hook** — loads your project's design profile, design notes, and relevant reference knowledge (typography, color theory, spatial design, motion, interaction patterns, responsive design, UX writing). Injects structured design context into the planner.
+- **Pre-review hook** — stage 2 auditor that checks for AI slop (purple gradients, glassmorphism, generic card grids), RTL violations, i18n compliance, WCAG 2.1 AA accessibility, design system consistency, and performance.
+- **Profile learning** — analyzes existing UI code to extract colors, typography, spacing, and component patterns into `.mint/design-profile.json`. Learns your project's visual DNA.
+- **Design notes** — persistent rules ("never use red for success") and preferences that override all other design guidance.
+- **AI slop test** — "If you showed this interface to someone and said 'AI made this,' would they believe you immediately? If yes, that's the problem."
+
+**Commands:**
+- `/design search|system|palette|typography|inspiration` — design intelligence queries
+- `/design:profile build|view|update` — manage project design profile
+- `/design:notes add|list|remove` — manage design rules and preferences
+- `/design:review [target] [--fix]` — standalone design review
+- `/design:tokens export|sync|validate` — design token management
+- `/design:teach` — one-time project design context setup
+- `/design:steer <direction>` — 16 steering commands (polish, critique, audit, bolder, quieter, distill, colorize, animate, delight, clarify, harden, adapt, normalize, extract, optimize, onboard)
+
+**Optional:** Install [Impeccable](https://impeccable.style) (`npx skills add pbakaus/impeccable`) for editor-level steering commands. mint's design features work without it — reference knowledge is vendored.
+
+Enable/disable in config:
+```json
+{
+  "design": {
+    "enabled": true,
+    "review": {
+      "accessibility": true,
+      "consistency": true,
+      "performance": true,
+      "rtl": false,
+      "i18n": false
+    }
   }
 }
 ```
@@ -185,6 +240,7 @@ Every spec goes through multi-stage review:
    - **Tests** — mock audit, assertion quality, edge cases
    - **Business** — requirements alignment, domain logic
    - **Performance** — re-renders, N+1, bundle impact (opt-in)
+   - **Design** — AI slop, RTL, i18n, accessibility, design consistency (if `design.enabled`)
 
 Issues are categorized: BLOCKING (must fix), WARNING (should fix), INFO (logged). Each reviewer can use a different Claude model.
 
@@ -198,7 +254,7 @@ mint learns your project's conventions automatically. Three mechanisms:
 
 - **Wins** (`.mint/wins.md`) — successful patterns and why they worked. The planner reads this to replicate what works.
 
-All three are committed to git — they're shared team knowledge, not throwaway state.
+Patterns graduate automatically: instincts → patterns → permanent conventions. All three are committed to git — they're shared team knowledge, not throwaway state.
 
 ## Plugins
 
@@ -210,10 +266,8 @@ Plugins extend mint with stack-specific or integration capabilities.
 | `mint-e2e` | E2E testing with Playwright |
 | `mint-linear` | Linear ticket context and status sync |
 | `mint-figma` | Design tokens and specs from Figma |
-| `mint-shadcn` | shadcn/ui component conventions |
 | `mint-ssh` | SSH connections and remote commands |
 | `mint-gws` | Google Workspace — Sheets, Gmail, Calendar |
-| `mint-ui-ux` | RTL, i18n, accessibility standards |
 
 > **Note:** Plugins are community-extensible and may not cover every edge case. PRs and issues welcome — if something doesn't work right, fix it and contribute back.
 
@@ -238,6 +292,7 @@ Key config in `.mint/config.json`:
 | `tdd.default` | `false` | TDD-first by default |
 | `browser.enabled` | `true` | Browser automation via PinchTab |
 | `context.enabled` | `false` | Context Mode via context-mode |
+| `design.enabled` | `true` | Design intelligence — profiling, anti-patterns, RTL/i18n |
 | `reviewers` | smart defaults | Which reviewers run and their models |
 | `isolation` | `none` | Work isolation: none, branch, or worktree |
 | `plugins` | `[]` | Plugin paths |

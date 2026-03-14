@@ -18,6 +18,12 @@ const NEW_CONFIG_KEYS = [
     default: { enabled: true, autoRoute: true, sandbox: { timeout: 30000 }, session: { enabled: true } },
     defaultOff: { enabled: false },
   },
+  {
+    key: 'design',
+    label: 'Design & UI/UX (design profiling, typography/color/motion expertise, anti-pattern detection, RTL, i18n, accessibility review)',
+    default: { enabled: true, stack: 'auto', profile: '.mint/design-profile.json', notes: '.mint/design-notes.md', conventions: [], review: { accessibility: true, consistency: true, performance: true, rtl: false, i18n: false, brand: false } },
+    defaultOff: { enabled: false },
+  },
 ];
 
 // ─── Dependency updaters ──────────────────────────────────────────────────────
@@ -74,9 +80,29 @@ function updateContextMode(s) {
   }
 }
 
+function updateImpeccable(s) {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const skillPath = path.join(home, '.claude', 'skills', 'frontend-design', 'SKILL.md');
+  const projectSkillPath = path.join(process.cwd(), '.claude', 'skills', 'frontend-design', 'SKILL.md');
+
+  if (!fs.existsSync(skillPath) && !fs.existsSync(projectSkillPath)) {
+    p.log.warn('Impeccable not installed — skipping. Install: npx skills add pbakaus/impeccable');
+    return;
+  }
+
+  s.start('Updating Impeccable...');
+  try {
+    execSync('npx skills add pbakaus/impeccable', { stdio: 'pipe', timeout: 60000 });
+    s.stop('Impeccable updated');
+  } catch {
+    s.stop('Impeccable update failed — try: npx skills add pbakaus/impeccable');
+  }
+}
+
 const DEPS = {
   pinchtab: updatePinchTab,
   'context-mode': updateContextMode,
+  impeccable: updateImpeccable,
 };
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -188,6 +214,10 @@ export async function run(positional = [], flags = {}) {
 
     if (config?.context?.enabled || depsOnly) {
       updateContextMode(s);
+    }
+
+    if (config?.design?.enabled || depsOnly) {
+      updateImpeccable(s);
     }
   }
 

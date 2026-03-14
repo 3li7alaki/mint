@@ -33,19 +33,37 @@ mint/
 │   ├── browser-reviewer.md    # Core — UI verification
 │   ├── browser-context.md     # Core — pre-plan page state
 │   ├── browser-debugger.md    # Core — live app debugging
-│   └── browser-setup.md       # Core — PinchTab install/config
+│   ├── browser-setup.md       # Core — PinchTab install/config
+│   ├── design-context.md      # Core — pre-plan design intelligence
+│   ├── design-reviewer.md     # Core — design quality auditor
+│   ├── design-profile.md      # Core — project visual DNA builder
+│   └── design-setup.md        # Core — Impeccable install/config
 ├── commands/                # User-invocable commands
 │   ├── init.md
 │   ├── verify.md
 │   ├── help.md
 │   ├── browse.md
 │   ├── screenshot.md
-│   └── scrape.md
+│   ├── scrape.md
+│   ├── design.md              # /design — search, system, palette, typography
+│   ├── design-profile.md      # /design:profile — build/view/update
+│   ├── design-notes.md        # /design:notes — manage rules/prefs
+│   ├── design-review.md       # /design:review — standalone design review
+│   ├── design-tokens.md       # /design:tokens — export/sync/validate
+│   ├── design-teach.md        # /design:teach — project design setup
+│   └── design-steer.md        # /design:steer — 16 steering directions
 ├── cli/                     # mint CLI (bun + @clack/prompts)
 │   ├── mint.js              # Entry point
 │   ├── commands/            # init, config, doctor, update
 │   └── lib/                 # detect.js — stack/PM/gates detection
 ├── tests/                   # Test suite — bun test
+├── standards/               # Core feature reference knowledge
+│   └── design/              # Design standards and reference docs
+│       ├── reference/       # Vendored Impeccable docs (typography, color, etc.)
+│       ├── rtl.md           # RTL logical properties
+│       ├── i18n.md          # Internationalization standards
+│       ├── anti-patterns.md # AI slop detection + design anti-patterns
+│       └── design-direction.md # Aesthetic guidelines
 ├── references/              # PinchTab API docs, token strategy
 ├── templates/               # Templates and schemas
 │   ├── spec.xml
@@ -113,7 +131,7 @@ Commands are markdown files in `commands/`. They're invoked by the user or orche
 
 ## Writing Plugins
 
-Plugins live in their own directories with a `manifest.json`. Browser is a core feature, not a plugin.
+Plugins live in their own directories with a `manifest.json`. Browser, context, and design are core features, not plugins.
 
 **Conventions:**
 - Follow `templates/plugin-manifest.json` schema exactly

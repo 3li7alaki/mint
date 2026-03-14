@@ -33,6 +33,10 @@ Evaluate in this order:
    "fill out the form", "screenshot", "what does X look like", "debug in browser"
    → Delegate to browser-runner agent (or browser-debugger for debug tasks). See "Browser Execution" below.
 
+1c. **Design** — user says "design review", "design profile", "design teach", "design steer",
+   "design tokens", "design notes", or invokes `/design:*` commands
+   → Execute the corresponding design command. See "Design Intelligence" below.
+
 2. **Verify** — user says "verify", "check gates", "audit", "run checks"
    → Delegate to `mint-verifier` subagent
 
@@ -196,6 +200,7 @@ Update this file at every stage transition — it's the source of truth for what
   - `mint-test-auditor` — test quality, mock audit
   - `mint-performance-reviewer` — re-renders, N+1, bundle
   - `mint-business-reviewer` — business logic, requirements alignment (reads business docs)
+  - `mint-design-reviewer` — design quality, RTL, i18n, accessibility, anti-patterns (if `design.enabled`)
 - Each returns: PASS or issues with severity (BLOCKING/WARNING/INFO)
 - Update `execution.json`: each reviewer key in `reviews` = `"passed"` or `"failed"`
 - Planner fixes BLOCKING + WARNING issues
@@ -437,6 +442,107 @@ Users can invoke browser operations directly:
 
 ---
 
+## Design Intelligence
+
+Design intelligence is a core feature that makes UI/UX awareness automatic. When enabled, every
+UI task gets design context injected into planning and design quality checked during review —
+without the user asking.
+
+### Startup Detection
+
+On startup (after plugin loading, before routing), check `config.design.enabled`:
+
+1. If `false` or not present: skip design intelligence entirely. No design context or review.
+2. If `true`: design intelligence is active. The following hooks engage automatically:
+   - **Pre-plan**: `design-context` agent loads project design profile, design notes, relevant
+     reference knowledge (typography, color, spatial, motion, interaction, responsive, ux-writing),
+     anti-patterns, and shadcn integration — injects all as structured XML into the planner context.
+   - **Pre-review**: `design-reviewer` agent runs as a stage 2 parallel auditor, checking the
+     diff for AI slop, RTL violations, i18n compliance, accessibility, design consistency,
+     performance, and brand compliance.
+
+### Config
+
+```json
+{
+  "design": {
+    "enabled": true,
+    "stack": "auto",
+    "profile": ".mint/design-profile.json",
+    "notes": ".mint/design-notes.md",
+    "conventions": [],
+    "review": {
+      "accessibility": true,
+      "consistency": true,
+      "performance": true,
+      "rtl": false,
+      "i18n": false,
+      "brand": false
+    }
+  }
+}
+```
+
+### How Design Context Flows
+
+1. User starts a UI task (creating a component, building a page, etc.)
+2. Orchestrator detects UI keywords → normal routing (quick/plan/ship)
+3. **Pre-plan hook** fires → `design-context` agent runs:
+   - Loads `.mint/design-profile.json` (project's learned visual DNA)
+   - Loads `.mint/design-notes.md` (user's hard rules and preferences)
+   - Selects relevant reference docs from `standards/design/reference/` based on task type
+   - Loads `standards/design/anti-patterns.md` (AI slop detection)
+   - Loads `standards/design/design-direction.md` (aesthetic guidelines)
+   - Returns structured `<design-context>` XML that's injected into the planner
+4. Planner creates spec with design context baked in
+5. Implementation runs with design-aware spec
+6. **Pre-review hook** fires → `design-reviewer` agent runs alongside other stage 2 auditors:
+   - AI slop test (always — is this distinguishable from generic AI output?)
+   - RTL check (if enabled — logical properties, directional icons)
+   - i18n check (if enabled — hardcoded strings, inline conditionals)
+   - Accessibility (WCAG 2.1 AA — alt text, contrast, focus, semantic HTML)
+   - Design consistency (design tokens, spacing scale, component reuse)
+   - Performance (animation, reduced motion, bundle)
+   - Brand compliance (if brand guide configured)
+7. Returns BLOCKING/WARNING/INFO report
+
+### Reference Knowledge
+
+Vendored in `standards/design/reference/` (from Impeccable, Apache 2.0):
+- `typography.md` — type scales, font pairing, fluid sizing, OpenType
+- `color-and-contrast.md` — OKLCH, palettes, dark mode, WCAG contrast
+- `spatial-design.md` — grids, spacing systems, visual hierarchy, container queries
+- `motion-design.md` — timing, easing, reduced motion, perception
+- `interaction-design.md` — forms, focus, loading, modals, keyboard navigation
+- `responsive-design.md` — mobile-first, fluid design, input detection
+- `ux-writing.md` — labels, errors, empty states, voice/tone
+
+Plus mint's own:
+- `standards/design/rtl.md` — logical CSS properties reference
+- `standards/design/i18n.md` — translation standards
+- `standards/design/anti-patterns.md` — AI slop detection, design anti-patterns
+- `standards/design/design-direction.md` — aesthetic direction and DO/DON'T guidelines
+
+### Commands
+
+- `/design search|system|palette|typography|inspiration` — design intelligence queries
+- `/design:profile build|view|update|diff` — manage project design profile
+- `/design:notes add|list|remove|clear` — manage design rules and preferences
+- `/design:review [target] [--check type] [--fix]` — standalone design review
+- `/design:tokens export|sync|validate` — design token management
+- `/design:teach` — one-time project design context setup
+- `/design:steer <direction>` — steering commands (polish, critique, audit, bolder, quieter, distill, colorize, animate, delight, clarify, harden, adapt, normalize, extract, optimize, onboard)
+
+### Installation
+
+During `mint init`, if design is enabled:
+1. Optionally installs Impeccable skill (`npx skills add pbakaus/impeccable`) for editor-level steering commands
+2. Auto-detects design assets (components.json, tailwind.config, brand guides)
+3. Builds initial design profile if UI code exists
+4. Configures review checks based on detected project features (i18n, RTL, brand)
+
+---
+
 ## Execution Flow — Verify Mode
 
 For checking quality gates on demand. Uses a two-layer approach to avoid wasting tokens when
@@ -651,7 +757,7 @@ Plugin agents receive the same context as their hook stage (e.g., pre-review get
 |------|---------|
 | `stack` | Framework-specific conventions, reviewers, setup (e.g., Nuxt, React) |
 | `pm` | Project management integration (e.g., Linear, Jira) |
-| `design` | Design tool integration (e.g., Figma) |
+| `design` | Design tool integration (e.g., Figma). Note: core design intelligence is built-in — plugins extend with external tool connections |
 | `memory` | Knowledge persistence (e.g., embeddings, vector search) |
 
 ---

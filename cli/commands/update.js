@@ -141,6 +141,7 @@ export async function run(positional = [], flags = {}) {
       s.start('Fetching latest...');
       try {
         execSync(`git -C "${mintHome}" fetch origin main -q`, { stdio: 'pipe' });
+        execSync(`git -C "${mintHome}" clean -fd -q`, { stdio: 'pipe' });
         execSync(`git -C "${mintHome}" reset --hard origin/main -q`, { stdio: 'pipe' });
         s.stop('Updated ~/.mint');
       } catch {
@@ -148,17 +149,23 @@ export async function run(positional = [], flags = {}) {
       }
     }
 
-    // Install/update dependencies
-    s.start('Installing dependencies...');
-    try {
-      if (detectTool('bun')) {
-        execSync(`cd "${mintHome}" && bun install`, { stdio: 'pipe' });
-      } else {
-        execSync(`cd "${mintHome}" && npm install --omit=dev`, { stdio: 'pipe' });
+    // Install/update dependencies (whichever install path exists)
+    const installDir = fs.existsSync(path.join(mintHome, 'package.json')) ? mintHome
+      : fs.existsSync(path.join(marketplaceDir, 'package.json')) ? marketplaceDir
+      : null;
+
+    if (installDir) {
+      s.start('Installing dependencies...');
+      try {
+        if (detectTool('bun')) {
+          execSync(`cd "${installDir}" && bun install`, { stdio: 'pipe' });
+        } else {
+          execSync(`cd "${installDir}" && npm install --omit=dev`, { stdio: 'pipe' });
+        }
+        s.stop('Dependencies up to date');
+      } catch {
+        s.stop(`Dependency install failed — run manually in ${installDir}`);
       }
-      s.stop('Dependencies up to date');
-    } catch {
-      s.stop('Dependency install failed — run manually in ~/.mint');
     }
 
     // Update Claude plugin if available
@@ -167,6 +174,7 @@ export async function run(positional = [], flags = {}) {
       try {
         if (fs.existsSync(path.join(marketplaceDir, '.git'))) {
           execSync(`git -C "${marketplaceDir}" fetch origin main -q`, { stdio: 'pipe' });
+          execSync(`git -C "${marketplaceDir}" clean -fd -q`, { stdio: 'pipe' });
           execSync(`git -C "${marketplaceDir}" reset --hard origin/main -q`, { stdio: 'pipe' });
         }
         execSync(`rm -rf "${cacheDir}"`, { stdio: 'pipe' });

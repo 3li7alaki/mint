@@ -145,7 +145,7 @@ export async function run(flags = {}) {
     }),
 
     design: () => p.confirm({
-      message: 'Design intelligence? (design profiling, anti-pattern detection, RTL/i18n enforcement)',
+      message: 'Design & UI/UX? (design profiling, typography/color/motion expertise, anti-pattern detection, RTL, i18n, accessibility review)',
       initialValue: defaults.design?.enabled ?? true,
     }),
 

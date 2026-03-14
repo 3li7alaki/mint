@@ -20,7 +20,7 @@ const NEW_CONFIG_KEYS = [
   },
   {
     key: 'design',
-    label: 'Design intelligence (design profiling, anti-pattern detection, RTL/i18n enforcement)',
+    label: 'Design & UI/UX (design profiling, typography/color/motion expertise, anti-pattern detection, RTL, i18n, accessibility review)',
     default: { enabled: true, stack: 'auto', profile: '.mint/design-profile.json', notes: '.mint/design-notes.md', conventions: [], review: { accessibility: true, consistency: true, performance: true, rtl: false, i18n: false, brand: false } },
     defaultOff: { enabled: false },
   },

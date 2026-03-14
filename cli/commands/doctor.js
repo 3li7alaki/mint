@@ -80,8 +80,26 @@ export async function run() {
     if (hasImpeccable) ok('Impeccable skill installed (steering commands available)');
   }
 
-  // Plugins
+  // Plugin hooks
   const home = process.env.HOME || process.env.USERPROFILE || '';
+  const pluginJsonPaths = [
+    path.join(cwd, '.claude-plugin', 'plugin.json'),
+    path.join(home, '.mint', '.claude-plugin', 'plugin.json'),
+    path.join(home, '.claude', 'plugins', 'marketplaces', 'mint', '.claude-plugin', 'plugin.json'),
+  ];
+  for (const pjPath of pluginJsonPaths) {
+    if (fileExists(pjPath)) {
+      const pj = readJsonSafe(pjPath);
+      if (pj && !pj.hooks) {
+        fail(`plugin.json missing "hooks" field at ${pjPath} — hooks won't load. Add: "hooks": "./hooks/hooks.json"`);
+      } else if (pj && pj.hooks) {
+        ok('Plugin hooks declared in plugin.json');
+      }
+      break;
+    }
+  }
+
+  // Plugins
   const marketplaceDir = path.join(home, '.claude', 'plugins', 'marketplaces', 'mint');
 
   for (const plugin of config.plugins || []) {

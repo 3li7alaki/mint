@@ -22,6 +22,7 @@ echo ""
 if [ -d "$MINT_HOME/.git" ]; then
   echo "  Updating mint..."
   git -C "$MINT_HOME" fetch origin main -q 2>/dev/null || true
+  git -C "$MINT_HOME" clean -fd -q 2>/dev/null || true
   git -C "$MINT_HOME" reset --hard origin/main -q 2>/dev/null || true
   MODE="update"
 else
@@ -99,7 +100,13 @@ if command -v claude &>/dev/null; then
   # Pull latest in marketplace
   if [ -d "$MARKETPLACE_DIR/.git" ]; then
     git -C "$MARKETPLACE_DIR" fetch origin main -q 2>/dev/null || true
+    git -C "$MARKETPLACE_DIR" clean -fd -q 2>/dev/null || true
     git -C "$MARKETPLACE_DIR" reset --hard origin/main -q 2>/dev/null || true
+  fi
+
+  # Install marketplace deps
+  if [ -f "$MARKETPLACE_DIR/package.json" ]; then
+    (cd "$MARKETPLACE_DIR" && bun install --frozen-lockfile 2>/dev/null || bun install 2>/dev/null) || true
   fi
 
   # Clear cache + reinstall

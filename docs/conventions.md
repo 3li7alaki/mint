@@ -153,6 +153,17 @@ After a PR is merged:
 | `browser.reviewMode` | string | When to run browser review: `"auto"`, `"always"`, `"off"`. Default: `"auto"` |
 | `browser.timeout` | number | Navigation timeout in seconds. Default: `30` |
 | `browser.blockImages` | boolean | Block image loading globally. Default: `false` |
+| `design.enabled` | boolean | Enable/disable design intelligence. Default: `true` |
+| `design.stack` | string | Frontend stack for design context. `"auto"` or explicit. Default: `"auto"` |
+| `design.profile` | string | Path to design profile JSON. Default: `".mint/design-profile.json"` |
+| `design.notes` | string | Path to design notes markdown. Default: `".mint/design-notes.md"` |
+| `design.conventions` | string[] | Paths to design convention docs (brand guides, design systems). Default: `[]` |
+| `design.review.accessibility` | boolean | WCAG 2.1 AA checks. Default: `true` |
+| `design.review.consistency` | boolean | Design system adherence checks. Default: `true` |
+| `design.review.performance` | boolean | Animation and bundle performance checks. Default: `true` |
+| `design.review.rtl` | boolean | RTL logical property enforcement. Default: `false` |
+| `design.review.i18n` | boolean | Internationalization string checks. Default: `false` |
+| `design.review.brand` | boolean | Brand guide compliance checks. Default: `false` |
 
 ### Workspace Registry (`workspace.repos`)
 

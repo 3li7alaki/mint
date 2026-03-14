@@ -118,6 +118,22 @@ Four plugin types map to four extension dimensions:
 - **Design** — design tool integration
 - **Memory** — knowledge persistence and retrieval
 
+## Design Intelligence
+
+Core feature that makes UI/UX awareness automatic. When `config.design.enabled` is `true`:
+
+1. **Pre-plan hook** — `design-context` agent loads the project's design profile (`.mint/design-profile.json`), design notes (`.mint/design-notes.md`), and relevant reference knowledge from `standards/design/reference/` (typography, color, spatial, motion, interaction, responsive, ux-writing). Injects structured design context into the planner spec.
+
+2. **Pre-review hook** — `design-reviewer` agent runs as a stage 2 parallel auditor. Checks for AI slop (always), RTL violations, i18n compliance, accessibility (WCAG 2.1 AA), design consistency, performance, and brand compliance.
+
+3. **Profile learning** — `design-profile` agent analyzes existing UI code to extract colors, typography, spacing, component patterns into a project-specific design profile. Builds incrementally.
+
+4. **Design notes** — persistent rules and preferences (`.mint/design-notes.md`). Hard rules become BLOCKING constraints; preferences become WARNINGs.
+
+Reference knowledge is vendored from [Impeccable](https://impeccable.style) (Apache 2.0). Impeccable itself is an optional install that adds steering commands (`/polish`, `/audit`, `/critique`, etc.) to the editor.
+
+Design intelligence requires no user invocation — it activates automatically on UI tasks and catches design problems before they ship.
+
 ## Context Mode
 
 Optional infrastructure layer powered by [context-mode](https://github.com/mksglu/context-mode). When `config.context.enabled` is `true`, agents prefer sandboxed execution tools (`ctx_execute`, `ctx_execute_file`, `ctx_batch_execute`) over raw Bash/Read for data-heavy operations. This keeps verbose tool output out of the context window structurally rather than relying on agent discipline.

@@ -1,6 +1,6 @@
 {
   "name": "@3li7alaki/mint",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Disciplined agentic development — CLI for project setup, config, and management",
   "type": "module",
   "bin": {

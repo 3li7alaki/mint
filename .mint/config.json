@@ -61,7 +61,19 @@
     {
       "path": "README.md",
       "trigger": "on-task-complete",
-      "description": "Public-facing project documentation — install, pipeline, agents, config, commands",
+      "description": "Public-facing project documentation — install, pipeline, agents, config, commands, ecosystem integrations",
+      "mode": "update"
+    },
+    {
+      "path": "README.md",
+      "trigger": "on-architectural-change",
+      "description": "Public-facing project documentation — must reflect new core features, agents, commands, config keys, ecosystem tools",
+      "mode": "update"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "trigger": "on-architectural-change",
+      "description": "Project structure tree, agent conventions, command conventions, plugin conventions — must reflect new files and directories",
       "mode": "update"
     },
     {

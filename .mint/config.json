@@ -99,7 +99,7 @@
     "enabled": true
   },
   "context": {
-    "enabled": false,
+    "enabled": true,
     "autoRoute": true,
     "sandbox": {
       "timeout": 30000

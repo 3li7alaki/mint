@@ -39,15 +39,27 @@ export async function run() {
 
   // Gates
   if (config.gates) {
-    for (const [name, cmd] of Object.entries(config.gates)) {
-      if (!cmd || cmd === false) continue;
-      const command = typeof cmd === 'object' ? cmd.command : cmd;
-      try {
-        execSync(command, { cwd, stdio: 'ignore', timeout: 30000 });
-        ok(`Gate: ${name} — ${command}`);
-      } catch {
-        fail(`Gate: ${name} — ${command}`);
+    function runGate(label, cmd) {
+      if (!cmd || cmd === false) return;
+      if (typeof cmd === 'string') {
+        try {
+          execSync(cmd, { cwd, stdio: 'ignore', timeout: 30000 });
+          ok(`Gate: ${label} — ${cmd}`);
+        } catch {
+          fail(`Gate: ${label} — ${cmd}`);
+        }
+      } else if (typeof cmd === 'object' && cmd.command) {
+        // { command: "...", threshold: 80 } format
+        runGate(label, cmd.command);
+      } else if (typeof cmd === 'object') {
+        // Nested sub-gates: { "api": "cmd1", "web": "cmd2" }
+        for (const [sub, subCmd] of Object.entries(cmd)) {
+          runGate(`${label}.${sub}`, subCmd);
+        }
       }
+    }
+    for (const [name, cmd] of Object.entries(config.gates)) {
+      runGate(name, cmd);
     }
   }
 
@@ -63,6 +75,8 @@ export async function run() {
     ok('Context Mode: enabled');
     if (detectContextMode()) ok('context-mode installed');
     else warn('context-mode not installed — install via: claude mcp add context-mode -- npx -y context-mode');
+  } else {
+    warn('Context Mode: disabled — enable in .mint/config.json for sandboxed execution in large codebases');
   }
 
   // Design Intelligence (core feature)
@@ -71,7 +85,10 @@ export async function run() {
     const reviewChecks = config.design.review || {};
     const enabledChecks = Object.entries(reviewChecks).filter(([, v]) => v).map(([k]) => k);
     ok(`Design checks: ${enabledChecks.join(', ') || 'none'}`);
-    if (fileExists(path.join(mintDir, 'design-profile.json'))) ok('Design profile exists');
+    const profilePath = config.design.profile
+      ? path.join(cwd, config.design.profile)
+      : path.join(mintDir, 'design-profile.json');
+    if (fileExists(profilePath)) ok(`Design profile: ${config.design.profile || '.mint/design-profile.json'}`);
     else warn('No design profile — run /design:profile build or it will auto-build on first UI task');
 
     // Check for Impeccable (optional)

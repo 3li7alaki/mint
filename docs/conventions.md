@@ -106,7 +106,7 @@ task IDs (`mint-NNN`) or include spec file paths in commit messages.
 - **Always squash merge** — PRs merge as a single squash commit into main.
 - **Delete branch after merge** — clean up remote and local branches.
 - **PR before merge** — all work goes through a PR, even solo work. No direct merges.
-- **Version bump check** — before creating a PR, verify that the version has been bumped in `package.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json` if the changes warrant a release (new features = minor, fixes = patch).
+- **Version bump** — before creating a PR, run `./scripts/bump.sh minor` (features) or `./scripts/bump.sh patch` (fixes). Never edit version strings manually — the script updates all 3 files (package.json, plugin.json, marketplace.json).
 
 ### Post-Merge
 
@@ -205,7 +205,7 @@ Core features are toggleable capabilities with their own config, agents, and CLI
 | 9 | `docs/conventions.md` | Add all config keys to schema table |
 | 10 | `docs/architecture.md` | Add feature section explaining how it works |
 | 11 | `CLAUDE.md` | Update key files table |
-| 12 | `package.json` + `.claude-plugin/*.json` | Bump version |
+| 12 | `./scripts/bump.sh minor` | Bump version in all 3 files (never manually) |
 
 **Config pattern**: top-level key with `enabled` boolean + feature-specific settings. Not under `plugins`.
 

@@ -132,7 +132,7 @@ After a PR is merged:
 | `definitionOfDone` | object | Completion criteria checklist (gates, reviews, screenshot reminder) |
 | `documenters` | array | Auto-doc configurations |
 | `plugins` | array | Plugin directory paths |
-| `autoCommit` | boolean | If `false`, agents run gates but skip committing. Default: `true` |
+| `autoCommit` | boolean | Global default for autocommit. Overridden by session state `autoCommitOverride` and per-spec `<autoCommit>`. Default: `true` |
 | `tdd.default` | boolean | If `true`, all specs get TDD by default. Individual specs can override. Default: `false` |
 | `tdd.desloppify` | boolean | Run de-sloppify pass after TDD implementation. Default: `true` |
 | `tdd.coverageThreshold` | number | Default coverage threshold for TDD specs. Default: `80` |
@@ -159,6 +159,7 @@ After a PR is merged:
 | `design.profile` | string | Path to design profile JSON. Default: `".mint/design-profile.json"` |
 | `design.notes` | string | Path to design notes markdown. Default: `".mint/design-notes.md"` |
 | `design.conventions` | string[] | Paths to design convention docs (brand guides, design systems). Default: `[]` |
+| `design.uiFilePatterns` | string[] | File patterns that trigger design context (fallback when keywords aren't in task description). Default: `["*.tsx", "*.jsx", "*.vue", "*.svelte", "*.css", "*.scss", "*.html"]` |
 | `design.review.accessibility` | boolean | WCAG 2.1 AA checks. Default: `true` |
 | `design.review.consistency` | boolean | Design system adherence checks. Default: `true` |
 | `design.review.performance` | boolean | Animation and bundle performance checks. Default: `true` |

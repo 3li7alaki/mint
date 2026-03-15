@@ -114,6 +114,7 @@
     "profile": ".mint/design-profile.json",
     "notes": ".mint/design-notes.md",
     "conventions": [],
+    "uiFilePatterns": ["*.tsx", "*.jsx", "*.vue", "*.svelte", "*.css", "*.scss", "*.html"],
     "review": {
       "accessibility": true,
       "consistency": true,

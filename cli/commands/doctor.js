@@ -97,6 +97,22 @@ export async function run() {
     if (hasImpeccable) ok('Impeccable skill installed (steering commands available)');
   }
 
+  // CLAUDE.md mint section
+  const claudeMdPath = path.join(cwd, 'CLAUDE.md');
+  if (fileExists(claudeMdPath)) {
+    let claudeMd = '';
+    try { claudeMd = require('fs').readFileSync(claudeMdPath, 'utf8'); } catch { /* */ }
+    if (claudeMd.includes('<!-- mint:start')) {
+      const versionMatch = claudeMd.match(/<!-- mint:start v(\d+) -->/);
+      const version = versionMatch ? versionMatch[1] : '0';
+      ok(`CLAUDE.md: mint section present (v${version})`);
+    } else {
+      warn('CLAUDE.md: missing mint section — run mint init to add it');
+    }
+  } else {
+    warn('CLAUDE.md: file not found — run mint init to create it with mint section');
+  }
+
   // Plugin hooks
   const home = process.env.HOME || process.env.USERPROFILE || '';
   const pluginJsonPaths = [

@@ -72,8 +72,14 @@ You receive a complete XML spec. Your job:
      coverage meets the threshold. If not, add tests for uncovered paths.
    If `<tdd>` is `false` or absent, implement normally (code + tests together, as before).
 7. **Run gates** — execute gate commands from `.mint/config.json`
-8. **If gates pass** → commit using `git commit -m "<commit message from spec>"` (title only, no body)
-9. **If gates fail** → diagnose root cause, log to `.mint/issues.md`, fix and rerun
+8. **Resolve autocommit** — check in this order:
+   - Read `.mint/.session-state.json` → if `autoCommitOverride` is not `null`, use it
+   - Read spec `<autoCommit>` → if `true`/`false` (not `"inherit"`), use it
+   - Fall back to `config.autoCommit` (default: `true`)
+   **Once the session override is set, respect it for ALL specs — never re-ask the user.**
+9. **If gates pass AND autocommit is true** → commit using `git commit -m "<commit message from spec>"` (title only, no body)
+10. **If gates pass AND autocommit is false** → skip commit, leave changes staged
+11. **If gates fail** → diagnose root cause, log to `.mint/issues.md`, fix and rerun
 10. **Return** commit hash + one-line summary, or failure report
 
 ---

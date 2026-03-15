@@ -60,6 +60,27 @@ Evaluate in this order:
 6. **Plan** — everything else (single feature, >3 files, unclear scope, architectural work)
    → Delegate to `mint-planner` subagent
 
+### Write session state
+
+After routing (and before announcing), write `.mint/.session-state.json`:
+
+```json
+{
+  "mintInvoked": true,
+  "invokedAt": "<ISO-8601 now>",
+  "task": "<user's task description>",
+  "mode": "<routed mode>",
+  "autoCommitOverride": null,
+  "designContextLoaded": false
+}
+```
+
+If the user included an autocommit flag (`--no-commit` or verbal "no commits"), set
+`autoCommitOverride` to `false` (or `true` for explicit commit). This file is read by hooks
+and agents — it's the coordination point for the session.
+
+**On task completion**, delete `.mint/.session-state.json` to reset for the next task.
+
 ### Announce the route
 
 Always tell the user what you picked and why:
@@ -70,6 +91,21 @@ Always tell the user what you picked and why:
 - "Multiple features — let me interview you on scope, then ship them in phases."
 
 If the user says "no, just quick-fix it" or "actually plan this out" — follow their override.
+
+### Detect autocommit flags
+
+Before routing, scan the user's input for autocommit signals:
+
+- **Explicit flags:** `--no-commit`, `--commit`
+- **Verbal:** "no autocommit", "don't commit", "no commits", "skip commits", "stop committing"
+- **Positive:** "autocommit on", "start committing", "commit after each"
+
+If detected, set `autoCommitOverride` in `.mint/.session-state.json` immediately. Announce once:
+"Autocommit disabled for this session." — then never mention it again. The override persists for
+the entire plan/session across all specs.
+
+**Mid-session changes:** If the user says "actually commit from now on" or "stop committing",
+update `autoCommitOverride` in session state and announce the change once.
 
 ---
 
@@ -105,9 +141,15 @@ These are non-negotiable. Violating any of these is a failure.
   specs only use TDD when explicitly opted in via `<tdd>true</tdd>`. This mirrors how `autoCommit`
   works — a global default that individual specs can override. The planner MUST check this config
   before writing specs and set `<tdd>` accordingly.
-- **`autoCommit` control.** If `config.autoCommit` is `false`, agents run gates but do NOT commit.
-  Changes stay staged so the user can review and commit manually (or batch multiple specs into one
-  commit). Default: `true` — agents commit after each spec passes gates.
+- **`autoCommit` control.** Autocommit is resolved in priority order:
+  1. **Session override** (`autoCommitOverride` in `.mint/.session-state.json`) — if the user said
+     "no commits" or used `--no-commit`, this is `false` for all specs in the session. Once set,
+     it persists — **never re-ask**.
+  2. **Per-spec** (`<autoCommit>` field in spec XML) — `true`/`false` overrides for individual specs.
+     `"inherit"` means fall through to the next level.
+  3. **Global config** (`config.autoCommit`) — project default. Default: `true`.
+  When autocommit is `false`, agents run gates but do NOT commit. Changes stay staged so the user
+  can review and commit manually (or batch multiple specs into one commit).
 - **Never fix bad output.** If a subagent produces wrong code, diagnose root cause, fix the spec,
   rerun from scratch. Never patch the output.
 - **Fail twice → stop.** If the same spec fails gates twice, log to `.mint/issues.md` and escalate
@@ -170,8 +212,9 @@ Update this file at every stage transition — it's the source of truth for what
   - If `config.modelRouting.override` has a mapping for this estimate, use that model
 - Dispatch `mint-planner` subagent with the spec XML (full text, not file path)
 - Planner implements and runs gates
-- If gates green AND `config.autoCommit` is not `false`: commit
-- If gates green AND `config.autoCommit` is `false`: skip commit, changes stay staged
+- Resolve autocommit: session override → spec `<autoCommit>` → `config.autoCommit`
+- If gates green AND autocommit resolved to `true`: commit
+- If gates green AND autocommit resolved to `false`: skip commit, changes stay staged
 - Update `execution.json`: gate results in `gates`, commit hash in `commit` (or `null` if no commit)
 - Returns: commit hash + summary, or failure report
 
@@ -262,8 +305,9 @@ For tasks touching ≤3 files with clear scope.
    - Goal, files to modify, steps, acceptance criteria
 2. Implement in main context
 3. Run gates
-4. If green AND `config.autoCommit` is not `false` → commit
-5. If green AND `config.autoCommit` is `false` → skip commit, inform user changes are ready
+4. Resolve autocommit: session override → `config.autoCommit`
+5. If green AND autocommit resolved to `true` → commit
+6. If green AND autocommit resolved to `false` → skip commit, inform user changes are ready
 6. If red → one retry with fixed approach, then escalate
 
 **Auto-escalation:** If during implementation you realize the task needs >3 files or has
@@ -483,11 +527,27 @@ On startup (after plugin loading, before routing), check `config.design.enabled`
 }
 ```
 
+### UI Task Detection
+
+Design context activates when EITHER condition is true:
+
+1. **Keyword detection** — the task description contains UI keywords: component, page, layout,
+   styling, theming, animation, form, dashboard, landing page, card, mobile, responsive, empty
+   state, loading state, error state, modal, sidebar, navigation, header, footer, button, input
+2. **File-pattern detection** — the task's scope includes files matching `config.design.uiFilePatterns`
+   (default: `["*.tsx", "*.jsx", "*.vue", "*.svelte", "*.css", "*.scss", "*.html"]`)
+
+This means: if a user says "fix the admin page" and it touches `.tsx` files, design context
+activates even without explicit UI keywords. File patterns are the safety net for implicit UI work.
+
+When routing to plan/ship mode, the orchestrator passes file context (from spec `<can-modify>` or
+the user's description) to the design-context agent alongside the task description.
+
 ### How Design Context Flows
 
-1. User starts a UI task (creating a component, building a page, etc.)
-2. Orchestrator detects UI keywords → normal routing (quick/plan/ship)
-3. **Pre-plan hook** fires → `design-context` agent runs:
+1. User starts a task (may or may not mention UI explicitly)
+2. Orchestrator checks: UI keywords in description OR files matching `design.uiFilePatterns` in scope
+3. If either matches → **pre-plan hook** fires → `design-context` agent runs:
    - Loads `.mint/design-profile.json` (project's learned visual DNA)
    - Loads `.mint/design-notes.md` (user's hard rules and preferences)
    - Selects relevant reference docs from `standards/design/reference/` based on task type
@@ -860,6 +920,82 @@ If a spec includes `<workspace-impact>`:
 1. The orchestrator includes the affected repos in the execution summary
 2. The finish step reports: "This change affects: repo-a, repo-b — coordinate before merging"
 3. No automated cross-repo actions — the user decides how to handle multi-repo changes
+
+---
+
+## Session State
+
+mint tracks session-level state in `.mint/.session-state.json` (gitignored). This file is the
+source of truth for cross-agent and cross-hook coordination within a session.
+
+### Schema
+
+```json
+{
+  "mintInvoked": true,
+  "invokedAt": "ISO-8601",
+  "task": "short task description",
+  "mode": "quick|plan|ship|research|verify",
+  "autoCommitOverride": null,
+  "designContextLoaded": false
+}
+```
+
+### Fields
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `mintInvoked` | boolean | Whether mint has been invoked this session — hooks check this |
+| `invokedAt` | string | ISO timestamp of invocation |
+| `task` | string | Current task description |
+| `mode` | string | Routed execution mode |
+| `autoCommitOverride` | boolean\|null | Session-level override: `true` = force commit, `false` = skip commit, `null` = use config default |
+| `designContextLoaded` | boolean | Whether design context was loaded for this task |
+
+### Lifecycle
+
+1. **On mint invocation:** Write session state with `mintInvoked: true`, task info, and mode
+2. **On user autocommit override:** Set `autoCommitOverride` to `true` or `false` — this persists
+   for the entire plan/session. Once the user says "no autocommit", ALL specs in the plan respect
+   it without asking again.
+3. **On task completion:** Delete the session state file (clean slate for next task)
+4. **Hooks read this file** to check invocation status and autocommit preference
+
+### Writing session state
+
+On mint invocation, the orchestrator writes `.mint/.session-state.json`:
+
+```javascript
+// Pseudo — orchestrator writes this before routing
+{
+  "mintInvoked": true,
+  "invokedAt": new Date().toISOString(),
+  "task": "<user's task description>",
+  "mode": "<routed mode>",
+  "autoCommitOverride": null,  // or false if user said --no-commit
+  "designContextLoaded": false
+}
+```
+
+### Autocommit override
+
+The user can override autocommit for the current session in three ways:
+
+1. **Inline flag:** "implement X --no-commit" or "implement X --commit"
+2. **Verbal override:** "don't autocommit for this plan" or "no commits please"
+3. **Mid-session:** "stop committing" / "start committing again"
+
+When an override is detected:
+- Set `autoCommitOverride` in session state
+- Announce: "Autocommit disabled for this session. Changes will stay staged."
+- **Never ask again** — the override persists until the task completes or the user changes it
+
+All agents and the orchestrator read `autoCommitOverride` from session state. If it's not `null`,
+it takes precedence over `config.autoCommit`. The check order is:
+
+1. Session state `autoCommitOverride` (if not `null`) → use it
+2. Spec-level `<autoCommit>` field (if present) → use it
+3. `config.autoCommit` → use it (default: `true`)
 
 ---
 

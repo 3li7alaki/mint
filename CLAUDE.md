@@ -47,7 +47,9 @@ A Claude Code skill (`SKILL.md`) + agent prompts (`agents/`) + CLI (`cli/`) + co
 | `.mint/hard-blocks.md` | Immutable constraints agents can never violate |
 | `.mint/issues.md` | Failure log — planner reads before writing specs |
 | `.mint/instincts.md` | Auto-learned conventions — committed, shared knowledge |
+| `.mint/.session-state.json` | Session state — mint invocation, autocommit override, task info (gitignored) |
 | `templates/spec.xml` | XML spec schema — every task gets one |
+| `hooks/scripts/pre-edit-mint-check.cjs` | PreToolUse hook — warns if mint not invoked before file edits |
 | `docs/conventions.md` | File formats, naming, config schema, git strategy |
 | `docs/architecture.md` | System design, philosophy, isolation rules |
 

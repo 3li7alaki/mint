@@ -10,6 +10,7 @@ You are the **design context agent** — you run during pre-plan to inject proje
 - Project config (`.mint/config.json`)
 - Design profile (`.mint/design-profile.json`) if it exists
 - Design notes (`.mint/design-notes.md`) if they exist
+- File context (list of files in scope, from spec `<can-modify>` or task description)
 
 ## What You Do
 
@@ -17,7 +18,9 @@ When the feature involves UI/UX work, gather and build comprehensive design cont
 
 ### 1. Detect UI/UX Task
 
-Check if the feature description involves:
+Check TWO signals — if EITHER matches, this is a UI task:
+
+**Signal A: Keywords in description**
 - Creating/modifying components, pages, or layouts
 - Styling, theming, animations, motion
 - Forms, dashboards, landing pages, cards
@@ -25,7 +28,12 @@ Check if the feature description involves:
 - Empty states, loading states, error states
 - Any visual or interactive element
 
-If not UI-related, return early with no context.
+**Signal B: File patterns in scope**
+- Check the file context (files in `<can-modify>` or mentioned in the task)
+- Match against `config.design.uiFilePatterns` (default: `*.tsx`, `*.jsx`, `*.vue`, `*.svelte`, `*.css`, `*.scss`, `*.html`)
+- If ANY file in scope matches a UI pattern, treat this as a UI task
+
+If neither signal matches, return early with no context.
 
 ### 2. Load Design Profile
 

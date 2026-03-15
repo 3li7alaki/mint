@@ -61,6 +61,9 @@
     - e.g., "Use real zod validation — no mocking zod"
   </no-mocks>
 
+  <autoCommit>inherit</autoCommit>
+  <!-- "inherit" uses session override > config default. Set true/false to override per-spec. -->
+
   <tdd>false</tdd>
   <!-- When tdd=true, planner follows Red-Green-Refactor:
        1. Write tests first (they must FAIL)

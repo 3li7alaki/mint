@@ -17,6 +17,11 @@
         "matcher": "Bash",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-bash-git-push.cjs\"" }],
         "description": "Safety reminder before git push"
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pre-edit-mint-check.cjs\"" }],
+        "description": "Warn if mint skill not invoked before file modifications"
       }
     ],
     "PostToolUse": [

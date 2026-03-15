@@ -9,7 +9,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.6.0 — Fresh context per task. Clean orchestration. Zero slop.
+> v0.6.3 — Fresh context per task. Clean orchestration. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 
@@ -38,12 +38,13 @@ Run `mint init` in your project:
 
 ```
 .mint/
-├── config.json       — gates, reviewers, browser, design, plugins
-├── hard-blocks.md    — what agents can never do
-├── issues.md         — failure log — what went wrong and why
-├── wins.md           — success log — what worked and why
-├── instincts.md      — auto-learned conventions
-└── patterns.md       — graduated recurring patterns
+├── config.json           — gates, reviewers, browser, design, plugins
+├── hard-blocks.md        — what agents can never do
+├── issues.md             — failure log — what went wrong and why
+├── wins.md               — success log — what worked and why
+├── instincts.md          — auto-learned conventions
+├── patterns.md           — graduated recurring patterns
+└── .session-state.json   — session state (gitignored) — invocation, autocommit override
 ```
 
 ## How It Works
@@ -182,6 +183,7 @@ Automatic UI/UX awareness powered by vendored [Impeccable](https://impeccable.st
 - **Profile learning** — analyzes existing UI code to extract colors, typography, spacing, and component patterns into `.mint/design-profile.json`. Learns your project's visual DNA.
 - **Design notes** — persistent rules ("never use red for success") and preferences that override all other design guidance.
 - **AI slop test** — "If you showed this interface to someone and said 'AI made this,' would they believe you immediately? If yes, that's the problem."
+- **File-pattern detection** — design context activates when task description mentions UI keywords OR when files matching `design.uiFilePatterns` (`.tsx`, `.jsx`, `.vue`, `.svelte`, `.css`, `.scss`, `.html`) are in scope. No more silent misses on implicit UI work.
 
 **Commands:**
 - `/design search|system|palette|typography|inspiration` — design intelligence queries
@@ -227,6 +229,22 @@ Edge cases (null, empty, boundary, error paths) are auto-injected. Coverage gati
   "tdd": { "default": true, "coverageThreshold": 80 }
 }
 ```
+
+## Autocommit Control
+
+Autocommit is situational — not just a global toggle. Three levels of control:
+
+1. **Session override** — say "no commits" or use `--no-commit` once, and it persists for the entire plan. Never re-asks.
+2. **Per-spec** — `<autoCommit>true|false|inherit</autoCommit>` in the spec XML template.
+3. **Global config** — `config.autoCommit` (default: `true`).
+
+Session override wins over per-spec, which wins over global. When autocommit is off, agents run gates but leave changes staged for manual review.
+
+## Auto-Invocation Enforcement
+
+A `PreToolUse` hook on `Edit|Write` checks whether mint was invoked before file modifications. If not, a visible warning fires — so you never accidentally bypass mint's quality pipeline. Session state is tracked in `.mint/.session-state.json` (gitignored).
+
+`mint init` and `mint update` automatically inject a version-tagged mint section into your project's `CLAUDE.md`. `mint doctor` warns if it's missing.
 
 ## Review Pipeline
 
@@ -288,11 +306,12 @@ Key config in `.mint/config.json`:
 | `stack` | auto-detected | Framework (nuxt, react, vue, etc.) |
 | `packageManager` | auto-detected | npm, pnpm, yarn, bun |
 | `gates` | `{}` | lint/types/tests/coverage commands |
-| `autoCommit` | `true` | Commit after passing gates |
+| `autoCommit` | `true` | Commit after passing gates (overridable per-session and per-spec) |
 | `tdd.default` | `false` | TDD-first by default |
 | `browser.enabled` | `true` | Browser automation via PinchTab |
 | `context.enabled` | `false` | Context Mode via context-mode |
 | `design.enabled` | `true` | Design intelligence — profiling, anti-patterns, RTL/i18n |
+| `design.uiFilePatterns` | `["*.tsx","*.jsx",...]` | File patterns that auto-trigger design context |
 | `reviewers` | smart defaults | Which reviewers run and their models |
 | `isolation` | `none` | Work isolation: none, branch, or worktree |
 | `plugins` | `[]` | Plugin paths |

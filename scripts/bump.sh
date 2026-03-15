@@ -4,6 +4,8 @@
 # Updates version in all locations:
 #   - .claude-plugin/plugin.json
 #   - .claude-plugin/marketplace.json
+#   - package.json
+#   - README.md (tagline)
 #
 # Does NOT commit — you decide when to commit.
 set -euo pipefail
@@ -43,6 +45,13 @@ for file in "$PLUGIN_JSON" "$MARKETPLACE_JSON" "$PACKAGE_JSON"; do
     echo "  Updated $file"
   fi
 done
+
+# Update README version tagline
+README="README.md"
+if [ -f "$README" ]; then
+  sed -i "s/> v${CURRENT}/> v${NEW}/g" "$README"
+  echo "  Updated $README"
+fi
 
 echo ""
 echo "Version bumped to $NEW. Run 'git add . && git commit' when ready."

@@ -14,30 +14,11 @@ import {
   installContextMode,
   fileExists,
   readJsonSafe,
+  ensureClaudeMd,
 } from '../lib/detect.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VERSION = JSON.parse(fs.readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')).version;
-
-const CLAUDE_MD_VERSION = '1';
-const CLAUDE_MD_START = `<!-- mint:start v${CLAUDE_MD_VERSION} -->`;
-const CLAUDE_MD_END = '<!-- mint:end -->';
-const CLAUDE_MD_SECTION = `${CLAUDE_MD_START}
-## MANDATORY: Use mint for ALL Code Changes
-
-**For ANY task that modifies files in this repo, invoke the \`mint\` skill FIRST.**
-
-This is not optional. Before writing, editing, or deleting any code:
-1. Invoke \`mint\` with the task description
-2. mint auto-routes to the right mode (quick/plan/ship/research/verify)
-3. Follow mint's execution flow with gates and reviews
-
-The only exceptions:
-- Pure conversation / answering questions
-- Reading files to understand context (no modifications)
-
-If you catch yourself thinking "this is just a small fix" or "I'll just edit one file" — STOP. Invoke mint. Small fixes use quick mode. mint decides the workflow, not you.
-${CLAUDE_MD_END}`;
 
 const HARD_BLOCKS_TEMPLATE = `# Hard Blocks — What Agents Can NEVER Do
 
@@ -378,27 +359,4 @@ function writeFiles(mintDir, configPath, config) {
 
   // Ensure CLAUDE.md has mint section
   ensureClaudeMd(path.dirname(mintDir));
-}
-
-function ensureClaudeMd(projectRoot) {
-  const claudeMdPath = path.join(projectRoot, 'CLAUDE.md');
-  let content = '';
-  try { content = fs.readFileSync(claudeMdPath, 'utf8'); } catch { /* no CLAUDE.md yet */ }
-
-  if (content.includes(CLAUDE_MD_START)) {
-    // Check version — replace if outdated
-    const versionMatch = content.match(/<!-- mint:start v(\d+) -->/);
-    const existingVersion = versionMatch ? versionMatch[1] : '0';
-    if (existingVersion !== CLAUDE_MD_VERSION) {
-      // Replace existing section with updated version
-      const regex = /<!-- mint:start v\d+ -->[\s\S]*?<!-- mint:end -->/;
-      content = content.replace(regex, CLAUDE_MD_SECTION);
-      fs.writeFileSync(claudeMdPath, content);
-    }
-    // Same version — leave it alone
-  } else {
-    // No mint section — append it
-    const separator = content.length > 0 ? '\n\n' : '';
-    fs.writeFileSync(claudeMdPath, content + separator + CLAUDE_MD_SECTION + '\n');
-  }
 }

@@ -2,7 +2,7 @@ import * as p from '@clack/prompts';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
-import { detectTool, detectContextMode, readJsonSafe } from '../lib/detect.js';
+import { detectTool, detectContextMode, readJsonSafe, fileExists, ensureClaudeMd } from '../lib/detect.js';
 
 // New core config keys added per version.
 const NEW_CONFIG_KEYS = [
@@ -208,6 +208,35 @@ export async function run(positional = [], flags = {}) {
         fs.writeFileSync(projectConfig, JSON.stringify(config, null, 2) + '\n');
         p.log.success('Config updated');
       }
+
+      // Migrate sub-keys for existing features
+      let configChanged = false;
+
+      // design.uiFilePatterns (added in v0.6.3)
+      if (config.design && config.design.enabled && !config.design.uiFilePatterns) {
+        config.design.uiFilePatterns = ['*.tsx', '*.jsx', '*.vue', '*.svelte', '*.css', '*.scss', '*.html'];
+        p.log.success('Added design.uiFilePatterns (file-pattern design auto-detection)');
+        configChanged = true;
+      }
+
+      if (configChanged) {
+        fs.writeFileSync(projectConfig, JSON.stringify(config, null, 2) + '\n');
+      }
+
+      // Ensure CLAUDE.md has mint section
+      const claudeResult = ensureClaudeMd(process.cwd());
+      if (claudeResult === 'created') p.log.success('Created CLAUDE.md with mint section');
+      else if (claudeResult === 'updated') p.log.success('Updated mint section in CLAUDE.md');
+
+      // Ensure .gitignore has .session-state.json
+      const gitignorePath = path.join(process.cwd(), '.gitignore');
+      try {
+        const gi = fs.readFileSync(gitignorePath, 'utf8');
+        if (!gi.includes('.session-state.json')) {
+          fs.appendFileSync(gitignorePath, '.mint/.session-state.json\n');
+          p.log.success('Added .session-state.json to .gitignore');
+        }
+      } catch { /* no gitignore */ }
     }
   }
 

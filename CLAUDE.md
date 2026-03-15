@@ -2,6 +2,7 @@
 
 Disciplined agentic development framework for Claude Code.
 
+<!-- mint:start v1 -->
 ## MANDATORY: Use mint for ALL Code Changes
 
 **For ANY task that modifies files in this repo, invoke the `mint` skill FIRST.**
@@ -16,6 +17,7 @@ The only exceptions:
 - Reading files to understand context (no modifications)
 
 If you catch yourself thinking "this is just a small fix" or "I'll just edit one file" — STOP. Invoke mint. Small fixes use quick mode. mint decides the workflow, not you.
+<!-- mint:end -->
 
 ## What This Is
 

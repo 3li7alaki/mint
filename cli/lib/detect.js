@@ -215,7 +215,7 @@ export function ensureClaudeMd(projectRoot) {
   try { content = fs.readFileSync(claudeMdPath, 'utf8'); } catch { /* no CLAUDE.md yet */ }
 
   if (content.includes('<!-- mint:start')) {
-    // Check version — replace if outdated
+    // Tagged section exists — check version
     const versionMatch = content.match(/<!-- mint:start v(\d+) -->/);
     const existingVersion = versionMatch ? versionMatch[1] : '0';
     if (existingVersion !== CLAUDE_MD_VERSION) {
@@ -224,6 +224,9 @@ export function ensureClaudeMd(projectRoot) {
       fs.writeFileSync(claudeMdPath, content);
       return 'updated';
     }
+    return 'current';
+  } else if (content.includes('invoke the `mint` skill') || content.includes('Invoke mint') || content.includes('Use mint for ALL Code Changes')) {
+    // Has untagged mint section already — don't duplicate
     return 'current';
   } else {
     const separator = content.length > 0 ? '\n\n' : '';

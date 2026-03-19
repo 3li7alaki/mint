@@ -65,6 +65,12 @@ describe('mint doctor', () => {
     expect(output).toContain('Git initialized');
   });
 
+  test('reports doc-manifest after init', () => {
+    run('init --yes');
+    const output = run('doctor');
+    expect(output).toContain('Doc-manifest');
+  });
+
   test('shows summary counts', () => {
     run('init --yes');
     const output = run('doctor');

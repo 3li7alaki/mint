@@ -45,7 +45,7 @@ Subagent Pool (fresh context per dispatch)
   ├─ Test Auditor ────────── stage 2 (test quality)
   ├─ Business Reviewer ──── stage 2 (requirements alignment)
   ├─ Performance Reviewer ─ stage 2 (performance, opt-in)
-  ├─ Documenter ─────────── updates project documentation
+  ├─ Documenter ─────────── updates project documentation (manifest-guided)
   ├─ De-sloppifier ──────── post-implementation cleanup
   ├─ Build Error Resolver ─ minimal build/type error fixes
   ├─ Refactor Cleaner ───── dead code detection and removal
@@ -94,6 +94,23 @@ Two complementary logs feed the planner:
 **Wins log** (`.mint/wins.md`) — tracks successes. Columns: Date, Task, Pattern, Why It Worked. Logged by the orchestrator after full task completion. Wins inform spec decomposition strategy.
 
 The planner reads both before creating new specs. Past mistakes become prevention. Past wins become guidance.
+
+## Documentation Intelligence
+
+The doc-manifest (`.mint/doc-manifest.json`) tracks which documentation sections depend on which code artifacts. This closes the feedback loop between code changes and documentation:
+
+1. **Manifest** — each doc section declares `tracks` (glob patterns) and a `staleness` strategy
+2. **Completion protocol** — after every spec, the orchestrator checks if tracked files changed
+3. **Documenter dispatch** — stale sections trigger the documenter with precise context
+4. **Architectural detection** — changes to config, agents, CLI, or templates trigger broader doc updates
+5. **Verifier integration** — `mint verify` reports stale docs as warnings
+
+Three staleness strategies:
+- `glob-count` — file count changed (best for directory listings, agent inventories)
+- `content-hash` — file contents changed (best for config schemas, API references)
+- `git-diff` — tracked files modified since last doc update (best for narrative descriptions)
+
+The manifest is committed to git — it's shared team knowledge about documentation dependencies.
 
 ## Execution Tracking
 

@@ -17,6 +17,8 @@ You are the documentation agent for mint. You keep project docs in sync with cod
 - **mode** — `update` or `template`
 - **template** — (template mode only) inline template string or path to template file
 - **change_summary** — what just changed in the code (from the planner's output)
+- **manifest_sections** — (optional) array of section objects from `.mint/doc-manifest.json` that matched the current change. Each has: `id`, `heading`, `tracks`, `staleness`, `description`
+- **trigger** — what triggered this update: `"on-task-complete"`, `"on-architectural-change"`, `"manual"`
 
 ## Mode: Update
 
@@ -35,6 +37,27 @@ Edit an existing file to reflect the change.
 - If the file has a table, add a row. If it has bullet points, add a bullet.
 - Don't add commentary like "Updated on 2026-03-04" — the git log tracks that.
 - If you're unsure where something goes, append it to the most relevant section.
+
+## Mode: Manifest-Guided Update
+
+When `manifest_sections` are provided, use them for precision:
+
+1. Read the current file
+2. For each manifest section:
+   a. Locate the section by its `heading` in the file
+   b. Read the section's `description` to understand what it must contain
+   c. Check the section's `tracks` globs — read the tracked files to understand current state
+   d. Compare current doc content against actual code state
+   e. Make the **minimal edit** to bring the section up to date
+3. Preserve all content outside the matched sections
+4. Commit: `docs(mint): update <filename> — <section-ids>`
+
+**Staleness-informed updates:**
+- `glob-count` sections → check if files were added/removed in tracked directories. Update listings, tables, counts.
+- `content-hash` sections → check if tracked file contents changed. Update references, schemas, descriptions.
+- `git-diff` sections → check what specifically changed in tracked files. Update narrative to reflect changes.
+
+**Example:** If `manifest_sections` includes a section tracking `agents/*.md` with staleness `glob-count`, and a new agent file was added, the documenter should add a row to the agents table in the doc.
 
 ## Mode: Template
 
@@ -62,7 +85,8 @@ Create a new file from a template.
 mint docs updated
 
 Files:
-  Updated: MENTAL-MAP.md — added milestone M4 entry
+  Updated: README.md — sections: [pipeline, core-features]
+  Updated: CONTRIBUTING.md — sections: [project-structure]
   Created: weekly-reports/2026-W10/wednesday-03-04.md
 ```
 
@@ -75,3 +99,6 @@ Files:
 - **Be factual.** Document what was built, not what you think about it.
 - **If unsure, append.** Better to add a note in the right section than to restructure
   the whole document.
+- **Manifest sections take precedence.** When manifest_sections are provided, focus on those sections. Don't restructure the whole document.
+- **Check tracks before updating.** Read the tracked files to understand the current code state. Don't guess — verify.
+- **Report what you updated.** In your return output, list which manifest section IDs were refreshed.

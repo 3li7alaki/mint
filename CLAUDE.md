@@ -50,6 +50,9 @@ A Claude Code skill (`SKILL.md`) + agent prompts (`agents/`) + CLI (`cli/`) + co
 | `.mint/issues.md` | Failure log — planner reads before writing specs |
 | `.mint/instincts.md` | Auto-learned conventions — committed, shared knowledge |
 | `.mint/.session-state.json` | Session state — mint invocation, autocommit override, task info (gitignored) |
+| `.mint/doc-manifest.json` | Doc tracking manifest — maps doc sections to code dependencies |
+| `commands/doc-setup.md` | Command to build doc-manifest for existing projects |
+| `templates/doc-manifest.json` | Doc-manifest template for new projects |
 | `templates/spec.xml` | XML spec schema — every task gets one |
 | `hooks/scripts/pre-edit-mint-check.cjs` | PreToolUse hook — warns if mint not invoked before file edits |
 | `docs/conventions.md` | File formats, naming, config schema, git strategy |

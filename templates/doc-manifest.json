@@ -1,0 +1,42 @@
+{
+  "$schema": "doc-manifest-v1",
+  "_comment": "Doc manifest — maps documentation sections to code artifact dependencies for staleness detection",
+
+  "docs": [
+    {
+      "path": "README.md",
+      "description": "Public-facing project documentation",
+      "trigger": "on-task-complete",
+      "sections": [
+        {
+          "id": "getting-started",
+          "heading": "## Getting Started",
+          "tracks": ["src/**/*.ts"],
+          "staleness": "git-diff",
+          "description": "Installation and setup instructions"
+        },
+        {
+          "id": "api-reference",
+          "heading": "## API Reference",
+          "tracks": ["src/api/**/*.ts"],
+          "staleness": "content-hash",
+          "description": "Must document all exported functions and their signatures"
+        }
+      ]
+    },
+    {
+      "path": "docs/architecture.md",
+      "description": "System design and architectural decisions",
+      "trigger": "on-architectural-change",
+      "sections": [
+        {
+          "id": "system-overview",
+          "heading": "## System Overview",
+          "tracks": ["src/**/*.ts"],
+          "staleness": "glob-count",
+          "description": "Must list all major modules and their responsibilities"
+        }
+      ]
+    }
+  ]
+}

@@ -9,7 +9,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.6.3 — Fresh context per task. Clean orchestration. Zero slop.
+> v0.6.4 — Fresh context per task. Clean orchestration. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 
@@ -29,6 +29,7 @@ mint init --yes    # headless — auto-detect everything, zero prompts
 mint config        # view current config
 mint config set    # edit config (dot notation)
 mint doctor        # health check
+mint doctor --fix  # health check + auto-repair issues
 mint update        # update to latest (core + dependencies)
 ```
 
@@ -60,6 +61,8 @@ You describe what you want. mint auto-detects the right approach:
 | "How should I...", "Compare..." | **Research** — investigates, saves structured report |
 | "Check quality", "Audit" | **Verify** — runs all gates and audits |
 | "Design review", "Design profile" | **Design** — design intelligence commands |
+| "Set up doc tracking" | **Doc Setup** — scans docs, maps sections to code, builds manifest |
+| "Optimize my setup", "Am I using mint fully?" | **Optimize** — full audit of config, docs, workspace, agents, features |
 
 No commands to memorize. Just describe what you want to build.
 
@@ -81,6 +84,8 @@ You describe a feature
     Quality + Security + Conventions + Tests + Business + Performance + Design
         │
   Atomic commit per spec
+        │
+  Doc-manifest check: update stale documentation
         │
   You review the final result
 ```
@@ -212,6 +217,37 @@ Enable/disable in config:
 }
 ```
 
+### Documentation Intelligence
+
+Automatic documentation tracking powered by the **doc-manifest** system. When enabled, mint tracks which documentation sections depend on which code files — so docs never silently go stale.
+
+**What it does:**
+- **Doc-manifest** (`.mint/doc-manifest.json`) — maps each documentation section to the code artifacts it describes via glob patterns
+- **Staleness detection** — three strategies: `glob-count` (file count changed), `content-hash` (file contents changed), `git-diff` (files modified since last doc update)
+- **Completion protocol** — after every spec, the orchestrator checks the manifest and dispatches the documenter for any stale sections
+- **Architectural change detection** — changes to config, agents, CLI, or templates automatically trigger documentation updates
+- **Verifier integration** — `mint verify` reports doc staleness as warnings in the gate report
+
+**Setup:**
+```bash
+# During mint init (automatic)
+mint init
+
+# For existing projects
+# Use /doc-setup command in Claude Code to analyze and map your docs
+```
+
+**How it works:** Each doc section declares which files it tracks. When those files change, the documenter knows exactly what to update and where. No more "I forgot to update the README."
+
+Enable/disable in config:
+```json
+{
+  "definitionOfDone": {
+    "docCheckPassed": true
+  }
+}
+```
+
 ## TDD Support
 
 Test-first development built into the pipeline. Toggle via config or per-spec:
@@ -310,6 +346,7 @@ Key config in `.mint/config.json`:
 | `tdd.default` | `false` | TDD-first by default |
 | `browser.enabled` | `true` | Browser automation via PinchTab |
 | `context.enabled` | `false` | Context Mode via context-mode |
+| `definitionOfDone.docCheckPassed` | `true` | Check doc-manifest after each spec |
 | `design.enabled` | `true` | Design intelligence — profiling, anti-patterns, RTL/i18n |
 | `design.uiFilePatterns` | `["*.tsx","*.jsx",...]` | File patterns that auto-trigger design context |
 | `reviewers` | smart defaults | Which reviewers run and their models |
@@ -343,6 +380,8 @@ See [Plugin Guide](docs/plugin-guide.md) for creating custom plugins.
 | [Conventions](docs/conventions.md) | File formats, naming, config schema |
 | [Architecture](docs/architecture.md) | System design and philosophy |
 | [Autonomous Loops](docs/autonomous-loops.md) | CI/CD and scripted workflows |
+| [Doc Setup](commands/doc-setup.md) | Building doc-manifest for existing projects |
+| [Optimize](commands/optimize.md) | Full setup audit — config, docs, workspace, agents, features |
 
 ## License
 

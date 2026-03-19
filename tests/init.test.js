@@ -55,6 +55,15 @@ describe('mint init --yes', () => {
     expect(fs.existsSync(path.join(TMP, '.mint', 'wins.md'))).toBe(true);
   });
 
+  test('creates doc-manifest.json', () => {
+    run('init --yes');
+    const manifestPath = path.join(TMP, '.mint', 'doc-manifest.json');
+    expect(fs.existsSync(manifestPath)).toBe(true);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    expect(manifest.$schema).toBe('doc-manifest-v1');
+    expect(Array.isArray(manifest.docs)).toBe(true);
+  });
+
   test('browser enabled by default', () => {
     run('init --yes');
     const config = readConfig();

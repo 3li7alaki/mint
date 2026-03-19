@@ -59,6 +59,8 @@ export function detectStack(dir) {
       if (allDeps.vue) return 'vue';
       if (allDeps.express || allDeps.fastify || allDeps.koa) return 'node';
     }
+    // Detect bun projects by lockfile
+    if (fileExists(path.join(dir, 'bun.lockb')) || fileExists(path.join(dir, 'bun.lock'))) return 'bun';
     return 'node';
   }
 
@@ -208,6 +210,41 @@ If you catch yourself thinking "this is just a small fix" or "I'll just edit one
 ${CLAUDE_MD_END}`;
 
 export { CLAUDE_MD_VERSION, CLAUDE_MD_START, CLAUDE_MD_END, CLAUDE_MD_SECTION };
+
+export function generateDocManifest(projectRoot) {
+  const manifest = { '$schema': 'doc-manifest-v1', docs: [] };
+
+  const commonDocs = [
+    { file: 'README.md', desc: 'Public-facing project documentation', trigger: 'on-task-complete' },
+    { file: 'CONTRIBUTING.md', desc: 'Contribution guidelines and project structure', trigger: 'on-architectural-change' },
+    { file: 'CHANGELOG.md', desc: 'Version history and release notes', trigger: 'on-task-complete' },
+    { file: 'CLAUDE.md', desc: 'AI assistant project instructions', trigger: 'on-architectural-change' },
+  ];
+
+  for (const { file, desc, trigger } of commonDocs) {
+    if (fileExists(path.join(projectRoot, file))) {
+      manifest.docs.push({ path: file, description: desc, trigger, sections: [] });
+    }
+  }
+
+  // Scan docs/ directory
+  const docsDir = path.join(projectRoot, 'docs');
+  if (fileExists(docsDir)) {
+    try {
+      const files = fs.readdirSync(docsDir).filter(f => f.endsWith('.md'));
+      for (const file of files) {
+        manifest.docs.push({
+          path: `docs/${file}`,
+          description: `Documentation — ${file.replace('.md', '').replace(/-/g, ' ')}`,
+          trigger: 'on-architectural-change',
+          sections: [],
+        });
+      }
+    } catch { /* ignore */ }
+  }
+
+  return manifest;
+}
 
 export function ensureClaudeMd(projectRoot) {
   const claudeMdPath = path.join(projectRoot, 'CLAUDE.md');

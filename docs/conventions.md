@@ -166,6 +166,7 @@ After a PR is merged:
 | `design.review.rtl` | boolean | RTL logical property enforcement. Default: `false` |
 | `design.review.i18n` | boolean | Internationalization string checks. Default: `false` |
 | `design.review.brand` | boolean | Brand guide compliance checks. Default: `false` |
+| `definitionOfDone.docCheckPassed` | boolean | Whether doc-manifest check is required after each spec. Default: `true` |
 
 ### Workspace Registry (`workspace.repos`)
 
@@ -188,6 +189,8 @@ Each entry in `workspace.repos` describes a repository in the workspace:
 - New config key → update docs/conventions.md config schema table
 - Pipeline change → update SKILL.md and README pipeline diagram
 - New plugin hook → update SKILL.md plugin loading section
+- New doc section tracked → update .mint/doc-manifest.json
+- Doc-manifest system changed → update docs/conventions.md, docs/architecture.md
 
 ### Adding a Core Feature (like browser, context, design)
 
@@ -223,3 +226,22 @@ Core features are toggleable capabilities with their own config, agents, and CLI
 | `CONTRIBUTING.md` | How to contribute | Manual |
 | `docs/conventions.md` | This file — internal conventions | Manual or conventions-enforcer discovery |
 | `docs/architecture.md` | System design and agent roles | Manual on architectural changes |
+| `.mint/doc-manifest.json` | Doc tracking manifest — section→code mappings | `mint init` / `/doc-setup` |
+
+### Doc-Manifest
+
+The doc-manifest (`.mint/doc-manifest.json`) maps documentation sections to code dependencies:
+
+- **Schema:** `doc-manifest-v1` — see `templates/doc-manifest.json`
+- **Created by:** `mint init` (basic) or `/doc-setup` command (comprehensive)
+- **Read by:** Orchestrator (completion protocol), verifier (staleness check), documenter (update guidance)
+- **Committed:** Yes — shared team knowledge
+
+Each section entry has:
+| Field | Purpose |
+|-------|---------|
+| `id` | Unique kebab-case identifier |
+| `heading` | Markdown heading to locate the section |
+| `tracks` | Glob patterns of code files this section depends on |
+| `staleness` | Detection strategy: `glob-count`, `content-hash`, `git-diff` |
+| `description` | What this section must contain (guides the documenter) |

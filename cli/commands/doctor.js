@@ -1,20 +1,37 @@
 import * as p from '@clack/prompts';
 import path from 'path';
+import fs from 'fs';
 import { execSync } from 'child_process';
 import { readJsonSafe, fileExists, detectStack, detectTool, detectContextMode } from '../lib/detect.js';
 
-export async function run() {
+export async function run(flags = {}) {
   const cwd = process.cwd();
   const mintDir = path.join(cwd, '.mint');
   const configPath = path.join(mintDir, 'config.json');
+  const autoFix = flags.fix || false;
 
-  p.intro('\x1b[32m mint doctor \x1b[0m');
+  p.intro(`\x1b[32m mint doctor${autoFix ? ' --fix' : ''} \x1b[0m`);
 
-  let passed = 0, warnings = 0, failed = 0;
+  let passed = 0, warnings = 0, failed = 0, fixed = 0;
 
   function ok(msg) { p.log.success(msg); passed++; }
   function warn(msg) { p.log.warn(msg); warnings++; }
   function fail(msg) { p.log.error(msg); failed++; }
+
+  function fixable(msg, fixFn) {
+    if (autoFix) {
+      try {
+        fixFn();
+        p.log.success(`${msg} — fixed`);
+        fixed++;
+      } catch (e) {
+        p.log.error(`${msg} — fix failed: ${e.message}`);
+        failed++;
+      }
+    } else {
+      warn(`${msg} — run with --fix to repair`);
+    }
+  }
 
   // Config
   if (fileExists(configPath) && readJsonSafe(configPath)) ok('.mint/config.json valid');
@@ -97,11 +114,119 @@ export async function run() {
     if (hasImpeccable) ok('Impeccable skill installed (steering commands available)');
   }
 
+  // Doc-manifest
+  const manifestPath = path.join(mintDir, 'doc-manifest.json');
+  if (fileExists(manifestPath)) {
+    const manifest = readJsonSafe(manifestPath);
+    if (manifest && manifest.$schema === 'doc-manifest-v1') {
+      const docCount = manifest.docs?.length || 0;
+      const sectionCount = manifest.docs?.reduce((sum, d) => sum + (d.sections?.length || 0), 0) || 0;
+      ok(`Doc-manifest: ${docCount} docs, ${sectionCount} tracked sections`);
+
+      // Check that tracked doc files actually exist
+      for (const doc of manifest.docs || []) {
+        if (!fileExists(path.join(cwd, doc.path))) {
+          warn(`Doc-manifest: ${doc.path} listed but file not found`);
+        }
+      }
+    } else {
+      warn('Doc-manifest: invalid schema — expected doc-manifest-v1');
+    }
+  } else {
+    warn('Doc-manifest: not found — run mint init to generate, or create .mint/doc-manifest.json');
+  }
+
+  // Learning files
+  const issuesPath = path.join(mintDir, 'issues.md');
+  if (!fileExists(issuesPath)) {
+    fixable('.mint/issues.md missing', () => {
+      fs.writeFileSync(issuesPath, '# Mint Issues & Learnings\n\n_Centralized log. All agent blockers, root causes, and learnings go here._\n\n| Date | Task | Severity | Issue | Root Cause | Resolution | Spec Fix |\n|------|------|----------|-------|------------|------------|----------|\n');
+    });
+  } else {
+    ok('.mint/issues.md present');
+  }
+
+  const winsPath = path.join(mintDir, 'wins.md');
+  if (!fileExists(winsPath)) {
+    fixable('.mint/wins.md missing', () => {
+      fs.writeFileSync(winsPath, '# Wins\n\n_Successful patterns. The planner reads this before writing specs._\n\n| Date | Task | Pattern | Why It Worked |\n|------|------|---------|---------------|\n');
+    });
+  } else {
+    ok('.mint/wins.md present');
+  }
+
+  const instinctsPath = path.join(mintDir, 'instincts.md');
+  if (!fileExists(instinctsPath)) {
+    fixable('.mint/instincts.md missing', () => {
+      fs.writeFileSync(instinctsPath, '# Instincts\n\nAuto-extracted patterns from code observations. The planner reads this to match\nexisting project conventions. Confidence grows as patterns repeat across files.\n\n**High-confidence (>= 3):** Follow by default when writing new code.\n**Low-confidence (1-2):** Observed but not yet established — use judgment.\n\n| Category | Pattern | Files Seen | Confidence | Last Updated |\n|----------|---------|-----------|------------|--------------|\n');
+    });
+  } else {
+    ok('.mint/instincts.md present');
+  }
+
+  const patternsPath = path.join(mintDir, 'patterns.md');
+  if (!fileExists(patternsPath)) {
+    fixable('.mint/patterns.md missing', () => {
+      fs.writeFileSync(patternsPath, '# Patterns\n\n_Promoted from issues/wins. Higher confidence than individual log entries._\n\n| Pattern | Source | Confidence | Action |\n|---------|--------|------------|--------|\n');
+    });
+  } else {
+    ok('.mint/patterns.md present');
+  }
+
+  // Config completeness
+  const configChecks = [
+    { path: 'definitionOfDone', default: { gatesPassing: true, specReviewPassed: true, stage2ReviewsPassed: true, docCheckPassed: true, screenshotReminder: 'ui-changes' } },
+    { path: 'definitionOfDone.docCheckPassed', default: true },
+    { path: 'instincts', default: { enabled: true } },
+    { path: 'modelRouting', default: { enabled: true, override: {} } },
+    { path: 'tdd', default: { default: false, desloppify: true, coverageThreshold: 80 } },
+    { path: 'isolation', default: { plan: 'none', ship: 'none', quick: 'none' } },
+  ];
+
+  for (const check of configChecks) {
+    const parts = check.path.split('.');
+    let val = config;
+    for (const part of parts) {
+      val = val?.[part];
+    }
+    if (val === undefined) {
+      fixable(`Config missing: ${check.path}`, () => {
+        let target = config;
+        const pathParts = check.path.split('.');
+        for (let i = 0; i < pathParts.length - 1; i++) {
+          if (target[pathParts[i]] === undefined) target[pathParts[i]] = {};
+          target = target[pathParts[i]];
+        }
+        target[pathParts[pathParts.length - 1]] = check.default;
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+      });
+    }
+  }
+
+  // Reviewer optimization
+  const importantReviewers = ['spec', 'quality', 'security', 'conventions'];
+  for (const name of importantReviewers) {
+    const rev = config.reviewers?.[name];
+    if (!rev || rev === false || (typeof rev === 'object' && !rev.enabled)) {
+      warn(`Reviewer disabled: ${name} — this is a key quality gate. Enable in config if possible.`);
+    }
+  }
+
+  for (const [name, val] of Object.entries(config.reviewers || {})) {
+    if (val === true) {
+      fixable(`Reviewer ${name}: enabled but no model assigned`, () => {
+        const defaults = { spec: 'opus', quality: 'sonnet', security: 'sonnet', conventions: 'haiku', tests: 'sonnet', business: 'opus', performance: 'sonnet' };
+        config.reviewers[name] = { enabled: true, model: defaults[name] || 'sonnet' };
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+      });
+    }
+  }
+
   // CLAUDE.md mint section
   const claudeMdPath = path.join(cwd, 'CLAUDE.md');
   if (fileExists(claudeMdPath)) {
     let claudeMd = '';
-    try { claudeMd = require('fs').readFileSync(claudeMdPath, 'utf8'); } catch { /* */ }
+    try { claudeMd = fs.readFileSync(claudeMdPath, 'utf8'); } catch { /* */ }
     if (claudeMd.includes('<!-- mint:start')) {
       const versionMatch = claudeMd.match(/<!-- mint:start v(\d+) -->/);
       const version = versionMatch ? versionMatch[1] : '0';
@@ -111,6 +236,31 @@ export async function run() {
     }
   } else {
     warn('CLAUDE.md: file not found — run mint init to create it with mint section');
+  }
+
+  // Doc-manifest section quality
+  if (fileExists(manifestPath)) {
+    const manifestData = readJsonSafe(manifestPath);
+    if (manifestData?.docs) {
+      const emptySections = manifestData.docs.filter(d => !d.sections || d.sections.length === 0);
+      if (emptySections.length > 0) {
+        warn(`Doc-manifest: ${emptySections.length} docs with no tracked sections — run /doc-setup to populate`);
+      }
+    }
+  }
+
+  // .gitignore completeness
+  const gitignorePath = path.join(cwd, '.gitignore');
+  const requiredIgnores = ['.mint/tasks/', '.mint/research/', '.mint/worktrees/', '.mint/.session-state.json'];
+  if (fileExists(gitignorePath)) {
+    const gi = fs.readFileSync(gitignorePath, 'utf8');
+    for (const ignore of requiredIgnores) {
+      if (!gi.includes(ignore)) {
+        fixable(`.gitignore missing: ${ignore}`, () => {
+          fs.appendFileSync(gitignorePath, `${ignore}\n`);
+        });
+      }
+    }
   }
 
   // Plugin hooks
@@ -180,6 +330,7 @@ export async function run() {
   if (passed) parts.push(`\x1b[32m${passed} passed\x1b[0m`);
   if (warnings) parts.push(`\x1b[33m${warnings} warnings\x1b[0m`);
   if (failed) parts.push(`\x1b[31m${failed} failed\x1b[0m`);
+  if (fixed) parts.push(`\x1b[34m${fixed} fixed\x1b[0m`);
 
   p.outro(parts.join(', '));
 }

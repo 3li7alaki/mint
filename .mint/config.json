@@ -20,6 +20,7 @@
     "docs": [
       "docs/conventions.md",
       "docs/architecture.md",
+      "docs/plugin-guide.md",
       "CONTRIBUTING.md",
       "CLAUDE.md"
     ]
@@ -55,46 +56,9 @@
     "gatesPassing": true,
     "specReviewPassed": true,
     "stage2ReviewsPassed": true,
+    "docCheckPassed": true,
     "screenshotReminder": "ui-changes"
   },
-  "documenters": [
-    {
-      "path": "README.md",
-      "trigger": "on-task-complete",
-      "description": "Public-facing project documentation — install, pipeline, agents, config, commands, ecosystem integrations",
-      "mode": "update"
-    },
-    {
-      "path": "README.md",
-      "trigger": "on-architectural-change",
-      "description": "Public-facing project documentation — must reflect new core features, agents, commands, config keys, ecosystem tools",
-      "mode": "update"
-    },
-    {
-      "path": "CONTRIBUTING.md",
-      "trigger": "on-architectural-change",
-      "description": "Project structure tree, agent conventions, command conventions, plugin conventions — must reflect new files and directories",
-      "mode": "update"
-    },
-    {
-      "path": "docs/architecture.md",
-      "trigger": "on-architectural-change",
-      "description": "System design — agent roles, pipeline stages, core features, plugin system, hooks, isolation",
-      "mode": "update"
-    },
-    {
-      "path": "docs/conventions.md",
-      "trigger": "on-architectural-change",
-      "description": "Internal conventions — config schema, git strategy, file formats, core feature checklist, PR rules",
-      "mode": "update"
-    },
-    {
-      "path": "CLAUDE.md",
-      "trigger": "on-architectural-change",
-      "description": "Key files table, working rules, project overview — must stay in sync with actual file structure",
-      "mode": "update"
-    }
-  ],
   "browser": {
     "enabled": true
   },
@@ -109,20 +73,7 @@
     }
   },
   "design": {
-    "enabled": true,
-    "stack": "auto",
-    "profile": ".mint/design-profile.json",
-    "notes": ".mint/design-notes.md",
-    "conventions": [],
-    "uiFilePatterns": ["*.tsx", "*.jsx", "*.vue", "*.svelte", "*.css", "*.scss", "*.html"],
-    "review": {
-      "accessibility": true,
-      "consistency": true,
-      "performance": true,
-      "rtl": false,
-      "i18n": false,
-      "brand": false
-    }
+    "enabled": false
   },
   "plugins": []
 }

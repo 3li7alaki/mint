@@ -92,6 +92,7 @@ After `mint init`, your project has:
 | `/mint:verify` | Run all quality gates |
 | `/mint:status` | Check running tasks and progress |
 | `/mint:stop [reason]` | Interrupt running agents |
+| `/mint:optimize` | Full audit and optimization of mint setup |
 
 ---
 

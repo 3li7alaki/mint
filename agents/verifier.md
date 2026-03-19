@@ -77,6 +77,30 @@ Scan staged files and recent commits for violations:
 
 Count rows in `.mint/issues.md` that have no Resolution entry.
 
+### 5. Doc-Manifest Staleness Check
+
+When `.mint/doc-manifest.json` exists, check documentation freshness:
+
+1. Read the manifest
+2. For each doc → for each section:
+   - Based on `staleness` strategy:
+     - `glob-count`: count files matching `tracks` globs, compare against what the doc section describes (e.g., count rows in a table vs actual file count)
+     - `git-diff`: check if any tracked files have commits newer than the doc file's last commit
+     - `content-hash`: check if tracked files changed since their last known state
+   - If stale: report as WARNING (not BLOCKING — docs don't block commits)
+3. Include in gate report:
+
+```
+Doc-manifest: N sections checked, M stale
+  ⚠ README.md#project-structure — tracked agents/*.md has 26 files, doc lists 25
+  ⚠ docs/conventions.md#config-schema — .mint/config.json modified after last doc update
+  ✅ docs/architecture.md#system-design — up to date
+```
+
+### Severity
+
+Doc staleness is always **WARNING**, never BLOCKING. Documentation drift doesn't block commits — but it's visible in the gate report so the orchestrator can dispatch the documenter.
+
 ## Report Format
 
 ```
@@ -88,6 +112,7 @@ Tests       ✅ | ❌ (N passing, N failing)
 Coverage    ✅ | ❌ (N% — threshold: N%)
 Mock audit  ✅ | ⚠️ (N internal mocks — file:line)
 Hard blocks ✅ | ❌ (violations listed)
+Doc-manifest ✅ | ⚠️ (N sections checked, M stale)
 Open issues N (see .mint/issues.md)
 ```
 

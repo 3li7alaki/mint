@@ -19,4 +19,4 @@
 - NEVER create a PR for a new feature or core feature without bumping version — use `./scripts/bump.sh minor` for features, `./scripts/bump.sh patch` for fixes. NEVER edit version strings manually across files.
 - NEVER add a core feature (top-level config key like browser, context, design) without updating ALL CLI touchpoints: init.js (prompt + buildConfig + headless), doctor.js (health check), config.js (status display), update.js (NEW_CONFIG_KEYS + dep updater)
 - NEVER add a core feature without updating SKILL.md (routing + execution flow + startup detection), docs/conventions.md (config schema), docs/architecture.md (feature section), and CLAUDE.md (key files table)
-- NEVER ship CLI changes without running `bun test` — all 87+ tests must pass
+- NEVER ship CLI changes without running `bun test` — all tests must pass

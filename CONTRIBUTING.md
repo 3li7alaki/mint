@@ -51,7 +51,8 @@ mint/
 │   ├── design-review.md       # /design:review — standalone design review
 │   ├── design-tokens.md       # /design:tokens — export/sync/validate
 │   ├── design-teach.md        # /design:teach — project design setup
-│   └── design-steer.md        # /design:steer — 16 steering directions
+│   ├── design-steer.md        # /design:steer — 16 steering directions
+│   └── doc-setup.md           # /doc-setup — build doc-manifest for existing projects
 ├── cli/                     # mint CLI (bun + @clack/prompts)
 │   ├── mint.js              # Entry point
 │   ├── commands/            # init, config, doctor, update
@@ -67,6 +68,7 @@ mint/
 ├── references/              # PinchTab API docs, token strategy
 ├── templates/               # Templates and schemas
 │   ├── spec.xml
+│   ├── doc-manifest.json
 │   └── plugin-manifest.json
 ├── hooks/                   # Claude Code hooks
 │   ├── hooks.json
@@ -79,6 +81,7 @@ mint/
 └── .mint/                   # Project config
     ├── config.json          # Committed — shared project settings
     ├── hard-blocks.md       # Committed — rules everyone follows
+    ├── doc-manifest.json    — doc tracking manifest (committed)
     ├── issues.md            # Committed — failure log
     ├── wins.md              # Committed — success patterns
     ├── instincts.md         # Committed — auto-learned conventions
@@ -128,6 +131,7 @@ Commands are markdown files in `commands/`. They're invoked by the user or orche
 - Use imperative mood for the command name
 - Document what the command does, what it expects, and what it produces
 - Commands delegate to agents — they don't contain implementation logic
+- The /doc-setup command helps existing projects build their doc-manifest.
 
 ## Writing Plugins
 

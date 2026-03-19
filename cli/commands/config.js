@@ -37,6 +37,17 @@ function showConfig() {
   console.log(`  Context:     ${config.context?.enabled ? g('on') : r()}`);
   console.log(`  Design:      ${config.design?.enabled ? g('on') : r()}`);
 
+  // Doc-manifest
+  const manifestPath = path.join(process.cwd(), '.mint', 'doc-manifest.json');
+  if (fileExists(manifestPath)) {
+    const manifest = readJsonSafe(manifestPath);
+    const docCount = manifest?.docs?.length || 0;
+    const sectionCount = manifest?.docs?.reduce((sum, d) => sum + (d.sections?.length || 0), 0) || 0;
+    console.log(`  Docs:        ${g(`${docCount} docs, ${sectionCount} sections tracked`)}`);
+  } else {
+    console.log(`  Docs:        ${d('no manifest')}`);
+  }
+
   console.log(`\n  \x1b[1mGates\x1b[0m`);
   for (const key of ['lint', 'types', 'tests']) {
     const val = config.gates?.[key];

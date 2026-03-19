@@ -97,6 +97,28 @@ export async function run() {
     if (hasImpeccable) ok('Impeccable skill installed (steering commands available)');
   }
 
+  // Doc-manifest
+  const manifestPath = path.join(mintDir, 'doc-manifest.json');
+  if (fileExists(manifestPath)) {
+    const manifest = readJsonSafe(manifestPath);
+    if (manifest && manifest.$schema === 'doc-manifest-v1') {
+      const docCount = manifest.docs?.length || 0;
+      const sectionCount = manifest.docs?.reduce((sum, d) => sum + (d.sections?.length || 0), 0) || 0;
+      ok(`Doc-manifest: ${docCount} docs, ${sectionCount} tracked sections`);
+
+      // Check that tracked doc files actually exist
+      for (const doc of manifest.docs || []) {
+        if (!fileExists(path.join(cwd, doc.path))) {
+          warn(`Doc-manifest: ${doc.path} listed but file not found`);
+        }
+      }
+    } else {
+      warn('Doc-manifest: invalid schema — expected doc-manifest-v1');
+    }
+  } else {
+    warn('Doc-manifest: not found — run mint init to generate, or create .mint/doc-manifest.json');
+  }
+
   // CLAUDE.md mint section
   const claudeMdPath = path.join(cwd, 'CLAUDE.md');
   if (fileExists(claudeMdPath)) {

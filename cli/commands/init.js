@@ -15,6 +15,7 @@ import {
   fileExists,
   readJsonSafe,
   ensureClaudeMd,
+  generateDocManifest,
 } from '../lib/detect.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -355,6 +356,13 @@ function writeFiles(mintDir, configPath, config) {
 
   if (!gitignore.includes(marker)) {
     fs.appendFileSync(gitignorePath, mintIgnore);
+  }
+
+  // Generate doc-manifest from template or scan existing docs
+  const manifestPath = path.join(mintDir, 'doc-manifest.json');
+  if (!fileExists(manifestPath)) {
+    const manifest = generateDocManifest(path.dirname(mintDir));
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   }
 
   // Ensure CLAUDE.md has mint section

@@ -219,6 +219,41 @@ export async function run(positional = [], flags = {}) {
         configChanged = true;
       }
 
+      // doc-manifest.json (added in v0.6.4)
+      const manifestPath = path.join(process.cwd(), '.mint', 'doc-manifest.json');
+      if (!fileExists(manifestPath)) {
+        const { generateDocManifest } = await import('../lib/detect.js');
+        if (typeof generateDocManifest === 'function') {
+          const manifest = generateDocManifest(process.cwd());
+          fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+          p.log.success('Created .mint/doc-manifest.json (doc tracking)');
+          configChanged = true;
+        }
+      }
+
+      // Migrate old documenters array to doc-manifest
+      if (config.documenters && config.documenters.length > 0 && fileExists(manifestPath)) {
+        const manifest = readJsonSafe(manifestPath);
+        if (manifest && (!manifest.docs || manifest.docs.length === 0)) {
+          manifest.docs = config.documenters.map(d => ({
+            path: d.path,
+            description: d.description,
+            trigger: d.trigger || 'on-architectural-change',
+            sections: [],
+          }));
+          fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+          p.log.success('Migrated documenters config to doc-manifest.json');
+          configChanged = true;
+        }
+      }
+
+      // Add definitionOfDone.docCheckPassed if missing
+      if (config.definitionOfDone && config.definitionOfDone.docCheckPassed === undefined) {
+        config.definitionOfDone.docCheckPassed = true;
+        p.log.success('Added definitionOfDone.docCheckPassed');
+        configChanged = true;
+      }
+
       if (configChanged) {
         fs.writeFileSync(projectConfig, JSON.stringify(config, null, 2) + '\n');
       }

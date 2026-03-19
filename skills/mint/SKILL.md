@@ -776,6 +776,7 @@ The `mint` CLI manages project setup and configuration. You can run these comman
 | `mint config set <key> <value>` | Edit config with dot notation (e.g., `mint config set browser.enabled true`) |
 | `mint config plugins` | Interactive plugin management |
 | `mint doctor` | Health check — validates config, gates, tools, plugins |
+| `mint doctor --fix` | Health check + auto-repair missing files, incomplete config, .gitignore gaps |
 | `mint update` | Update mint to latest version |
 
 **Headless flags for `mint init`:**

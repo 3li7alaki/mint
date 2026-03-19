@@ -52,7 +52,8 @@ mint/
 │   ├── design-tokens.md       # /design:tokens — export/sync/validate
 │   ├── design-teach.md        # /design:teach — project design setup
 │   ├── design-steer.md        # /design:steer — 16 steering directions
-│   └── doc-setup.md           # /doc-setup — build doc-manifest for existing projects
+│   ├── doc-setup.md           # /doc-setup — build doc-manifest for existing projects
+│   └── optimize.md            # /mint:optimize — full setup audit and optimization
 ├── cli/                     # mint CLI (bun + @clack/prompts)
 │   ├── mint.js              # Entry point
 │   ├── commands/            # init, config, doctor, update

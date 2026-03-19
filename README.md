@@ -29,6 +29,7 @@ mint init --yes    # headless — auto-detect everything, zero prompts
 mint config        # view current config
 mint config set    # edit config (dot notation)
 mint doctor        # health check
+mint doctor --fix  # health check + auto-repair issues
 mint update        # update to latest (core + dependencies)
 ```
 
@@ -61,6 +62,7 @@ You describe what you want. mint auto-detects the right approach:
 | "Check quality", "Audit" | **Verify** — runs all gates and audits |
 | "Design review", "Design profile" | **Design** — design intelligence commands |
 | "Set up doc tracking" | **Doc Setup** — scans docs, maps sections to code, builds manifest |
+| "Optimize my setup", "Am I using mint fully?" | **Optimize** — full audit of config, docs, workspace, agents, features |
 
 No commands to memorize. Just describe what you want to build.
 
@@ -379,6 +381,7 @@ See [Plugin Guide](docs/plugin-guide.md) for creating custom plugins.
 | [Architecture](docs/architecture.md) | System design and philosophy |
 | [Autonomous Loops](docs/autonomous-loops.md) | CI/CD and scripted workflows |
 | [Doc Setup](commands/doc-setup.md) | Building doc-manifest for existing projects |
+| [Optimize](commands/optimize.md) | Full setup audit — config, docs, workspace, agents, features |
 
 ## License
 

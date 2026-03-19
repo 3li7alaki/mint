@@ -55,6 +55,7 @@
     "gatesPassing": true,
     "specReviewPassed": true,
     "stage2ReviewsPassed": true,
+    "docCheckPassed": true,
     "screenshotReminder": "ui-changes"
   },
   "documenters": [

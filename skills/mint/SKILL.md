@@ -164,6 +164,7 @@ from `.mint/config.json`:
 - `gatesPassing` — all enabled gates returned green
 - `specReviewPassed` — stage 1 spec reviewer approved
 - `stage2ReviewsPassed` — all enabled stage 2 reviewers approved (no unresolved BLOCKING issues)
+- `docCheckPassed` — doc-manifest check completed and documenter dispatched for affected docs
 - `screenshotReminder` — if set to `"ui-changes"` and the spec modified UI files (`.vue`, `.tsx`,
   `.jsx`, `.svelte`, `.html`, `.css`), remind the user: "This spec modified UI files — consider
   capturing a screenshot before merging." If `"always"`, remind on every spec. If `false`, skip.
@@ -250,12 +251,35 @@ Update this file at every stage transition — it's the source of truth for what
 - Only failed auditors re-run (not all of them)
 - 3 review rounds max, then escalate
 
-**d) Completion**
-- If all stages pass: set `execution.json` status to `passed`, record `completedAt`
-- If spec failed and will be rewritten: set status to `rewriting`
-- If spec failed twice: set status to `failed`, log to `.mint/issues.md`
-- Check `documenters` config for `on-task-complete` triggers
-- Dispatch `mint-documenter` subagent for each triggered doc
+**d) Completion — MANDATORY CHECKLIST**
+
+Every spec that passes all stages MUST complete ALL of these steps. Do not skip any.
+
+1. **Set execution state** — `execution.json` status → `passed`, record `completedAt`
+2. **Doc-manifest check** — read `.mint/doc-manifest.json` (if it exists):
+   - For each doc entry: check if any files matching its `sections[].tracks` globs were modified in this spec's diff
+   - If matches found: dispatch `mint-documenter` subagent with: the doc path, its description, the matching section IDs, and a summary of what changed
+   - This is NOT optional — skipping doc updates is a pipeline violation
+3. **Architectural change detection** — check if the diff touches ANY of these:
+   - `.mint/config.json` (config schema changed)
+   - `skills/mint/SKILL.md` (orchestrator logic changed)
+   - `agents/*.md` (agent added/removed/modified)
+   - `package.json` or lockfiles (dependencies changed)
+   - `CLAUDE.md` (project instructions changed)
+   - `templates/*` (templates changed)
+   - `cli/commands/*.js` (CLI changed)
+   - If YES: dispatch `mint-documenter` for ALL docs with `trigger: "on-architectural-change"` in the manifest
+4. **Log win** — if this is the LAST spec in the task and all specs passed, log to `.mint/wins.md`:
+   - Date, task slug, what pattern worked, why it worked
+5. **Definition of Done** — verify all `config.definitionOfDone` criteria are met:
+   - `gatesPassing` — all enabled gates green
+   - `specReviewPassed` — stage 1 approved
+   - `stage2ReviewsPassed` — no unresolved BLOCKING issues
+   - `docCheckPassed` — doc-manifest check completed (step 2 above)
+   - `screenshotReminder` — remind if UI files changed
+
+If spec failed and will be rewritten: set status to `rewriting`.
+If spec failed twice: set status to `failed`, log to `.mint/issues.md`.
 
 ### 3b. Spec Retry Protocol
 
@@ -290,10 +314,10 @@ adjustments. This is how "never fix bad output — fix the spec" works in practi
 ### 4. Finish
 
 After all specs complete:
-- Present summary: tasks, commits, gate results, issues
+- Present summary: tasks, commits, gate results, doc updates, issues
+- Show doc-manifest status: which docs were updated, which sections were refreshed
 - Offer choices: merge locally / push + PR / keep branch / discard
 - If user picks PR: push and create PR
-- Run `on-merge` documenter triggers if applicable
 
 ---
 
@@ -673,6 +697,15 @@ logs a win to `.mint/wins.md`:
 - **Pattern** — what worked (e.g., "split API + UI into separate specs", "included type signatures in context")
 - **Why It Worked** — why this pattern led to success (e.g., "kept agent context focused", "prevented scope leak")
 
+### Doc-manifest as knowledge graph
+
+The doc-manifest is also a learning artifact. When the conventions-enforcer discovers undocumented patterns, the orchestrator can:
+1. Add a new section to the relevant doc in the manifest
+2. Dispatch the documenter to write the section
+3. The pattern is now tracked — future changes to tracked files automatically trigger doc updates
+
+This closes the loop: code → convention discovery → manifest entry → doc section → future enforcement.
+
 ### Log lifecycle
 
 Issues and wins are specific, searchable entries — not general principles. They stay specific so
@@ -704,20 +737,30 @@ Evals are optional but recommended for critical features where agent reliability
 
 ---
 
-## Documenter Triggers
+## Doc-Manifest System
 
-After key events, check `.mint/config.json` documenters array:
+mint uses a **doc-manifest** (`.mint/doc-manifest.json`) to track which documentation sections depend on which code artifacts. This replaces the old trigger-only documenter config with structural staleness detection.
 
-| Trigger | When |
-|---------|------|
-| `on-task-complete` | After a spec is implemented, reviewed, and committed |
-| `on-session-end` | When user signals they're done |
-| `on-architectural-change` | When specs modify config, add deps, or change patterns |
-| `on-merge` | After branch is merged |
-| `manual` | Only when user asks |
+### How it works
 
-Dispatch `mint-documenter` subagent with: the file/template, its description, and a summary
-of what changed.
+1. Each doc in the manifest declares **sections** with **tracks** (glob patterns of code files)
+2. When code changes, the verifier can check: "did any tracked files change since the doc was last updated?"
+3. The documenter reads the manifest to know exactly what to update and where
+
+### Staleness detection strategies
+
+| Strategy | How it detects staleness | Best for |
+|----------|------------------------|----------|
+| `glob-count` | File count in tracked globs changed (new file added, file deleted) | Directory listings, agent inventories, file trees |
+| `content-hash` | File contents changed (hash mismatch) | Config schemas, API references |
+| `git-diff` | Tracked files modified since last doc commit | Narrative docs, architecture descriptions |
+
+### Manifest location
+
+- **Project manifest:** `.mint/doc-manifest.json` (committed, shared)
+- **Template:** `templates/doc-manifest.json` (for new projects)
+
+The manifest is created during `mint init` and can be customized. The documenter reads it before every update.
 
 ---
 
@@ -777,6 +820,12 @@ can be a boolean (`true`/`false`) or an object with `enabled` and `model`:
 Valid model values: `"opus"`, `"sonnet"`, `"haiku"`. When dispatching a reviewer subagent, pass
 the `model` parameter to the Agent tool if configured. Different models catch different things —
 heavier models for security/quality, lighter models for conventions/formatting.
+
+### Doc-manifest
+
+The doc-manifest (`.mint/doc-manifest.json`) replaces the old `documenters` config array with a richer system. The `documenters` array in config is still supported for backwards compatibility — if both exist, the manifest takes precedence.
+
+See `templates/doc-manifest.json` for the schema.
 
 ---
 
@@ -1009,7 +1058,7 @@ Every subagent gets exactly what it needs — no more, no less:
 | Researcher | Question + config + full workspace map (if configured) |
 | Spec reviewer | Spec XML + git diff + current repo and dependsOn repos from workspace (if configured) |
 | Stage 2 reviewers | Git diff + relevant docs (conventions, business, as configured) + current repo context (if configured) |
-| Documenter | File path + file description + change summary + current repo context (if configured) |
+| Documenter | File path + file description + change summary + matching manifest sections + current repo context (if configured) |
 | Shipper | Confirmed ship plan + config + hard blocks + full workspace map (if configured) |
 | Verifier | Config only |
 | De-sloppifier | Git diff + spec XML + gate commands |

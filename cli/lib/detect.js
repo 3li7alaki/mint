@@ -59,6 +59,8 @@ export function detectStack(dir) {
       if (allDeps.vue) return 'vue';
       if (allDeps.express || allDeps.fastify || allDeps.koa) return 'node';
     }
+    // Detect bun projects by lockfile
+    if (fileExists(path.join(dir, 'bun.lockb')) || fileExists(path.join(dir, 'bun.lock'))) return 'bun';
     return 'node';
   }
 

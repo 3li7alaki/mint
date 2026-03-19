@@ -20,3 +20,4 @@ docs/plans/
 # .mint/config.json — shared project settings
 # .mint/hard-blocks.md — rules everyone follows
 # .mint/issues.md — institutional knowledge
+.mint/.session-state.json

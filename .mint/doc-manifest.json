@@ -40,6 +40,20 @@
           "tracks": ["skills/mint/SKILL.md"],
           "staleness": "git-diff",
           "description": "Must list all external tool integrations"
+        },
+        {
+          "id": "cli",
+          "heading": "### CLI",
+          "tracks": ["cli/commands/*.js", "cli/mint.js"],
+          "staleness": "git-diff",
+          "description": "CLI command list must match actual commands available"
+        },
+        {
+          "id": "documentation-table",
+          "heading": "## Documentation",
+          "tracks": ["docs/*.md", "commands/*.md"],
+          "staleness": "glob-count",
+          "description": "Documentation table must list all doc files and command references"
         }
       ]
     },
@@ -51,9 +65,9 @@
         {
           "id": "project-structure",
           "heading": "## Project Structure",
-          "tracks": ["agents/*.md", "commands/*.md", "cli/commands/*.js", "standards/**/*", "templates/*"],
+          "tracks": ["agents/*.md", "commands/*.md", "cli/commands/*.js", "standards/**/*", "templates/*", "hooks/**/*"],
           "staleness": "glob-count",
-          "description": "Directory tree must list all agent files, command files, CLI commands, and key directories"
+          "description": "Directory tree must list all agent files, command files, CLI commands, hooks, and key directories"
         },
         {
           "id": "writing-agents",
@@ -61,6 +75,20 @@
           "tracks": ["agents/*.md"],
           "staleness": "glob-count",
           "description": "Agent conventions must reflect current agent patterns"
+        },
+        {
+          "id": "writing-commands",
+          "heading": "## Writing Commands",
+          "tracks": ["commands/*.md"],
+          "staleness": "glob-count",
+          "description": "Command conventions must reflect current command patterns"
+        },
+        {
+          "id": "writing-plugins",
+          "heading": "## Writing Plugins",
+          "tracks": ["templates/plugin-manifest.json", "docs/plugin-guide.md"],
+          "staleness": "git-diff",
+          "description": "Plugin conventions must match plugin template and guide"
         }
       ]
     },
@@ -89,6 +117,20 @@
           "tracks": ["skills/mint/SKILL.md", ".mint/instincts.md", ".mint/issues.md", ".mint/wins.md"],
           "staleness": "git-diff",
           "description": "Must describe all learning mechanisms including instincts, issues, wins, and doc-manifest"
+        },
+        {
+          "id": "documentation-intelligence",
+          "heading": "## Documentation Intelligence",
+          "tracks": [".mint/doc-manifest.json", "agents/documenter.md", "commands/doc-setup.md", "commands/optimize.md"],
+          "staleness": "git-diff",
+          "description": "Must describe doc-manifest system, staleness strategies, and documenter workflow"
+        },
+        {
+          "id": "hooks-system",
+          "heading": "## Hooks System",
+          "tracks": ["hooks/**/*"],
+          "staleness": "glob-count",
+          "description": "Must list all hook scripts and their triggers"
         }
       ]
     },
@@ -110,6 +152,13 @@
           "tracks": ["agents/documenter.md", ".mint/doc-manifest.json", "skills/mint/SKILL.md"],
           "staleness": "git-diff",
           "description": "Must describe doc-manifest system, when-to-update triggers, and documenter workflow"
+        },
+        {
+          "id": "adding-core-feature",
+          "heading": "### Adding a Core Feature",
+          "tracks": ["cli/commands/*.js", "skills/mint/SKILL.md"],
+          "staleness": "git-diff",
+          "description": "Core feature checklist must list all touchpoints for new features"
         }
       ]
     },
@@ -121,9 +170,37 @@
         {
           "id": "key-files",
           "heading": "| File | Purpose |",
-          "tracks": ["agents/*.md", "cli/commands/*.js", "templates/*", ".mint/*"],
+          "tracks": ["agents/*.md", "cli/commands/*.js", "templates/*", ".mint/*", "commands/*.md"],
           "staleness": "glob-count",
           "description": "Key files table must list all important files and their purposes"
+        }
+      ]
+    },
+    {
+      "path": "docs/plugin-guide.md",
+      "description": "Plugin development guide — manifest schema, hook points, agent conventions, testing",
+      "trigger": "on-architectural-change",
+      "sections": [
+        {
+          "id": "plugin-hooks",
+          "heading": "## Hook Points",
+          "tracks": ["skills/mint/SKILL.md"],
+          "staleness": "git-diff",
+          "description": "Must list all available plugin hook points matching SKILL.md"
+        }
+      ]
+    },
+    {
+      "path": "docs/autonomous-loops.md",
+      "description": "CI/CD and scripted workflow patterns for running mint non-interactively",
+      "trigger": "on-architectural-change",
+      "sections": [
+        {
+          "id": "cli-commands",
+          "heading": "## CLI",
+          "tracks": ["cli/commands/*.js", "cli/mint.js"],
+          "staleness": "git-diff",
+          "description": "Must reference current CLI commands and flags"
         }
       ]
     }

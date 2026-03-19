@@ -9,7 +9,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.6.3 — Fresh context per task. Clean orchestration. Zero slop.
+> v0.6.4 — Fresh context per task. Clean orchestration. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 

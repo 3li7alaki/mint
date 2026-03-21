@@ -116,6 +116,7 @@ const DEPS = {
 export async function run(positional = [], flags = {}) {
   const target = positional[0];
   const depsOnly = flags.deps || !!target;
+  const headless = flags.yes || !process.stdin.isTTY;
 
   p.intro(`\x1b[32m mint update${depsOnly ? ' deps' : ''} \x1b[0m`);
 
@@ -202,11 +203,11 @@ export async function run(positional = [], flags = {}) {
     if (Object.keys(existingGlobal).length === 0) {
       const projectConfigForGlobal = readJsonSafe(path.join(process.cwd(), '.mint', 'config.json'));
       if (projectConfigForGlobal) {
-        const setupGlobal = await p.confirm({
+        const shouldSetup = headless ? true : await p.confirm({
           message: 'Set up global defaults? (your preferences apply to all new projects)',
           initialValue: true,
         });
-        if (!p.isCancel(setupGlobal) && setupGlobal) {
+        if (shouldSetup === true || (!p.isCancel(shouldSetup) && shouldSetup)) {
           const globalDefaults = {};
           for (const key of GLOBAL_KEYS) {
             if (projectConfigForGlobal[key] !== undefined) {
@@ -226,16 +227,24 @@ export async function run(positional = [], flags = {}) {
     if (config) {
       const missing = NEW_CONFIG_KEYS.filter(k => config[k.key] === undefined);
       if (missing.length > 0) {
-        p.log.info(`${missing.length} new feature${missing.length > 1 ? 's' : ''} available:`);
+        if (headless) {
+          // Auto-enable new features in headless mode
+          for (const feat of missing) {
+            config[feat.key] = feat.default;
+          }
+          p.log.success(`${missing.length} new feature${missing.length > 1 ? 's' : ''} auto-enabled`);
+        } else {
+          p.log.info(`${missing.length} new feature${missing.length > 1 ? 's' : ''} available:`);
 
-        for (const feat of missing) {
-          const enable = await p.confirm({
-            message: `Enable ${feat.label}?`,
-            initialValue: true,
-          });
+          for (const feat of missing) {
+            const enable = await p.confirm({
+              message: `Enable ${feat.label}?`,
+              initialValue: true,
+            });
 
-          if (p.isCancel(enable)) break;
-          config[feat.key] = enable ? feat.default : feat.defaultOff;
+            if (p.isCancel(enable)) break;
+            config[feat.key] = enable ? feat.default : feat.defaultOff;
+          }
         }
 
         fs.writeFileSync(projectConfig, JSON.stringify(config, null, 2) + '\n');

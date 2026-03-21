@@ -9,7 +9,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.6.5 — Fresh context per task. Clean orchestration. Zero slop.
+> v0.6.6 — Fresh context per task. Clean orchestration. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 
@@ -24,18 +24,32 @@ This installs the `mint` CLI globally and (if Claude Code is installed) the Clau
 ### CLI
 
 ```bash
-mint init          # interactive setup — detects your stack, asks 5 questions
-mint init --yes    # headless — auto-detect everything, zero prompts
-mint config        # view current config
-mint config set    # edit config (dot notation)
-mint doctor        # health check
-mint doctor --fix  # health check + auto-repair issues
-mint update        # update to latest (core + dependencies)
+mint init                       # interactive setup — detects your stack, asks 5 questions
+mint init --yes                 # headless — auto-detect everything, zero prompts
+mint config                     # view current config
+mint config --global            # view global user defaults
+mint config set key value       # edit project config (dot notation)
+mint config set --global k v    # set a global default
+mint doctor                     # health check
+mint doctor --fix               # health check + auto-repair issues
+mint update                     # update to latest (core + dependencies)
 ```
+
+### Global Defaults
+
+Set user preferences that apply to all projects:
+
+```bash
+mint config set --global autoCommit false
+mint config set --global reviewers.security.model opus
+mint config set --global isolation.plan worktree
+```
+
+Global config lives at `~/.mint/config.json`. Project config always overrides global.
 
 ### Project Setup
 
-Run `mint init` in your project:
+Run `mint init` in your project (seeds from global defaults if set):
 
 ```
 .mint/
@@ -334,6 +348,8 @@ Enable plugins:
 ```
 
 ## Configuration
+
+Two-layer config: global (`~/.mint/config.json`) for user defaults, project (`.mint/config.json`) for project settings. Project always overrides global.
 
 Key config in `.mint/config.json`:
 

@@ -2,7 +2,7 @@ import * as p from '@clack/prompts';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
-import { detectTool, detectContextMode, readJsonSafe, fileExists, ensureClaudeMd } from '../lib/detect.js';
+import { detectTool, detectContextMode, readJsonSafe, fileExists, ensureClaudeMd, getGlobalConfigPath, loadGlobalConfig, saveGlobalConfig, GLOBAL_KEYS } from '../lib/detect.js';
 
 // New core config keys added per version.
 const NEW_CONFIG_KEYS = [
@@ -188,6 +188,30 @@ export async function run(positional = [], flags = {}) {
       }
     } else {
       p.log.info('Claude CLI not found — skipping plugin update');
+    }
+
+    // Offer global config setup for users who don't have one yet
+    const globalConfigPath = getGlobalConfigPath();
+    const existingGlobal = loadGlobalConfig();
+    if (Object.keys(existingGlobal).length === 0) {
+      const projectConfigForGlobal = readJsonSafe(path.join(process.cwd(), '.mint', 'config.json'));
+      if (projectConfigForGlobal) {
+        const setupGlobal = await p.confirm({
+          message: 'Set up global defaults? (your preferences apply to all new projects)',
+          initialValue: true,
+        });
+        if (!p.isCancel(setupGlobal) && setupGlobal) {
+          const globalDefaults = {};
+          for (const key of GLOBAL_KEYS) {
+            if (projectConfigForGlobal[key] !== undefined) {
+              globalDefaults[key] = projectConfigForGlobal[key];
+            }
+          }
+          saveGlobalConfig(globalDefaults);
+          p.log.success(`Global config created at ${globalConfigPath}`);
+          p.log.info('Your current project preferences are now defaults for new projects');
+        }
+      }
     }
 
     // Offer new config keys if project has a config

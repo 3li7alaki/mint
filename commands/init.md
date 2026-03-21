@@ -58,7 +58,19 @@ Scan for common convention/business doc locations and auto-populate config:
 
 If convention or business docs are found, enable the corresponding reviewer automatically.
 
-### 5. Create `.mint/` directory
+### 5. Load global defaults
+
+Check for global config at `~/.mint/config.json`. If it exists, use its values as defaults
+for user-preference keys: `reviewers`, `autoCommit`, `tdd`, `isolation`, `modelRouting`,
+`instincts`, `hooks`, `definitionOfDone`.
+
+In interactive mode, global values become the initial values for prompts (e.g., if global
+autoCommit is `false`, the confirm prompt defaults to `false`).
+
+In headless mode, global values are used when CLI flags are not provided (e.g., `--isolation`
+flag overrides global, but if omitted, global isolation preference is used).
+
+### 6. Create `.mint/` directory
 
 Create `.mint/config.json`:
 ```json
@@ -133,7 +145,7 @@ _Centralized log. All agent blockers, root causes, and learnings go here._
 
 Create `.mint/tasks/` directory with `.gitkeep`.
 
-### 6. Discover plugins
+### 7. Discover plugins
 
 **a) Check installed plugins:**
 - Look for `.mint/plugins/` directory with subdirectories containing `manifest.json`
@@ -180,7 +192,7 @@ To install a plugin:
 
 If plugins are found or enabled, run any `on-init` hooks defined in their manifests.
 
-### 7. Detect workspace
+### 8. Detect workspace
 
 Discover sibling repos to build workspace context.
 
@@ -227,7 +239,7 @@ f. If **no sibling git repos** are found, skip silently — no prompt, no config
 - Some siblings may be unrelated — always ask the user before writing config
 - Don't assume dependency relationships between repos
 
-### 8. Add to .gitignore
+### 9. Add to .gitignore
 
 Add working state directories to `.gitignore` if not already present:
 
@@ -241,7 +253,7 @@ Add working state directories to `.gitignore` if not already present:
 **Committed** (shared, version-controlled): `config.json`, `hard-blocks.md`, `issues.md`
 **Ignored** (local, per-developer): `tasks/`, `research/`, `worktrees/`, `plugins/`
 
-### 9. Report
+### 10. Report
 
 Show the user:
 ```

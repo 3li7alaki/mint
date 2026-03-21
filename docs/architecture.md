@@ -52,6 +52,17 @@ Subagent Pool (fresh context per dispatch)
   └─ Plugin Agents ──────── stack/PM/design/memory extensions
 ```
 
+## Configuration Layers
+
+mint uses a two-layer config system:
+
+1. **Global config** (`~/.mint/config.json`) — user preferences that apply across all projects (reviewer models, autoCommit, TDD, isolation, modelRouting). Set via `mint config set --global`.
+2. **Project config** (`.mint/config.json`) — project-specific settings (stack, gates, browser, plugins). Created by `mint init`.
+
+Resolution: project config > global config > hardcoded defaults. The orchestrator merges these before dispatching agents — agents always receive a single resolved config.
+
+When `mint init` runs, global config seeds the defaults. `mint update` offers to create global config from existing project preferences.
+
 ## Workspace
 
 When `workspace.repos` is configured, the orchestrator loads repo metadata (name, path, stack, role, dependsOn) and feeds scoped context to agents. This gives agents awareness of cross-repo dependencies without loading entire codebases into context.

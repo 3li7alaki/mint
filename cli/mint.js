@@ -24,7 +24,9 @@ function showHelp() {
   console.log('    \x1b[36mmint init\x1b[0m                Set up mint in the current project');
   console.log('    \x1b[36mmint init --yes\x1b[0m          Auto-detect everything, no prompts');
   console.log('    \x1b[36mmint config\x1b[0m              Show current configuration');
+  console.log('    \x1b[36mmint config --global\x1b[0m     Show global user defaults');
   console.log('    \x1b[36mmint config set\x1b[0m k v      Set a config value (dot notation)');
+  console.log('    \x1b[36mmint config set --global\x1b[0m  Set a global default');
   console.log('    \x1b[36mmint config plugins\x1b[0m      Manage plugins');
   console.log('    \x1b[36mmint doctor\x1b[0m              Run health checks');
   console.log('    \x1b[36mmint doctor --fix\x1b[0m        Run health checks and auto-repair issues');
@@ -36,6 +38,7 @@ function showHelp() {
   console.log('    \x1b[2m$ mint init\x1b[0m');
   console.log('    \x1b[2m$ mint init --yes --plugins mint-nuxt,mint-e2e\x1b[0m');
   console.log('    \x1b[2m$ mint config set isolation.plan none\x1b[0m');
+  console.log('    \x1b[2m$ mint config set --global autoCommit false\x1b[0m');
   console.log('    \x1b[2m$ mint doctor\x1b[0m');
   console.log('');
 }
@@ -46,6 +49,8 @@ function parseFlags(args) {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--yes' || args[i] === '-y') {
       flags.yes = true;
+    } else if (args[i] === '--global') {
+      flags.global = true;
     } else if (args[i].startsWith('--') && i + 1 < args.length && !args[i + 1].startsWith('--')) {
       flags[args[i].slice(2)] = args[i + 1];
       i++;

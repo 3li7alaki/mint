@@ -2,7 +2,7 @@ import * as p from '@clack/prompts';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
-import { readJsonSafe, fileExists, detectStack, detectTool, detectContextMode } from '../lib/detect.js';
+import { readJsonSafe, fileExists, detectStack, detectTool, detectContextMode, getGlobalConfigPath, loadGlobalConfig, GLOBAL_KEYS } from '../lib/detect.js';
 
 export async function run(flags = {}) {
   const cwd = process.cwd();
@@ -36,6 +36,16 @@ export async function run(flags = {}) {
   // Config
   if (fileExists(configPath) && readJsonSafe(configPath)) ok('.mint/config.json valid');
   else fail('.mint/config.json missing or invalid');
+
+  // Global config
+  const globalConfigPath = getGlobalConfigPath();
+  const globalConfig = loadGlobalConfig();
+  if (fileExists(globalConfigPath) && Object.keys(globalConfig).length > 0) {
+    const keys = Object.keys(globalConfig).filter(k => GLOBAL_KEYS.includes(k));
+    ok(`Global config: ${keys.length} preference${keys.length !== 1 ? 's' : ''} set (${keys.join(', ')})`);
+  } else {
+    p.log.info('Global config: not set — use \x1b[36mmint config set --global\x1b[0m to set user defaults');
+  }
 
   // Hard blocks
   if (fileExists(path.join(mintDir, 'hard-blocks.md'))) ok('.mint/hard-blocks.md present');

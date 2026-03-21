@@ -117,6 +117,24 @@ After a PR is merged:
 
 ## Config Schema
 
+mint uses a two-layer config system:
+
+- **Global config** (`~/.mint/config.json`) — user-level defaults, apply across all projects
+- **Project config** (`.mint/config.json`) — project-specific settings, override global
+
+Resolution order: project config > global config > hardcoded defaults.
+
+### Global-eligible keys
+
+These keys can be set globally (they're user preferences, not project-specific):
+`reviewers`, `autoCommit`, `tdd`, `isolation`, `modelRouting`, `instincts`, `hooks`, `definitionOfDone`.
+
+Set via: `mint config set --global <key> <value>`
+
+Project-specific keys (`stack`, `packageManager`, `gates`, `browser`, `context`, `design`, `plugins`, `workspace`) must be set per-project — they are not inherited from global config.
+
+### Project config keys
+
 `.mint/config.json` keys:
 
 | Key | Type | Purpose |

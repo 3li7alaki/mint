@@ -16,6 +16,7 @@ import {
   readJsonSafe,
   ensureClaudeMd,
   generateDocManifest,
+  loadGlobalConfig,
 } from '../lib/detect.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -43,12 +44,13 @@ export async function run(flags = {}) {
   const configPath = path.join(mintDir, 'config.json');
   const headless = flags.yes || !process.stdin.isTTY;
 
-  // Load existing config for defaults
+  // Load existing config for defaults, with global config as base layer
+  const globalConfig = loadGlobalConfig();
   let existing = null;
   if (fileExists(configPath)) {
     existing = readJsonSafe(configPath);
   }
-  const defaults = existing || {};
+  const defaults = existing || globalConfig || {};
 
   // ─── Auto-detect silently ──────────────────────────────────────────────────
 
@@ -60,9 +62,9 @@ export async function run(flags = {}) {
   // ─── Headless mode — no prompts ────────────────────────────────────────────
 
   if (headless) {
-    const isoMode = flags.isolation || 'none';
-    const autoCommit = flags.autocommit !== 'false';
-    const tdd = flags.tdd === 'true';
+    const isoMode = flags.isolation || defaults.isolation?.plan || 'none';
+    const autoCommit = flags.autocommit !== undefined ? flags.autocommit !== 'false' : (defaults.autoCommit !== undefined ? defaults.autoCommit : true);
+    const tdd = flags.tdd !== undefined ? flags.tdd === 'true' : (defaults.tdd?.default || false);
     const browser = flags.browser !== 'false';
     const context = flags.context === 'true' ? true : (flags.context === 'false' ? false : detectContextMode());
     const design = flags.design !== 'false';

@@ -899,7 +899,9 @@ The `mint` CLI manages project setup and configuration. You can run these comman
 | `mint init` | Interactive setup wizard — detects stack, asks 5 questions |
 | `mint init --yes` | Headless setup — auto-detects everything, zero prompts. Use this for automated setup. |
 | `mint config` | Display current configuration |
+| `mint config --global` | Display global user defaults (`~/.mint/config.json`) |
 | `mint config set <key> <value>` | Edit config with dot notation (e.g., `mint config set browser.enabled true`) |
+| `mint config set --global <key> <value>` | Set a global user default (e.g., `mint config set --global autoCommit false`) |
 | `mint config plugins` | Interactive plugin management |
 | `mint doctor` | Health check — validates config, gates, tools, plugins |
 | `mint doctor --fix` | Health check + auto-repair missing files, incomplete config, .gitignore gaps |
@@ -918,9 +920,43 @@ When setting up a project automatically, prefer `mint init --yes` over manually 
 
 ## Configuration
 
-mint expects `.mint/config.json` in the project root. Created by `mint init`.
+mint uses a two-layer config system:
 
-If config doesn't exist when a task comes in, offer to set it up:
+1. **Global config** (`~/.mint/config.json`) — user-level defaults that apply across all projects
+2. **Project config** (`.mint/config.json`) — project-specific settings, created by `mint init`
+
+### Config resolution order
+
+When the orchestrator reads config, values are resolved in this order (first wins):
+
+1. **Project config** (`.mint/config.json`) — always takes precedence
+2. **Global config** (`~/.mint/config.json`) — fallback for user preferences
+3. **Hardcoded defaults** — built-in defaults if neither layer has the key
+
+Global config supports these user-preference keys: `reviewers`, `autoCommit`, `tdd`, `isolation`,
+`modelRouting`, `instincts`, `hooks`, `definitionOfDone`. Project-specific keys like `stack`,
+`packageManager`, `gates`, `browser`, `context`, `design`, and `plugins` are not inherited from
+global config — they must be set per-project.
+
+### Managing global config
+
+```bash
+mint config --global              # Show global config
+mint config set --global key val  # Set a global default
+```
+
+Examples:
+```bash
+mint config set --global autoCommit false
+mint config set --global reviewers.security.model opus
+mint config set --global isolation.plan worktree
+mint config set --global tdd.default true
+```
+
+When `mint init` runs, it seeds project config from global defaults. Interactive mode uses
+global values as initial values for prompts.
+
+If no project config exists when a task comes in, offer to set it up:
 "No mint config found. Want me to set up this project?" — then run `mint init --yes` via Bash.
 
 ### Multi-model dispatch

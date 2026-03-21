@@ -45,7 +45,8 @@ A Claude Code skill (`SKILL.md`) + agent prompts (`agents/`) + CLI (`cli/`) + co
 | `agents/context-setup.md` | Context Mode setup agent — detection, installation, configuration |
 | `standards/design/` | Design reference knowledge — typography, color, spatial, motion, interaction, responsive, ux-writing, RTL, i18n, anti-patterns |
 | `agents/design-*.md` | Design agents — context (pre-plan), reviewer (pre-review), profile builder, setup |
-| `.mint/config.json` | Gates, reviewers, browser, context, design, plugins, workspace config |
+| `~/.mint/config.json` | Global user defaults — reviewer models, autoCommit, TDD, isolation prefs |
+| `.mint/config.json` | Project config — gates, reviewers, browser, context, design, plugins |
 | `.mint/hard-blocks.md` | Immutable constraints agents can never violate |
 | `.mint/issues.md` | Failure log — planner reads before writing specs |
 | `.mint/instincts.md` | Auto-learned conventions — committed, shared knowledge |

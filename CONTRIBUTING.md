@@ -88,6 +88,11 @@ mint/
     ├── instincts.md         # Committed — auto-learned conventions
     ├── tasks/               # Gitignored — in-progress specs
     └── research/            # Gitignored — local research reports
+
+# Global config (user-level defaults)
+~/.mint/
+└── config.json              # User preferences — reviewer models, autoCommit, TDD, isolation
+                             # Seeds new projects via `mint init`, overridden by project config
 ```
 
 ## Commit Conventions

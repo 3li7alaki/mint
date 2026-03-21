@@ -1,7 +1,7 @@
 import * as p from '@clack/prompts';
 import fs from 'fs';
 import path from 'path';
-import { readJsonSafe, fileExists } from '../lib/detect.js';
+import { readJsonSafe, fileExists, loadGlobalConfig, saveGlobalConfig, getGlobalConfigPath, mergeConfigs, GLOBAL_KEYS } from '../lib/detect.js';
 
 function getConfigPath() {
   return path.join(process.cwd(), '.mint', 'config.json');
@@ -20,14 +20,53 @@ function saveConfig(config) {
   fs.writeFileSync(getConfigPath(), JSON.stringify(config, null, 2) + '\n');
 }
 
-function showConfig() {
-  const config = loadConfig();
+function showGlobalConfig() {
+  const config = loadGlobalConfig();
   const c = (v) => `\x1b[36m${v}\x1b[0m`;
   const g = (v) => `\x1b[32m✓\x1b[0m ${v}`;
   const r = (v) => `\x1b[31m✗\x1b[0m ${v || 'off'}`;
   const d = (v) => `\x1b[2m${v}\x1b[0m`;
 
-  console.log(`\n  \x1b[1mmint config\x1b[0m\n`);
+  console.log(`\n  \x1b[1mmint config\x1b[0m ${d('(global — ~/.mint/config.json)')}\n`);
+
+  if (Object.keys(config).length === 0) {
+    console.log(`  ${d('No global config found.')}`);
+    console.log(`  ${d('Set defaults with: mint config set --global <key> <value>')}`);
+    console.log(`  ${d(`Supported keys: ${GLOBAL_KEYS.join(', ')}`)}`);
+    console.log('');
+    return;
+  }
+
+  if (config.isolation) console.log(`  Isolation:   ${c(config.isolation?.plan || 'none')}`);
+  if (config.autoCommit !== undefined) console.log(`  Auto-commit: ${config.autoCommit !== false ? g('on') : r()}`);
+  if (config.tdd) console.log(`  TDD:         ${config.tdd?.default ? g('on') : r()}`);
+  if (config.modelRouting) console.log(`  Model route: ${config.modelRouting?.enabled !== false ? g('on') : r()}`);
+
+  if (config.reviewers) {
+    console.log(`\n  \x1b[1mReviewers\x1b[0m`);
+    for (const [name, val] of Object.entries(config.reviewers)) {
+      if (val && (val === true || val.enabled)) {
+        const model = typeof val === 'object' ? d(` (${val.model})`) : '';
+        console.log(`    ${name.padEnd(14)} ${g('')}${model}`);
+      } else {
+        console.log(`    ${name.padEnd(14)} ${r()}`);
+      }
+    }
+  }
+
+  console.log('');
+}
+
+function showConfig() {
+  const config = loadConfig();
+  const globalConfig = loadGlobalConfig();
+  const hasGlobal = Object.keys(globalConfig).length > 0;
+  const c = (v) => `\x1b[36m${v}\x1b[0m`;
+  const g = (v) => `\x1b[32m✓\x1b[0m ${v}`;
+  const r = (v) => `\x1b[31m✗\x1b[0m ${v || 'off'}`;
+  const d = (v) => `\x1b[2m${v}\x1b[0m`;
+
+  console.log(`\n  \x1b[1mmint config\x1b[0m${hasGlobal ? ` ${d('(global defaults active)')}` : ''}\n`);
   console.log(`  Stack:       ${c(config.stack || 'none')}`);
   console.log(`  PM:          ${c(config.packageManager || 'none')}`);
   console.log(`  Isolation:   ${c(config.isolation?.plan || 'none')}`);
@@ -77,8 +116,8 @@ function showConfig() {
   console.log('');
 }
 
-function setConfigValue(key, value) {
-  const config = loadConfig();
+function setConfigValue(key, value, { global: isGlobal = false } = {}) {
+  const config = isGlobal ? loadGlobalConfig() : loadConfig();
   const parts = key.split('.');
   let target = config;
   for (let i = 0; i < parts.length - 1; i++) {
@@ -91,8 +130,14 @@ function setConfigValue(key, value) {
   else if (!isNaN(value) && value !== '') value = Number(value);
 
   target[parts[parts.length - 1]] = value;
-  saveConfig(config);
-  p.log.success(`Set \x1b[36m${key}\x1b[0m = \x1b[32m${String(value)}\x1b[0m`);
+
+  if (isGlobal) {
+    saveGlobalConfig(config);
+    p.log.success(`Set \x1b[36m${key}\x1b[0m = \x1b[32m${String(value)}\x1b[0m \x1b[2m(global)\x1b[0m`);
+  } else {
+    saveConfig(config);
+    p.log.success(`Set \x1b[36m${key}\x1b[0m = \x1b[32m${String(value)}\x1b[0m`);
+  }
 }
 
 async function managePlugins(action, pluginName) {
@@ -145,9 +190,14 @@ async function managePlugins(action, pluginName) {
 
 export async function run(args, flags = {}) {
   const subcommand = args[0];
+  const isGlobal = flags.global || false;
 
   if (!subcommand || subcommand === 'show') {
-    showConfig();
+    if (isGlobal) {
+      showGlobalConfig();
+    } else {
+      showConfig();
+    }
     return;
   }
 
@@ -155,11 +205,12 @@ export async function run(args, flags = {}) {
     const key = args[1];
     const value = args[2];
     if (!key || value === undefined) {
-      console.log('  Usage: \x1b[36mmint config set <key> <value>\x1b[0m');
+      console.log('  Usage: \x1b[36mmint config set [--global] <key> <value>\x1b[0m');
       console.log('  Example: \x1b[2mmint config set isolation.plan none\x1b[0m');
+      console.log('  Example: \x1b[2mmint config set --global autoCommit false\x1b[0m');
       return;
     }
-    setConfigValue(key, value);
+    setConfigValue(key, value, { global: isGlobal });
     return;
   }
 

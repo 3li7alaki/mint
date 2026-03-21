@@ -7,6 +7,81 @@ export function fileExists(filePath) {
   catch { return false; }
 }
 
+// ─── Global config ──────────────────────────────────────────────────────────
+
+export function getGlobalConfigPath() {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  return path.join(home, '.mint', 'config.json');
+}
+
+export function loadGlobalConfig() {
+  return readJsonSafe(getGlobalConfigPath()) || {};
+}
+
+export function saveGlobalConfig(config) {
+  const configPath = getGlobalConfigPath();
+  const dir = path.dirname(configPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+}
+
+// Keys that are user preferences (not project-specific)
+const GLOBAL_KEYS = [
+  'reviewers', 'autoCommit', 'tdd', 'isolation', 'modelRouting',
+  'instincts', 'hooks', 'definitionOfDone',
+];
+
+export { GLOBAL_KEYS };
+
+export function mergeConfigs(globalConfig, projectConfig) {
+  if (!globalConfig || Object.keys(globalConfig).length === 0) return projectConfig;
+  if (!projectConfig) return null;
+
+  const merged = {};
+
+  // Start with global user preferences as base
+  for (const key of GLOBAL_KEYS) {
+    if (globalConfig[key] !== undefined) {
+      merged[key] = deepClone(globalConfig[key]);
+    }
+  }
+
+  // Project config overrides everything
+  for (const [key, value] of Object.entries(projectConfig)) {
+    if (value !== undefined) {
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)
+          && typeof merged[key] === 'object' && merged[key] !== null && !Array.isArray(merged[key])) {
+        merged[key] = deepMerge(merged[key], value);
+      } else {
+        merged[key] = deepClone(value);
+      }
+    }
+  }
+
+  return merged;
+}
+
+function deepClone(obj) {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(deepClone);
+  const clone = {};
+  for (const [k, v] of Object.entries(obj)) clone[k] = deepClone(v);
+  return clone;
+}
+
+function deepMerge(base, override) {
+  const result = deepClone(base);
+  for (const [k, v] of Object.entries(override)) {
+    if (typeof v === 'object' && v !== null && !Array.isArray(v)
+        && typeof result[k] === 'object' && result[k] !== null && !Array.isArray(result[k])) {
+      result[k] = deepMerge(result[k], v);
+    } else {
+      result[k] = deepClone(v);
+    }
+  }
+  return result;
+}
+
 function globExists(dir, pattern) {
   try {
     const files = fs.readdirSync(dir);

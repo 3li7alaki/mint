@@ -27,10 +27,10 @@ if [ -d "$MINT_HOME/.git" ]; then
   MODE="update"
 else
   echo "  Installing mint..."
-  git clone -q "https://github.com/$REPO.git" "$MINT_HOME" 2>/dev/null || {
+  git clone -q -c core.autocrlf=input "https://github.com/$REPO.git" "$MINT_HOME" 2>/dev/null || {
     # If clone fails (dir exists but not git), remove and retry
     rm -rf "$MINT_HOME"
-    git clone -q "https://github.com/$REPO.git" "$MINT_HOME"
+    git clone -q -c core.autocrlf=input "https://github.com/$REPO.git" "$MINT_HOME"
   }
   MODE="install"
 fi

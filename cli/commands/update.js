@@ -140,6 +140,8 @@ export async function run(positional = [], flags = {}) {
     if (fs.existsSync(path.join(mintHome, '.git'))) {
       s.start('Fetching latest...');
       try {
+        // Ensure LF line endings (WSL with Windows git may default to CRLF)
+        execSync(`git -C "${mintHome}" config core.autocrlf input`, { stdio: 'pipe' });
         execSync(`git -C "${mintHome}" fetch origin main -q`, { stdio: 'pipe' });
         execSync(`git -C "${mintHome}" clean -fd -q`, { stdio: 'pipe' });
         execSync(`git -C "${mintHome}" reset --hard origin/main -q`, { stdio: 'pipe' });
@@ -173,6 +175,7 @@ export async function run(positional = [], flags = {}) {
       s.start('Updating Claude plugin...');
       try {
         if (fs.existsSync(path.join(marketplaceDir, '.git'))) {
+          execSync(`git -C "${marketplaceDir}" config core.autocrlf input`, { stdio: 'pipe' });
           execSync(`git -C "${marketplaceDir}" fetch origin main -q`, { stdio: 'pipe' });
           execSync(`git -C "${marketplaceDir}" clean -fd -q`, { stdio: 'pipe' });
           execSync(`git -C "${marketplaceDir}" reset --hard origin/main -q`, { stdio: 'pipe' });

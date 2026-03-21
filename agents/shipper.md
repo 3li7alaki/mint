@@ -35,11 +35,16 @@ Plus: `.mint/config.json` and `.mint/hard-blocks.md`
 
 ### Phased tasks
 
-For each phase, apply full planner logic:
-1. Decompose phase into XML specs
-2. Execute each spec sequentially
-3. Run gates after every task
-4. Commit atomically per spec
+For each phase, apply full planner logic with verification:
+1. Decompose phase into XML specs (saved to `.mint/tasks/<phase-slug>/`)
+2. **Verify specs exist** — check `.mint/tasks/<phase-slug>/` contains `.xml` files before
+   proceeding. If no specs were created, re-run decomposition with explicit instruction.
+3. Create `execution.json` for each spec before starting execution
+4. Execute each spec sequentially
+5. **After each spec:** verify `execution.json` was updated with gate results
+6. Run gates after every task — verify they passed before proceeding to next spec
+7. Commit atomically per spec (respect autocommit resolution from orchestrator)
+8. Run spec review after each spec — verify PASS before next spec
 
 **Pace: careful** — after each phase, return to orchestrator with phase summary.
 Wait for user to say "continue" before next phase.
@@ -51,18 +56,39 @@ Gates still enforced. Use when user trusts the plan and wants speed.
 
 ### Batched tasks
 
-For each independent batch task, apply quick mode logic:
+Batch classification is strict. A task only qualifies for batch (inline spec) if it meets ALL of:
+- Touches ≤2 files
+- Is a config tweak, rename, typo fix, or single-line change
+- Has zero architectural decisions
+
+If a batch task touches >2 files or involves any logic changes, **promote it to a phased task**
+with full spec decomposition. When in doubt, use phased — the cost of an unnecessary spec is
+near zero, but the cost of skipping the review pipeline is silent quality loss.
+
+For qualifying batch tasks, apply quick mode logic:
 1. Inline spec (not saved to disk)
 2. Implement
 3. Gates
 4. Commit
+
+### Per-spec completion (applies to both phased and batch)
+
+After each spec passes gates and review:
+1. Check `.mint/doc-manifest.json` — if tracked files were modified, dispatch documenter
+2. Check for architectural changes — if critical files touched, dispatch documenter
+3. Update `execution.json` status to `passed`
+4. Verify DoD criteria before marking complete
 
 ### On failure
 
 At any pace:
 1. Stop immediately
 2. Log to `.mint/issues.md`
-3. Return to orchestrator with partial summary
+3. Update `execution.json` for the failing spec with failure details
+4. Return to orchestrator with partial summary including:
+   - Which specs passed (with execution.json paths)
+   - Which spec failed (with root cause category)
+   - Which specs remain
 
 Never continue past a failure without user decision.
 

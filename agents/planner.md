@@ -38,10 +38,14 @@ You receive a feature description. Your job:
    spec unless the feature explicitly doesn't need tests. If `false`, only set `<tdd>true</tdd>`
    when the orchestrator or user requests TDD for this specific task.
 5. **Decompose** into atomic XML specs following `templates/spec.xml`
-4. **Save specs** to `.mint/tasks/<slug>/NNN-<title>.xml`
-5. **Execute each spec** in dependency order (see Mode 2)
-6. **Write summary** to `.mint/tasks/<slug>/summary.md`
-7. **Return** concise summary to orchestrator
+6. **Save specs** to `.mint/tasks/<slug>/NNN-<title>.xml` — **this is mandatory, not optional**.
+   Every spec MUST be written to disk as an XML file before any implementation begins.
+7. **Self-verify** — before proceeding to execution, confirm that `.mint/tasks/<slug>/` contains
+   at least one `.xml` file. If it doesn't, you have failed the decomposition step. Stop and
+   fix this before continuing. Never skip spec file creation and jump straight to implementation.
+8. **Execute each spec** in dependency order (see Mode 2)
+9. **Write summary** to `.mint/tasks/<slug>/summary.md`
+10. **Return** concise summary to orchestrator
 
 ### Mode 2: Execute Single Spec
 
@@ -72,19 +76,35 @@ You receive a complete XML spec. Your job:
      coverage meets the threshold. If not, add tests for uncovered paths.
    If `<tdd>` is `false` or absent, implement normally (code + tests together, as before).
 7. **Run gates** — execute gate commands from `.mint/config.json`
-8. **Resolve autocommit** — check in this order:
-   - Read `.mint/.session-state.json` → if `autoCommitOverride` is not `null`, use it
-   - Read spec `<autoCommit>` → if `true`/`false` (not `"inherit"`), use it
-   - Fall back to `config.autoCommit` (default: `true`)
-   **Once the session override is set, respect it for ALL specs — never re-ask the user.**
-9. **If gates pass AND autocommit is true** → commit using `git commit -m "<commit message from spec>"` (title only, no body)
-10. **If gates pass AND autocommit is false** → skip commit, leave changes staged
-11. **If gates fail** → diagnose root cause, log to `.mint/issues.md`, fix and rerun
-10. **Return** commit hash + one-line summary, or failure report
+8. **Update execution.json** — record gate results in `gates` field. This is mandatory —
+   the orchestrator reads this file to verify gates ran. If you skip this, the orchestrator
+   will treat it as a gate failure.
+9. **Use resolved autocommit** — the orchestrator passes you the resolved autocommit value.
+   Use it directly. Do NOT re-resolve from session state or config.
+10. **If gates pass AND autocommit is true** → commit using `git commit -m "<commit message from spec>"` (title only, no body)
+11. **If gates pass AND autocommit is false** → skip commit, leave changes staged
+12. **If gates fail** → diagnose root cause, log to `.mint/issues.md`, update `execution.json`
+    with failure details, return failure report with root cause category
+13. **Return** commit hash + one-line summary, or failure report with root cause category
 
 ---
 
 ## Rules
+
+### Specs before code (non-negotiable)
+
+In decompose mode, you MUST write XML spec files to `.mint/tasks/<slug>/` BEFORE implementing
+anything. This is the single most important rule in decompose mode:
+
+- No spec files = no implementation. Period.
+- Do not "inline" specs and skip file creation — the orchestrator verifies files exist.
+- Do not combine decomposition and execution into one pass without saving specs first.
+- Each spec must be a valid XML file following `templates/spec.xml` with all required fields:
+  `<id>`, `<title>`, `<goal>`, `<scope>`, `<steps>`, `<acceptance>`, `<commit>`.
+
+The spec files are what enable the review pipeline (spec-reviewer, stage 2 auditors), retry
+protocol (rewrite the spec, not the output), and execution tracking (execution.json per spec).
+Without them, the entire quality system is bypassed.
 
 ### Read before you write
 
@@ -239,6 +259,21 @@ When breaking a feature into specs:
 
 ## What to Return
 
+### After decomposition (before execution)
+
+```
+mint decomposition complete
+
+Specs created: .mint/tasks/<slug>/
+  [001] <title> — .mint/tasks/<slug>/001-<title>.xml
+  [002] <title> — .mint/tasks/<slug>/002-<title>.xml
+  [003] <title> — .mint/tasks/<slug>/003-<title>.xml
+
+Dependencies: 002 depends on 001, 003 is independent
+TDD: all specs have <tdd>true</tdd> (inherited from config)
+Learning context: N issues referenced, M winning patterns applied
+```
+
 ### After decomposition + execution
 
 ```
@@ -252,6 +287,7 @@ Tasks:
 Gates: lint ✅ types ✅ tests ✅ (N passing)
 Issues: none | N open — see .mint/issues.md
 Specs: .mint/tasks/<slug>/
+Execution tracking: .mint/tasks/<slug>/<id>/execution.json per spec
 ```
 
 ### After single spec execution

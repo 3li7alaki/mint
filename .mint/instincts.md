@@ -8,4 +8,6 @@ existing project conventions. Confidence grows as patterns repeat across files.
 
 | Category | Pattern | Files Seen | Confidence | Last Updated |
 |----------|---------|-----------|------------|--------------|
-| naming | camelCase-functions | init.js, doctor.js, config.js, update.js | 4 | 2026-03-14 |
+| naming | camelCase-functions | init.js, doctor.js, config.js, update.js, detect.js, doc-... | 10 | 2026-03-19 |
+| tests | describe-it-pattern | doc-manifest.test.js, init.test.js, doctor.test.js | 3 | 2026-03-19 |
+| tests | expect-assertions | doc-manifest.test.js, init.test.js, doctor.test.js | 3 | 2026-03-19 |

@@ -24,6 +24,12 @@ const NEW_CONFIG_KEYS = [
     default: { enabled: true, stack: 'auto', profile: '.mint/design-profile.json', notes: '.mint/design-notes.md', conventions: [], review: { accessibility: true, consistency: true, performance: true, rtl: false, i18n: false, brand: false } },
     defaultOff: { enabled: false },
   },
+  {
+    key: 'signature',
+    label: '"Minted with mint" signature in README (for open source projects)',
+    default: true,
+    defaultOff: false,
+  },
 ];
 
 // ─── Dependency updaters ──────────────────────────────────────────────────────

@@ -185,6 +185,7 @@ Project-specific keys (`stack`, `packageManager`, `gates`, `browser`, `context`,
 | `design.review.i18n` | boolean | Internationalization string checks. Default: `false` |
 | `design.review.brand` | boolean | Brand guide compliance checks. Default: `false` |
 | `definitionOfDone.docCheckPassed` | boolean | Whether doc-manifest check is required after each spec. Default: `true` |
+| `signature` | boolean | Add "Minted with mint" signature to README.md when asked. Default: `false` |
 
 ### Workspace Registry (`workspace.repos`)
 

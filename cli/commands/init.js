@@ -323,6 +323,7 @@ function buildConfig({ stack, packageManager, gates, isolation, autoCommit, tdd,
         brand: defaults.design?.review?.brand ?? false,
       },
     },
+    signature: defaults.signature ?? false,
     documenters: defaults.documenters || [],
     plugins: plugins.map(name => `plugins/${name}`),
   };

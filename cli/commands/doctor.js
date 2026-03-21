@@ -2,7 +2,7 @@ import * as p from '@clack/prompts';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
-import { readJsonSafe, fileExists, detectStack, detectTool, detectContextMode, getGlobalConfigPath, loadGlobalConfig, GLOBAL_KEYS } from '../lib/detect.js';
+import { readJsonSafe, fileExists, detectStack, detectTool, detectContextMode, getGlobalConfigPath, loadGlobalConfig, GLOBAL_KEYS, ensureReadmeSignature } from '../lib/detect.js';
 
 export async function run(flags = {}) {
   const cwd = process.cwd();
@@ -246,6 +246,21 @@ export async function run(flags = {}) {
     }
   } else {
     warn('CLAUDE.md: file not found — run mint init to create it with mint section');
+  }
+
+  // README signature
+  if (config.signature) {
+    const readmePath = path.join(cwd, 'README.md');
+    if (fileExists(readmePath)) {
+      const readme = fs.readFileSync(readmePath, 'utf8');
+      if (readme.includes('3li7alaki/mint">mint</a>')) {
+        ok('README: mint signature present');
+      } else {
+        fixable('README: signature enabled but not present', () => {
+          ensureReadmeSignature(cwd);
+        });
+      }
+    }
   }
 
   // Doc-manifest section quality

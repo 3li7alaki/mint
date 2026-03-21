@@ -321,6 +321,26 @@ export function generateDocManifest(projectRoot) {
   return manifest;
 }
 
+const MINT_SIGNATURE = `\n---\n\n<p align="center">\n  <sub>Minted with <a href="https://github.com/3li7alaki/mint">mint</a> — disciplined agentic development.</sub>\n</p>`;
+const MINT_SIGNATURE_MARKER = '<!-- mint:signature -->';
+
+export function ensureReadmeSignature(projectRoot) {
+  const readmePath = path.join(projectRoot, 'README.md');
+  if (!fileExists(readmePath)) return 'no-readme';
+
+  let content = '';
+  try { content = fs.readFileSync(readmePath, 'utf8'); } catch { return 'no-readme'; }
+
+  // Already has signature (tagged or untagged)
+  if (content.includes(MINT_SIGNATURE_MARKER) || content.includes('3li7alaki/mint">mint</a>')) {
+    return 'current';
+  }
+
+  const tagged = `\n${MINT_SIGNATURE_MARKER}${MINT_SIGNATURE}\n`;
+  fs.writeFileSync(readmePath, content.trimEnd() + '\n' + tagged);
+  return 'added';
+}
+
 export function ensureClaudeMd(projectRoot) {
   const claudeMdPath = path.join(projectRoot, 'CLAUDE.md');
   let content = '';

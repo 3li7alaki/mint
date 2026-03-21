@@ -9,7 +9,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.6.6 — Fresh context per task. Clean orchestration. Zero slop.
+> v0.6.7 — Fresh context per task. Clean orchestration. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 
@@ -402,3 +402,10 @@ See [Plugin Guide](docs/plugin-guide.md) for creating custom plugins.
 ## License
 
 MIT
+
+---
+
+<!-- mint:signature -->
+<p align="center">
+  <sub>Minted with <a href="https://github.com/3li7alaki/mint">mint</a> — disciplined agentic development.</sub>
+</p>

@@ -75,6 +75,7 @@ function showConfig() {
   console.log(`  Browser:     ${config.browser?.enabled ? g('on') : r()}`);
   console.log(`  Context:     ${config.context?.enabled ? g('on') : r()}`);
   console.log(`  Design:      ${config.design?.enabled ? g('on') : r()}`);
+  console.log(`  Signature:   ${config.signature ? g('on') : r()}`);
 
   // Doc-manifest
   const manifestPath = path.join(process.cwd(), '.mint', 'doc-manifest.json');

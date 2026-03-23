@@ -73,10 +73,23 @@ Based on the task type, load the appropriate reference docs from `standards/desi
 | Forms, buttons, inputs, focus, loading | `interaction-design.md` |
 | Mobile, responsive, breakpoints | `responsive-design.md` |
 | Labels, copy, errors, empty states | `ux-writing.md` |
+| Advanced patterns, creative layouts, bento | `creative-patterns.md` |
 
 **Always load**: `standards/design/design-direction.md` (core aesthetic guidelines) and `standards/design/anti-patterns.md` (what to avoid).
 
 For broad UI tasks (new pages, major components), load all references.
+
+### 4b. Load Framework-Specific Rules
+
+Check the project stack (from `config.design.stack` or auto-detect from `package.json`):
+
+| Stack detected | Load additionally |
+|----------------|-------------------|
+| React, Next.js | `standards/design/implementation-react.md` |
+| Vue, Nuxt | _(future: implementation-vue.md)_ |
+| Svelte, SvelteKit | _(future: implementation-svelte.md)_ |
+
+Framework-specific rules are loaded alongside (not instead of) the core reference docs.
 
 ### 5. Gather Convention Docs
 
@@ -119,7 +132,13 @@ If this is the first UI task OR no profile exists:
     <palette>cool-neutral with blue primary</palette>
     <typography>Inter, 1.250 scale, semibold headings</typography>
     <patterns>card-heavy, subtle shadows, rounded-lg buttons</patterns>
+    <intensity variance="5" motion="4" density="5" />
   </profile>
+
+  <framework stack="nextjs">
+    <!-- Framework-specific rules loaded from implementation-react.md -->
+    <!-- Key constraints relevant to this task -->
+  </framework>
 
   <notes>
     <!-- Hard rules from design-notes.md — these are CONSTRAINTS -->

@@ -110,6 +110,11 @@ Create `.mint/design-profile.json`:
     "shadcn": { "style": "new-york", "installed": ["button", "card", "dialog", "input"] },
     "patterns": { "buttons": "variant=default, rounded-md", "cards": "shadow-sm, p-6, rounded-xl" }
   },
+  "intensity": {
+    "designVariance": 5,
+    "motionIntensity": 4,
+    "visualDensity": 5
+  },
   "layout": { "type": "dashboard", "navigation": "sidebar", "maxWidth": "max-w-7xl" },
   "constraints": { "rtl": false, "darkMode": true, "wcag": "AA" },
   "learnedFrom": ["src/components/ui/", "tailwind.config.ts"],
@@ -139,6 +144,32 @@ Project design preferences and constraints. Updated as patterns are learned.
 <!-- Log design decisions with context -->
 - YYYY-MM-DD: Initial profile generated from existing code analysis
 ```
+
+### 7. Detect Design Intensity
+
+Analyze the codebase to infer three intensity scales (1-10):
+
+**Design Variance** (layout experimentation):
+- 1-3: Symmetric grids, centered layouts, equal paddings
+- 4-7: Some asymmetry, varied aspect ratios, offset elements
+- 8-10: Masonry, fractional grids, large negative space zones
+- Detection: Look at grid patterns, layout symmetry, use of fractional units (`fr`), negative space, varied `col-span`/`row-span` values
+
+**Motion Intensity** (animation level):
+- 1-3: No animations, CSS hover/active states only
+- 4-7: CSS transitions, animation-delay cascades, transform+opacity
+- 8-10: Spring physics, scroll-triggered animations, continuous micro-interactions
+- Detection: Count animation imports (`framer-motion`, `gsap`), scroll observers, spring configs, `useMotionValue` usage
+
+**Visual Density** (content density):
+- 1-3: Generous whitespace, large section gaps, art-gallery feel
+- 4-7: Standard app spacing, balanced content
+- 8-10: Compact, 1px separators, small padding, monospace numbers, dense data tables
+- Detection: Analyze padding/gap values (small = dense), card density per row, whitespace ratio, use of `text-xs`/`text-sm`
+
+Add these to the profile JSON under the `"intensity"` key (see example in section 5).
+
+Default values if detection is inconclusive: `designVariance: 5`, `motionIntensity: 4`, `visualDensity: 5` (balanced defaults).
 
 ## What You Return
 

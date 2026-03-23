@@ -24,11 +24,13 @@ These patterns are the telltale signs of AI-generated interfaces. Their presence
 - **Dark mode with glowing accents** as default — avoids real design choices
 - **Pure black (#000) or pure white (#fff)** — always tint; pure black/white never appears in nature
 - **Gray text on colored backgrounds** — looks washed out; use a shade of the background color or transparency
+- **Oversaturated accent colors** — saturation above 80% on large areas (backgrounds, cards, sections) looks garish; desaturate to blend with neutrals
 
 ### Layout
-- **Identical card grids** — same-sized cards with icon + heading + text, repeated endlessly
+- **Identical card grids** — same-sized cards with icon + heading + text, repeated endlessly. The specific banned pattern: **3-column equal card layouts** with icon above heading above text, repeated 3x — the most recognizable AI template
 - **Hero metric layout template** — big number, small label, supporting stats, gradient accent
 - **Everything centered** — left-aligned text with asymmetric layouts feels more designed
+- **Centered hero when layout variance is high** — if the rest of the page has asymmetric or varied layouts, a centered hero looks templated; use left-aligned or split-screen heroes instead
 - **Cards inside cards** — visual noise, flatten the hierarchy
 - **Everything wrapped in cards** — not everything needs a container
 
@@ -43,12 +45,14 @@ These patterns are the telltale signs of AI-generated interfaces. Their presence
 - **Sparklines as decoration** — tiny charts that look sophisticated but convey nothing
 - **Rounded rectangles with generic drop shadows** — safe, forgettable, could be any AI output
 - **Bounce or elastic easing** — dated and tacky; real objects decelerate smoothly
+- **Custom mouse cursors** — outdated gimmick that hurts accessibility (users expect consistent cursor behavior) and degrades performance
 
 ### Interaction
 - **Every button is primary** — ghost buttons, text links, secondary styles create hierarchy
 - **Modals for everything** — modals are lazy; use inline, drawers, or progressive disclosure
 - **Placeholder text as labels** — placeholders disappear on input; always use visible labels
 - **Redundant copy** — headers that restate the heading, intros that repeat what's visible
+- **Emojis in UI code** — use icon libraries (Phosphor, Radix, Lucide) or clean SVGs instead. Emojis render inconsistently across platforms, can't be styled, and look unprofessional
 
 ---
 
@@ -97,6 +101,13 @@ These aren't AI-specific but indicate poor design decisions.
 - Reinventing a component that already exists in the design system (shadcn, etc.)
 - Inconsistent component variants across the app
 
+### Content & Placeholder Data
+- **Generic placeholder names** — "John Doe", "Jane Smith", "Sarah Chen" signal zero effort. Use creative, contextually appropriate names that fit the product domain
+- **Predictable fake numbers** — "99.99%", "50%", "1234567" look obviously fabricated. Use organic, realistic data: "47.2%", "+1 (312) 847-1928", "2,847 users"
+- **Generic brand names** — "Acme", "Nexus", "SmartFlow", "TechCorp" are placeholder-obvious. Invent contextual names that feel real
+- **Broken image URLs** — don't use Unsplash source URLs (they break frequently and have rate limits). Use `picsum.photos/seed/{string}/W/H` for reliable random images or inline SVG placeholders
+- **AI copywriting cliches** — "Elevate", "Seamless", "Unleash", "Next-Gen", "Cutting-edge", "Revolutionize", "Empower", "Transform your workflow". Use concrete, specific language that describes what the product actually does
+
 ---
 
 ## INFO — Design Refinement Opportunities
@@ -113,4 +124,5 @@ These aren't AI-specific but indicate poor design decisions.
 
 Anti-pattern detection merges knowledge from:
 - [Impeccable](https://impeccable.style) by Paul Bakaus (Apache 2.0, based on Anthropic's frontend-design skill)
+- [taste-skill](https://github.com/Leonxlnx/taste-skill) by Leon Lin
 - mint-ui-ux design intelligence

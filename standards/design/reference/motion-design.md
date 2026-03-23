@@ -94,6 +94,55 @@ This is not optional. Vestibular disorders affect ~35% of adults over 40.
 
 Don't use `will-change` preemptively—only when animation is imminent (`:hover`, `.animating`). For scroll-triggered animations, use Intersection Observer instead of scroll events; unobserve after animating once. Create motion tokens for consistency (durations, easings, common transitions).
 
+## Spring Physics
+
+Spring-based animations feel premium because they model real physical properties (mass, tension, friction) rather than arbitrary timing curves. Default spring parameters for UI:
+
+| Parameter | Value | Effect |
+|-----------|-------|--------|
+| stiffness | 100 | How tight the spring — higher = snappier |
+| damping | 20 | How quickly oscillation settles — higher = less bounce |
+| mass | 1 | Weight of the element — higher = more sluggish |
+
+These defaults produce a weighty, refined feel. Adjust per context:
+- Micro-interactions (toggles, buttons): stiffness 200, damping 25 (snappy)
+- Layout transitions (cards, panels): stiffness 100, damping 20 (smooth)
+- Page transitions: stiffness 80, damping 15 (gentle)
+
+Spring animations don't need explicit duration — they complete when physics settle. This produces more natural motion than duration-based alternatives.
+
+## Perpetual Micro-Interactions
+
+Subtle continuous animations make interfaces feel "alive" without being distracting. Use sparingly for status indicators, featured content, or ambient effects:
+
+| Pattern | Description | Good For |
+|---------|-------------|----------|
+| **Pulse** | Gentle scale oscillation (1.0 → 1.05 → 1.0) | Status dots, notification badges, live indicators |
+| **Float** | Slow vertical drift (±4px) | Featured cards, hero elements, illustrations |
+| **Shimmer** | Light sweep across a surface | Loading placeholders, skeleton screens, premium surfaces |
+| **Typewriter** | Character-by-character text reveal with cursor | Search bars, command inputs, hero text |
+| **Carousel** | Continuous horizontal scroll of items | Logos, testimonials, data streams |
+
+**Performance rule**: Perpetual animations MUST be isolated in their own components and memoized to prevent parent re-renders. Never trigger React state updates from animation frames.
+
+## Layout Transitions
+
+For smooth reordering, resizing, and shared-element transitions:
+- Use layout animation props to automatically animate between DOM positions
+- Shared element IDs enable cross-component transitions (e.g., list item expanding to detail view)
+- Wrap dynamic lists in presence containers for enter/exit animations
+- Cap total stagger time for lists (10 items × 50ms = 500ms max)
+
+## React / Framer Motion Notes
+
+_Framework-specific. See `standards/design/implementation-react.md` for full React rules._
+
+- Use `useMotionValue` + `useTransform` for mouse-tracking animations — never `useState` (causes re-renders every frame)
+- `staggerChildren` requires parent motion container and child motion elements in the same client component tree
+- Infinite loop animations must be wrapped in `React.memo` and isolated as leaf components
+- Use `<AnimatePresence>` for mount/unmount transitions
+- Prefer `layout` and `layoutId` props for position/size animations
+
 ---
 
 **Avoid**: Animating everything (animation fatigue is real). Using >500ms for UI feedback. Ignoring `prefers-reduced-motion`. Using animation to hide slow loading.

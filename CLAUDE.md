@@ -2,7 +2,7 @@
 
 Disciplined agentic development framework for Claude Code.
 
-<!-- mint:start v1 -->
+<!-- mint:start v2 -->
 ## MANDATORY: Use mint for ALL Code Changes
 
 **For ANY task that modifies files in this repo, invoke the `mint` skill FIRST.**
@@ -17,6 +17,8 @@ The only exceptions:
 - Reading files to understand context (no modifications)
 
 If you catch yourself thinking "this is just a small fix" or "I'll just edit one file" — STOP. Invoke mint. Small fixes use quick mode. mint decides the workflow, not you.
+
+**NEVER use Claude Code's built-in plan mode (EnterPlanMode/ExitPlanMode).** mint has its own planning flow — Claude Code plan mode is redundant and conflicts with mint's orchestration. Always stay in normal mode and let mint handle planning via its plan/ship modes.
 <!-- mint:end -->
 
 ## What This Is
@@ -32,6 +34,7 @@ A Claude Code skill (`SKILL.md`) + agent prompts (`agents/`) + CLI (`cli/`) + co
 - **Commits:** `type(scope): description` — see `docs/conventions.md:66-72` for types.
 - **Branches:** `feat/<name>` or `fix/<name>` off main. Squash merge via PR. Delete after merge.
 - **Never push from agents.** Commit only. Human reviews and pushes.
+- **Version bumps:** `./scripts/bump.sh [major|minor|patch]` — updates version in plugin.json, marketplace.json, package.json, and README.md. Does not commit.
 
 ## Key Files
 
@@ -56,6 +59,7 @@ A Claude Code skill (`SKILL.md`) + agent prompts (`agents/`) + CLI (`cli/`) + co
 | `templates/doc-manifest.json` | Doc-manifest template for new projects |
 | `templates/spec.xml` | XML spec schema — every task gets one |
 | `hooks/scripts/pre-edit-mint-check.cjs` | PreToolUse hook — warns if mint not invoked before file edits |
+| `scripts/bump.sh` | Version bump script — updates all version locations |
 | `docs/conventions.md` | File formats, naming, config schema, git strategy |
 | `docs/architecture.md` | System design, philosophy, isolation rules |
 

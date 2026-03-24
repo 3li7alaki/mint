@@ -264,7 +264,7 @@ export function detectPlugins(stack) {
 
 // ─── CLAUDE.md management ───────────────────────────────────────────────────
 
-const CLAUDE_MD_VERSION = '1';
+const CLAUDE_MD_VERSION = '2';
 const CLAUDE_MD_START = `<!-- mint:start v${CLAUDE_MD_VERSION} -->`;
 const CLAUDE_MD_END = '<!-- mint:end -->';
 const CLAUDE_MD_SECTION = `${CLAUDE_MD_START}
@@ -282,6 +282,8 @@ The only exceptions:
 - Reading files to understand context (no modifications)
 
 If you catch yourself thinking "this is just a small fix" or "I'll just edit one file" — STOP. Invoke mint. Small fixes use quick mode. mint decides the workflow, not you.
+
+**NEVER use Claude Code's built-in plan mode (EnterPlanMode/ExitPlanMode).** mint has its own planning flow — Claude Code plan mode is redundant and conflicts with mint's orchestration. Always stay in normal mode and let mint handle planning via its plan/ship modes.
 ${CLAUDE_MD_END}`;
 
 export { CLAUDE_MD_VERSION, CLAUDE_MD_START, CLAUDE_MD_END, CLAUDE_MD_SECTION };

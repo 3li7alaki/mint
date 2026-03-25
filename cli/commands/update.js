@@ -198,17 +198,16 @@ export async function run(positional = [], flags = {}) {
       p.log.info('Claude CLI not found — skipping plugin update');
     }
 
-    // Offer global config setup for users who don't have one yet
+    // Offer global config setup — only on FIRST ever run (file doesn't exist)
     const globalConfigPath = getGlobalConfigPath();
-    const existingGlobal = loadGlobalConfig();
-    if (Object.keys(existingGlobal).length === 0) {
+    if (!fs.existsSync(globalConfigPath)) {
       const projectConfigForGlobal = readJsonSafe(path.join(process.cwd(), '.mint', 'config.json'));
-      if (projectConfigForGlobal) {
-        const shouldSetup = headless ? true : await p.confirm({
+      if (projectConfigForGlobal && !headless) {
+        const shouldSetup = await p.confirm({
           message: 'Set up global defaults? (your preferences apply to all new projects)',
           initialValue: true,
         });
-        if (shouldSetup === true || (!p.isCancel(shouldSetup) && shouldSetup)) {
+        if (!p.isCancel(shouldSetup) && shouldSetup) {
           const globalDefaults = {};
           for (const key of GLOBAL_KEYS) {
             if (projectConfigForGlobal[key] !== undefined) {
@@ -217,7 +216,6 @@ export async function run(positional = [], flags = {}) {
           }
           saveGlobalConfig(globalDefaults);
           p.log.success(`Global config created at ${globalConfigPath}`);
-          p.log.info('Your current project preferences are now defaults for new projects');
         }
       }
     }

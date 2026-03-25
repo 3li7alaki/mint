@@ -116,10 +116,8 @@ const DEPS = {
 export async function run(positional = [], flags = {}) {
   const target = positional[0];
   const depsOnly = flags.deps || !!target;
-  // Interactive = can show clack prompts (only when stdin is a TTY and --yes not passed)
-  // Smart = spawn claude -p for analysis (always when claude is available, regardless of TTY)
-  const interactive = process.stdin.isTTY && !flags.yes;
-  const headless = !interactive;
+  // Never interactive — all decisions via Claude or sensible defaults. No p.confirm() ever.
+  const headless = true;
 
   p.intro(`\x1b[32m mint update${depsOnly ? ' deps' : ''} \x1b[0m`);
 
@@ -153,8 +151,18 @@ export async function run(positional = [], flags = {}) {
         // Ensure LF line endings (WSL with Windows git may default to CRLF)
         execSync(`git -C "${mintHome}" config core.autocrlf input`, { stdio: 'pipe' });
         execSync(`git -C "${mintHome}" fetch origin main -q`, { stdio: 'pipe' });
+        // Preserve global config before cleaning (it lives in the repo dir as an untracked file)
+        const globalCfgPath = path.join(mintHome, 'config.json');
+        let savedGlobalConfig = null;
+        if (fs.existsSync(globalCfgPath)) {
+          try { savedGlobalConfig = fs.readFileSync(globalCfgPath, 'utf8'); } catch { /* */ }
+        }
         execSync(`git -C "${mintHome}" clean -fd -q`, { stdio: 'pipe' });
         execSync(`git -C "${mintHome}" reset --hard origin/main -q`, { stdio: 'pipe' });
+        // Restore global config after clean
+        if (savedGlobalConfig) {
+          try { fs.writeFileSync(globalCfgPath, savedGlobalConfig); } catch { /* */ }
+        }
         s.stop('Updated ~/.mint');
       } catch {
         s.stop('Failed to update ~/.mint');
@@ -200,25 +208,19 @@ export async function run(positional = [], flags = {}) {
       p.log.info('Claude CLI not found — skipping plugin update');
     }
 
-    // Offer global config setup — only on FIRST ever run (file doesn't exist)
+    // Create global config on first ever run — auto-seed from current project, no prompts
     const globalConfigPath = getGlobalConfigPath();
     if (!fs.existsSync(globalConfigPath)) {
       const projectConfigForGlobal = readJsonSafe(path.join(process.cwd(), '.mint', 'config.json'));
-      if (projectConfigForGlobal && !headless) {
-        const shouldSetup = await p.confirm({
-          message: 'Set up global defaults? (your preferences apply to all new projects)',
-          initialValue: true,
-        });
-        if (!p.isCancel(shouldSetup) && shouldSetup) {
-          const globalDefaults = {};
-          for (const key of GLOBAL_KEYS) {
-            if (projectConfigForGlobal[key] !== undefined) {
-              globalDefaults[key] = projectConfigForGlobal[key];
-            }
+      if (projectConfigForGlobal) {
+        const globalDefaults = {};
+        for (const key of GLOBAL_KEYS) {
+          if (projectConfigForGlobal[key] !== undefined) {
+            globalDefaults[key] = projectConfigForGlobal[key];
           }
-          saveGlobalConfig(globalDefaults);
-          p.log.success(`Global config created at ${globalConfigPath}`);
         }
+        saveGlobalConfig(globalDefaults);
+        p.log.success(`Global config seeded from current project`);
       }
     }
 
@@ -228,28 +230,12 @@ export async function run(positional = [], flags = {}) {
     if (config) {
       const missing = NEW_CONFIG_KEYS.filter(k => config[k.key] === undefined);
       if (missing.length > 0) {
-        if (headless) {
-          // Headless mode uses safe defaults — never silently enable features
-          for (const feat of missing) {
-            config[feat.key] = feat.defaultOff;
-          }
-          p.log.success(`${missing.length} new config key${missing.length > 1 ? 's' : ''} added (defaults)`);
-        } else {
-          p.log.info(`${missing.length} new feature${missing.length > 1 ? 's' : ''} available:`);
-
-          for (const feat of missing) {
-            const enable = await p.confirm({
-              message: `Enable ${feat.label}?`,
-              initialValue: true,
-            });
-
-            if (p.isCancel(enable)) break;
-            config[feat.key] = enable ? feat.default : feat.defaultOff;
-          }
+        // Safe defaults — Claude smart session will optimize further
+        for (const feat of missing) {
+          config[feat.key] = feat.defaultOff;
         }
-
         fs.writeFileSync(projectConfig, JSON.stringify(config, null, 2) + '\n');
-        p.log.success('Config updated');
+        p.log.success(`${missing.length} new config key${missing.length > 1 ? 's' : ''} added`);
       }
 
       // Migrate sub-keys for existing features

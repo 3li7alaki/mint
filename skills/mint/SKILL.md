@@ -1166,23 +1166,41 @@ The manifest is created during `mint init` and can be customized. The documenter
 
 ## mint CLI
 
-The `mint` CLI manages project setup and configuration. You can run these commands via Bash:
+The `mint` CLI manages project setup and configuration:
 
 | Command | What it does |
 |---------|-------------|
-| `mint init` | Interactive setup wizard — detects stack, asks 5 questions |
-| `mint init --yes` | Headless setup — auto-detects everything, zero prompts. Use this for automated setup. |
+| `mint init` | Claude reads the project and creates the perfect config |
+| `mint init --yes` | Headless auto-detect (CI/scripts — no Claude session) |
 | `mint config` | Display current configuration |
 | `mint config --global` | Display global user defaults (`~/.mint/config.json`) |
-| `mint config set <key> <value>` | Edit config with dot notation (e.g., `mint config set browser.enabled true`) |
-| `mint config set --global <key> <value>` | Set a global user default (e.g., `mint config set --global autoCommit false`) |
-| `mint config plugins` | Interactive plugin management |
-| `mint doctor` | Health check — validates config, gates, tools, plugins |
-| `mint doctor --fix` | Health check + auto-repair missing files, incomplete config, .gitignore gaps |
-| `mint update` | Update mint to latest version |
+| `mint config set <key> <value>` | Edit config with dot notation |
+| `mint config set --global <key> <value>` | Set a global user default |
+| `mint config list` | Show all available config keys with types and defaults |
+| `mint doctor` | Health check — tiered output (critical/warning/info) |
+| `mint doctor --fix` | Health check + Claude applies context-aware fixes |
+| `mint update` | Update mint + Claude migrates all registered projects |
+| `mint status` | Quick health at a glance (instant, no gates) |
+| `mint plugin list` | Browse available plugins |
+| `mint clean` | Remove stale worktrees from parallel execution |
+| `mint completions install` | Install shell tab completions (bash/zsh) |
 
-**Headless flags for `mint init`:**
-- `--yes` / `-y` — skip all prompts, use auto-detected defaults
+### Config via conversation
+
+Users don't need to memorize config keys. Just tell Claude what you want:
+
+- "I prefer TDD for all my projects" → sets `tdd.default: true` globally
+- "I work solo on everything" → sets `repoMode: "solo"` globally
+- "Enable security review with opus" → sets `reviewers.security: { enabled: true, model: "opus" }`
+- "Use worktree isolation for plan mode" → sets `isolation.plan: "worktree"`
+
+The orchestrator understands the full config schema (`cli/lib/schema.js`) and applies changes
+via `mint config set`. No need to look up key names — describe your preference naturally.
+
+For project-specific changes, the user says what they want and the orchestrator applies it to
+`.mint/config.json`. For global defaults, the orchestrator uses `--global`.
+
+**Headless flags for `mint init --yes`:**
 - `--isolation <mode>` — none, branch, or worktree
 - `--tdd true` — enable TDD by default
 - `--browser false` — disable browser support

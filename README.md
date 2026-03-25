@@ -9,7 +9,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.7.3 — Parallel execution. File freezing. Smart browser. Zero slop.
+> v0.7.4 — Parallel execution. File freezing. Smart browser. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 

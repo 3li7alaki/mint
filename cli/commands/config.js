@@ -200,18 +200,17 @@ async function managePlugins(action, pluginName) {
     { value: 'mint-gws', label: 'Google Workspace', hint: 'Sheets, Gmail' },
   ];
 
-  const selected = await p.multiselect({
-    message: 'Toggle plugins',
-    options: allPlugins,
-    initialValues: currentNames,
-    required: false,
-  });
-
-  if (p.isCancel(selected)) return;
-
-  config.plugins = selected.map(name => `plugins/${name}`);
-  saveConfig(config);
-  p.log.success(`Plugins: ${selected.length ? selected.join(', ') : 'none'}`);
+  // No interactive prompts — use `mint plugin list/add/remove` instead
+  p.log.info('Use mint plugin commands:');
+  console.log('  \x1b[36mmint plugin list\x1b[0m              Browse available plugins');
+  console.log('  \x1b[36mmint plugin add <name>\x1b[0m        Install a plugin');
+  console.log('  \x1b[36mmint plugin remove <name>\x1b[0m     Remove a plugin');
+  console.log('');
+  console.log('  Currently installed:');
+  for (const name of currentNames) {
+    console.log(`    \x1b[32m✓\x1b[0m ${name}`);
+  }
+  if (currentNames.length === 0) console.log('    \x1b[2mnone\x1b[0m');
 }
 
 export async function run(args, flags = {}) {

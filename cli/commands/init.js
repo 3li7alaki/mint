@@ -43,11 +43,11 @@ export async function run(flags = {}) {
   const cwd = process.cwd();
   const mintDir = path.join(cwd, '.mint');
   const configPath = path.join(mintDir, 'config.json');
-  const interactive = process.stdin.isTTY && !flags.yes;
-  const headless = !interactive;
+  // Never interactive — Claude handles all decisions. --yes is for CI without Claude.
+  const headless = flags.yes === true;
 
   // Smart init — Claude reads the project and configures mint perfectly.
-  // Runs whenever Claude is available — headless or not. No prompts needed.
+  // Always runs when Claude is available. Only --yes skips it (CI/scripts).
   if (detectTool('claude') && !flags.yes) {
     p.intro('\x1b[32m mint init --smart \x1b[0m');
     const s = p.spinner();
@@ -118,173 +118,32 @@ export async function run(flags = {}) {
     return;
   }
 
-  // ─── Interactive mode — clack prompts ──────────────────────────────────────
+  // ─── Fallback: no Claude, no --yes — use headless auto-detect anyway ──────
+  // Never show interactive prompts. If we got here, Claude wasn't available and
+  // --yes wasn't passed. Just do headless auto-detect.
+  {
+    const isoMode = defaults.isolation?.plan || 'none';
+    const autoCommit = defaults.autoCommit !== undefined ? defaults.autoCommit : true;
+    const tdd = defaults.tdd?.default || false;
+    const browser = true;
+    const context = detectContextMode();
+    const design = true;
+    const pluginList = suggestedPlugins;
 
-  p.intro('\x1b[32m mint \x1b[0m — project setup');
-
-  // Show what we detected
-  if (stack !== 'none' || packageManager !== 'none') {
-    p.log.info(
-      `Detected: ${stack !== 'none' ? `\x1b[36m${stack}\x1b[0m` : ''}` +
-      `${stack !== 'none' && packageManager !== 'none' ? ' + ' : ''}` +
-      `${packageManager !== 'none' ? `\x1b[36m${packageManager}\x1b[0m` : ''}`
-    );
-  }
-
-  if (existing) {
-    const proceed = await p.confirm({
-      message: 'Config exists. Reconfigure?',
-      initialValue: true,
+    const config = buildConfig({
+      stack, packageManager, gates: detectedGates,
+      isolation: isoMode, autoCommit, tdd, browser, context, design,
+      plugins: pluginList, defaults,
     });
-    if (p.isCancel(proceed) || !proceed) {
-      p.outro('Keeping existing config.');
-      return;
-    }
+
+    writeFiles(mintDir, configPath, config);
+    registerProject(cwd);
+
+    console.log(`\n  \x1b[32m✓\x1b[0m mint configured (v${VERSION})`);
+    console.log(`    Stack: ${stack} · PM: ${packageManager}`);
+    console.log(`    No Claude CLI found — used auto-detection. Run mint update when Claude is available.\n`);
+    return;
   }
-
-  // ─── Only the questions that matter ────────────────────────────────────────
-
-  const answers = await p.group({
-    isolation: () => p.select({
-      message: 'Work isolation mode',
-      options: [
-        { value: 'none', label: 'None', hint: 'work on current branch — recommended' },
-        { value: 'branch', label: 'Branch', hint: 'create feature branches per task' },
-        { value: 'worktree', label: 'Worktree', hint: 'full git worktree — advanced' },
-      ],
-      initialValue: defaults.isolation?.plan || 'none',
-    }),
-
-    autoCommit: () => p.confirm({
-      message: 'Auto-commit after passing gates?',
-      initialValue: defaults.autoCommit !== undefined ? defaults.autoCommit : true,
-    }),
-
-    tdd: () => p.confirm({
-      message: 'TDD mode by default?',
-      initialValue: defaults.tdd?.default || false,
-    }),
-
-    browser: () => p.confirm({
-      message: 'Browser support? (PinchTab — debug, scrape, test live apps)',
-      initialValue: defaults.browser?.enabled ?? true,
-    }),
-
-    context: () => p.confirm({
-      message: 'Context Mode? (sandboxed execution, session continuity, FTS5 search)',
-      initialValue: defaults.context?.enabled ?? false,
-    }),
-
-    design: () => p.confirm({
-      message: 'Design & UI/UX? (design profiling, typography/color/motion expertise, anti-pattern detection, RTL, i18n, accessibility review)',
-      initialValue: defaults.design?.enabled ?? true,
-    }),
-
-    plugins: () => p.multiselect({
-      message: 'Plugins',
-      options: [
-        { value: 'mint-e2e', label: 'E2E Testing', hint: 'Playwright patterns and runner' },
-        { value: 'mint-linear', label: 'Linear', hint: 'ticket context + status sync' },
-        { value: 'mint-figma', label: 'Figma', hint: 'design tokens and specs' },
-        { value: 'mint-nuxt', label: 'Nuxt', hint: 'Nuxt.js conventions' },
-        { value: 'mint-shadcn', label: 'shadcn/ui', hint: 'component management' },
-        { value: 'mint-ssh', label: 'SSH', hint: 'remote server access' },
-        { value: 'mint-gws', label: 'Google Workspace', hint: 'Sheets, Gmail, Calendar' },
-      ],
-      initialValues: [
-        ...(defaults.plugins || []).map(p => path.basename(p)),
-        ...suggestedPlugins,
-      ],
-      required: false,
-    }),
-  }, {
-    onCancel: () => {
-      p.cancel('Setup cancelled.');
-      process.exit(0);
-    },
-  });
-
-  // ─── PinchTab install offer ────────────────────────────────────────────────
-
-  if (answers.browser && !detectTool('pinchtab')) {
-    const install = await p.confirm({
-      message: 'PinchTab not found. Install now?',
-      initialValue: true,
-    });
-    if (!p.isCancel(install) && install) {
-      const s = p.spinner();
-      s.start('Installing PinchTab...');
-      try {
-        execSync('curl -fsSL https://pinchtab.com/install.sh | sh', { stdio: 'pipe' });
-        s.stop('PinchTab installed');
-      } catch {
-        s.stop('PinchTab install failed — install manually later');
-      }
-    }
-  }
-
-  // ─── Impeccable install offer ────────────────────────────────────────────
-
-  if (answers.design && !detectTool('npx skills list 2>/dev/null | grep -q impeccable')) {
-    const hasImpeccable = fileExists(path.join(cwd, '.claude', 'skills', 'frontend-design', 'SKILL.md'))
-      || fileExists(path.join(process.env.HOME, '.claude', 'skills', 'frontend-design', 'SKILL.md'));
-    if (!hasImpeccable) {
-      const install = await p.confirm({
-        message: 'Install Impeccable? (design steering commands — optional, design works without it)',
-        initialValue: false,
-      });
-      if (!p.isCancel(install) && install) {
-        const s = p.spinner();
-        s.start('Installing Impeccable...');
-        try {
-          execSync('npx skills add pbakaus/impeccable', { stdio: 'pipe', timeout: 60000 });
-          s.stop('Impeccable installed');
-        } catch {
-          s.stop('Impeccable install failed — install manually: npx skills add pbakaus/impeccable');
-        }
-      }
-    }
-  }
-
-  // ─── Context Mode install offer ──────────────────────────────────────────
-
-  if (answers.context && !detectContextMode()) {
-    const install = await p.confirm({
-      message: 'context-mode not found. Install now?',
-      initialValue: true,
-    });
-    if (!p.isCancel(install) && install) {
-      const s = p.spinner();
-      s.start('Installing context-mode...');
-      try {
-        installContextMode();
-        s.stop('context-mode installed');
-      } catch {
-        s.stop('context-mode install failed — install manually: claude mcp add context-mode -- npx -y context-mode');
-      }
-    }
-  }
-
-  // ─── Build and write config ────────────────────────────────────────────────
-
-  const config = buildConfig({
-    stack, packageManager, gates: detectedGates,
-    isolation: answers.isolation,
-    autoCommit: answers.autoCommit,
-    tdd: answers.tdd,
-    browser: answers.browser,
-    context: answers.context,
-    design: answers.design,
-    plugins: answers.plugins,
-    defaults,
-  });
-
-  writeFiles(mintDir, configPath, config);
-
-  // Register this project in the global registry
-  registerProject(cwd);
-
-  p.outro(`\x1b[32mmint configured!\x1b[0m Run \x1b[36mmint doctor\x1b[0m to verify.`);
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

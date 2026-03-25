@@ -298,6 +298,32 @@ export const CONFIG_SCHEMA = {
     scope: 'global',
   },
 
+  // ─── Repo Mode ─────────────────────────────────────────────────────────────
+  'repoMode': {
+    type: 'enum',
+    values: ['solo', 'collaborative'],
+    default: 'collaborative',
+    description: 'Solo: fix incidental issues proactively. Collaborative: flag and move on.',
+    scope: 'project',
+  },
+
+  // ─── Challenge ─────────────────────────────────────────────────────────────
+  'challenge': {
+    type: 'enum',
+    values: ['true', 'false', 'auto'],
+    default: 'auto',
+    description: 'Challenge task assumptions before planning (auto = large tasks only)',
+    scope: 'global',
+  },
+
+  // ─── Review Scaling ────────────────────────────────────────────────────────
+  'reviewScaling': {
+    type: 'boolean',
+    default: true,
+    description: 'Scale review intensity by diff size (small diffs = lighter review)',
+    scope: 'global',
+  },
+
   // ─── Definition of Done ────────────────────────────────────────────────────
   'definitionOfDone.gatesPassing': {
     type: 'boolean',

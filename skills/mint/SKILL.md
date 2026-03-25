@@ -131,6 +131,33 @@ These are non-negotiable. Violating any of these is a failure.
 - If the user typed something while an agent was running, it will surface after your status
   output. Read it, process it, adjust if needed, then continue.
 
+### Asking the user (one decision per question)
+
+When asking the user a question — whether from the orchestrator or relaying from a subagent —
+follow this protocol strictly:
+
+1. **Re-ground context** — state the task, what was just completed, and what decision is needed
+   in 1-2 sentences. The user may have context-switched since their last message.
+
+2. **One decision per question.** Never batch unrelated decisions. If you need 3 decisions,
+   ask 3 separate questions. Sequential questions > one overloaded question.
+
+3. **Present focused options** with lettered choices and a recommendation:
+   ```
+   How should we handle the auth token storage?
+
+   A) localStorage — simple, works offline, XSS-vulnerable
+   B) httpOnly cookie — secure, requires server changes
+   C) In-memory only — most secure, lost on refresh
+
+   Recommendation: B — secure by default, server changes are minimal (1 endpoint).
+   ```
+
+4. **Include effort comparison** when relevant: `(human: ~2h / mint: ~15min)` per option.
+
+5. **Never be vague.** "That's interesting, we could look into it" is banned. Take a position.
+   "We can defer this" is only acceptable if the cost of doing it now is genuinely high.
+
 ### Delegation
 
 - Each subagent gets **one job** with a clear deliverable
@@ -138,6 +165,19 @@ These are non-negotiable. Violating any of these is a failure.
 - The orchestrator provides subagents with: the task (spec XML or description), project config
   (`.mint/config.json`), and hard blocks (`.mint/hard-blocks.md`)
 - Subagents that need to ask questions return the question — orchestrator relays to user
+
+### Repo ownership mode
+
+Check `config.repoMode` (default: `"collaborative"`):
+
+- **`"solo"`** — the user is the sole developer. When an agent discovers issues outside the
+  current task's scope (broken import, stale type, obvious bug), fix it proactively. Log what
+  was fixed alongside the main task. This prevents "I noticed X is broken but it's out of scope"
+  back-and-forth when there's nobody else who might be working on it.
+
+- **`"collaborative"`** — multiple people work in this repo. When an agent finds issues outside
+  scope, log them to `.mint/issues.jsonl` but do NOT fix them. Flag to user: "Found N issues
+  outside scope — logged to issues." This prevents stepping on other people's work.
 
 ### Quality
 
@@ -164,6 +204,31 @@ These are non-negotiable. Violating any of these is a failure.
 - **Fail twice → stop.** If the same spec fails gates twice, log to `.mint/issues.jsonl` and escalate
   to the user. Never attempt a third run with the same spec.
 - **Never push.** Agents commit only. The user reviews and pushes manually.
+
+### Risk self-regulation (WTF-likelihood)
+
+The orchestrator tracks a **risk score** during task execution. When things go sideways,
+the score escalates. When it gets too high, the orchestrator stops and asks the user.
+
+**Risk events:**
+- Gate failure: +10%
+- Spec retry (rewrite): +15%
+- Fix touches >3 files: +5%
+- File modified outside `<can-modify>`: +20%
+- After 10 total fixes across all specs: +2% per additional fix
+- Revert detected (undoing previous work): +15%
+
+**Thresholds:**
+- **> 25%** → warn user: "Risk is elevated. N issues so far. Continue?"
+- **> 50%** → stop: "Risk too high. Recommend reviewing progress before continuing."
+- **Hard cap:** 30 total fix attempts across all specs → stop regardless of score
+
+The risk score resets to 0 at the start of each task. It's tracked in session state,
+not persisted between tasks.
+
+This prevents runaway agents from making things worse when they're clearly struggling.
+The earlier fail-twice-stop rule catches individual spec failures; WTF-likelihood catches
+the cumulative pattern of "nothing is working well."
 
 ### Completion check — Definition of Done (hard gate)
 
@@ -226,6 +291,33 @@ This is the primary workflow for non-trivial tasks.
   - `"none"` — work directly on current branch, no isolation
 - Read `.mint/issues.jsonl` for relevant past pitfalls
 - Check for resumable specs (see "Resuming Interrupted Work" below)
+
+### 1b. Challenge (optional, before decomposition)
+
+If `config.challenge` is `true` or `"auto"`, the orchestrator challenges the task before
+planning. This catches scope problems, missed alternatives, and unnecessary work early.
+
+**When it triggers (auto mode):**
+- Task description contains "system", "architecture", "redesign", "migrate", "real-time",
+  "rewrite", or other large-scope keywords
+- Task will likely touch >5 files
+- Task involves new infrastructure or external dependencies
+
+**What the challenge covers:**
+1. **Scope** — is this too big? Can it be smaller? Is the user asking for more than needed?
+2. **Alternatives** — is there a simpler way? Does something already exist in the codebase?
+   Check with grep/glob before suggesting new code.
+3. **Dependencies** — what else does this need? New packages? External services?
+4. **Risk** — what could go wrong? What's the blast radius?
+5. **Existing patterns** — does the codebase already have something similar?
+
+**Format:** Present the challenge as a focused question (following the one-decision-per-question
+protocol). The user can:
+- Address the concerns → orchestrator incorporates into planning
+- Say "just build it" → skip challenge, proceed to decomposition
+- Redirect → change approach before any code is written
+
+**Config:** `config.challenge: true | false | "auto"` (default: `"auto"`)
 
 ### 2. Decompose
 
@@ -415,10 +507,27 @@ This is NOT optional. The orchestrator MUST dispatch the spec reviewer after imp
 
 **c) Stage 2 — Audit (mandatory parallel dispatch)**
 
-The orchestrator MUST dispatch all enabled reviewers. This is how to determine "enabled":
+The orchestrator MUST dispatch enabled reviewers, scaled by diff size.
+
+**Step 1: Measure diff size**
+Run `git diff --stat HEAD~1` (or against the pre-spec state) and count total lines changed.
+
+**Step 2: Scale review intensity**
+
+| Diff size | Review level | What runs |
+|-----------|-------------|-----------|
+| **< 30 lines** | Light | spec review only (stage 1). Skip stage 2 entirely. |
+| **30-100 lines** | Standard | spec + quality + conventions |
+| **100-300 lines** | Full | spec + all enabled reviewers |
+| **300+ lines** | Deep | spec + all enabled reviewers + model escalation (use opus for security + quality) |
+
+This prevents review fatigue on tiny changes and ensures thorough review on large ones.
+The user can override: `config.reviewScaling: false` disables scaling (always full review).
+
+**Step 3: Build dispatch list (for standard/full/deep)**
 
 1. Read `config.reviewers` — for each key:
-   - `true` or `{ "enabled": true }` → dispatch
+   - `true` or `{ "enabled": true }` → dispatch (if diff size qualifies)
    - `false` or `{ "enabled": false }` → skip
    - Not present → skip
 2. Build dispatch list from enabled reviewers:
@@ -430,7 +539,9 @@ The orchestrator MUST dispatch all enabled reviewers. This is how to determine "
    - `performance: true` → dispatch `mint-performance-reviewer`
    - `business: true` → dispatch `mint-business-reviewer`
    - If `config.design.enabled` → dispatch `mint-design-reviewer`
-3. Dispatch ALL in the list simultaneously (parallel Agent calls)
+3. For **deep** diffs (300+ lines): override `model` to `"opus"` for security and quality
+   reviewers regardless of their configured model
+4. Dispatch ALL in the list simultaneously (parallel Agent calls)
 4. **Orchestrator collects ALL results** — wait for every dispatched reviewer to return
 5. Parse each report for severity counts:
    - Count total BLOCKING, WARNING, INFO across all reports

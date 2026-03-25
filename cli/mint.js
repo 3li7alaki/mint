@@ -28,9 +28,9 @@ function showHelp() {
   console.log('    \x1b[36mmint config set\x1b[0m k v      Set a config value (dot notation)');
   console.log('    \x1b[36mmint config set --global\x1b[0m  Set a global default');
   console.log('    \x1b[36mmint config plugins\x1b[0m      Manage plugins');
-  console.log('    \x1b[36mmint doctor\x1b[0m              Run health checks');
-  console.log('    \x1b[36mmint doctor --fix\x1b[0m        Run health checks and auto-repair issues');
-  console.log('    \x1b[36mmint update\x1b[0m              Update mint to latest version');
+  console.log('    \x1b[36mmint doctor\x1b[0m              Health check — static checks + tiered output');
+  console.log('    \x1b[36mmint doctor --fix\x1b[0m        Health check + Claude applies context-aware fixes');
+  console.log('    \x1b[36mmint update\x1b[0m              Update mint + Claude migrates config intelligently');
   console.log('    \x1b[36mmint update --deps\x1b[0m       Update core deps (PinchTab, context-mode)');
   console.log('    \x1b[36mmint update <dep>\x1b[0m        Update one dep (pinchtab, context-mode)');
   console.log('    \x1b[36mmint clean\x1b[0m               Remove stale worktrees from parallel execution');

@@ -22,11 +22,11 @@ process.stdin.on('end', () => {
     const input = JSON.parse(data);
     const command = String(input.tool_input?.command || '');
 
-    // Block git push entirely
-    if (/\bgit\s+push\b/.test(command)) {
+    // Block git commit + git push combined in one command (sneaks push through commit approval)
+    if (/\bgit\s+commit\b/.test(command) && /\bgit\s+push\b/.test(command)) {
       const result = {
         decision: 'block',
-        reason: '[mint] git push blocked — agents commit only, humans push. Remove the push command.'
+        reason: '[mint] git commit + git push in same command blocked — separate them. Commit first, push separately.'
       };
       process.stdout.write(JSON.stringify(result));
       return;

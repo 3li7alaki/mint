@@ -242,4 +242,30 @@ export async function run(flags = {}) {
   if (fixed) parts.push(`\x1b[34m${fixed} fixed\x1b[0m`);
 
   p.outro(parts.join(', ') || '\x1b[32mhealthy\x1b[0m');
+
+  // ─── Smart analysis — Claude reads the project and applies fixes ─────────
+  // Always runs when Claude is available. This is how mint works.
+
+  if (detectTool('claude') && autoFix) {
+    console.log('');
+    const s = p.spinner();
+    s.start('Running smart analysis (claude -p)...');
+    try {
+      const { smartDoctor } = await import('../lib/smart-session.js');
+      const analysis = await smartDoctor(cwd);
+      s.stop('Smart analysis complete');
+      if (analysis.success && analysis.result) {
+        console.log(`\n  \x1b[1mSmart recommendations\x1b[0m\n`);
+        // Indent each line of the result
+        for (const line of analysis.result.split('\n')) {
+          if (line.trim()) console.log(`  ${line}`);
+        }
+        console.log('');
+      } else {
+        s.stop('Smart analysis returned no recommendations');
+      }
+    } catch (err) {
+      s.stop(`Smart analysis failed: ${err.message}`);
+    }
+  }
 }

@@ -7,9 +7,28 @@
 | Agent prompts | Markdown (.md) | What Claude expects as input |
 | Task specs | XML (.xml) | Structured, parseable, validated |
 | Execution state | JSON (.json) | Per-spec tracking, machine-readable, resumable |
-| Config | JSON (.json) | Zero ambiguity, machine-readable |
-| Issue log | Markdown table (.md) | Human-readable, git-diffable |
+| Config | JSON (.json) | Zero ambiguity, schema-validated |
+| Learning logs | JSONL (.jsonl) | Append-only, concurrent-safe, grep-able — one JSON object per line |
+| Session state | JSON (.json) | Single-writer, read by hooks |
+| Freeze/guard list | JSON (.json) | Read-heavy by hooks on every Edit/Write |
+| Gate ledger | JSONL (.jsonl) | Concurrent append by parallel agents |
 | Documentation | Markdown (.md) | Standard, renderable everywhere |
+| Hard blocks | Markdown (.md) | Human-authored constraints |
+
+### JSONL Format
+
+Learning logs (issues, wins, patterns, instincts) and the gate ledger use JSONL:
+
+```jsonl
+{"date":"2025-03-25","task":"auth-003","severity":"BLOCKING","issue":"Scope leak","rootCause":"scope-leak","resolution":"Split into two specs"}
+{"date":"2025-03-25","task":"auth","pattern":"Split API + UI specs","why":"Kept context focused"}
+```
+
+- **Append:** `fs.appendFileSync(file, JSON.stringify(entry) + '\n')`
+- **Read:** `readJsonl(path)` from `cli/lib/jsonl.js`
+- **Query:** `queryJsonl(path, predicate)` for filtered reads
+- **Migrate:** `migrateMarkdownTableToJsonl(mdPath, jsonlPath)` for old `.md` files
+- **Atomic:** Lines under 4KB are atomic on POSIX — safe for concurrent append
 
 ## Agent Prompts
 

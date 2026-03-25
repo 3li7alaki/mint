@@ -9,7 +9,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.6.9 — Fresh context per task. Clean orchestration. Zero slop.
+> v0.7.0 — Parallel execution. File freezing. Smart browser. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 
@@ -28,11 +28,13 @@ mint init                       # interactive setup — detects your stack, asks
 mint init --yes                 # headless — auto-detect everything, zero prompts
 mint config                     # view current config
 mint config --global            # view global user defaults
-mint config set key value       # edit project config (dot notation)
+mint config set key value       # edit project config (dot notation, validated)
 mint config set --global k v    # set a global default
+mint config list                # show all available config keys with types and defaults
 mint doctor                     # health check
 mint doctor --fix               # health check + auto-repair issues
 mint update                     # update to latest (core + dependencies)
+mint clean                      # remove stale worktrees from parallel execution
 ```
 
 ### Global Defaults
@@ -53,13 +55,16 @@ Run `mint init` in your project (seeds from global defaults if set):
 
 ```
 .mint/
-├── config.json           — gates, reviewers, browser, design, plugins
-├── hard-blocks.md        — what agents can never do
-├── issues.md             — failure log — what went wrong and why
-├── wins.md               — success log — what worked and why
-├── instincts.md          — auto-learned conventions
-├── patterns.md           — graduated recurring patterns
-└── .session-state.json   — session state (gitignored) — invocation, autocommit override
+├── config.json             — gates, reviewers, browser, design, plugins
+├── hard-blocks.md          — what agents can never do
+├── issues.jsonl            — failure log (JSONL — concurrent-safe, grep-able)
+├── wins.jsonl              — success log (JSONL)
+├── patterns.jsonl          — graduated recurring patterns (JSONL)
+├── instincts.jsonl         — auto-learned conventions (JSONL)
+├── .session-state.json     — session state (gitignored)
+├── .freeze-list.json       — frozen/guarded file paths (gitignored)
+├── .browser-sessions.json  — browser cookie persistence (gitignored)
+└── .gate-ledger.jsonl      — gate run tracking for dedup (gitignored)
 ```
 
 ## How It Works
@@ -77,6 +82,9 @@ You describe what you want. mint auto-detects the right approach:
 | "Design review", "Design profile" | **Design** — design intelligence commands |
 | "Set up doc tracking" | **Doc Setup** — scans docs, maps sections to code, builds manifest |
 | "Optimize my setup", "Am I using mint fully?" | **Optimize** — full audit of config, docs, workspace, agents, features |
+| `/freeze src/auth/` | **Freeze** — blocks all file modifications under that path |
+| `/guard package.json "no new deps"` | **Guard** — freeze + reason shown to agents |
+| `/unfreeze --all` | **Unfreeze** — remove all freezes |
 
 No commands to memorize. Just describe what you want to build.
 
@@ -85,24 +93,32 @@ No commands to memorize. Just describe what you want to build.
 ```
 You describe a feature
         │
-  mint decomposes into XML specs
+  Challenge (optional) — is this the right thing to build?
         │
-  Fresh subagent executes each spec
-  (reads existing code, matches patterns)
+  Decompose into XML specs with dependency graph
         │
-  Gates run: lint → types → tests
+  Build wave plan from <depends-on>:
+    Wave 1: [001, 002]     ← independent, run in parallel
+    Wave 2: [003, 004]     ← depend on wave 1, parallel
+    Wave 3: [005]          ← depends on 003 + 004
         │
-  Stage 1: Spec reviewer (gate)
+  Per wave: dispatch specs (parallel Agent calls or parallel worktree sessions)
         │
-  Stage 2 (parallel):
-    Quality + Security + Conventions + Tests + Business + Performance + Design
-        │
-  Atomic commit per spec
-        │
-  Doc-manifest check: update stale documentation
+  Per spec:
+    Fresh subagent executes (reads existing code, matches patterns)
+    → Gates: lint → types → tests
+    → Stage 1: Spec reviewer (gate)
+    → Stage 2 (parallel, scaled by diff size):
+        Quality + Security + Conventions + Tests + Business + Performance + Design
+    → Atomic commit
+    → Doc-manifest check: update stale documentation
         │
   You review the final result
 ```
+
+**Parallel execution:** Independent specs run simultaneously — either as parallel Agent calls
+within one session, or as separate `claude -p` processes in isolated git worktrees. Concurrency
+is configurable (default: 3). Scope enforcement prevents parallel specs from modifying the same files.
 
 ## Ecosystem & Integrations
 
@@ -117,6 +133,43 @@ mint integrates with best-in-class external tools. Each is optional and toggleab
 `mint init` offers to install each one. `mint update` keeps them current. `mint doctor` checks their health.
 
 ## Core Features
+
+### Parallel Execution
+
+Specs don't run one-by-one. mint builds a dependency graph from `<depends-on>` fields, groups independent specs into waves, and dispatches them in parallel.
+
+**Two modes:**
+- **In-session:** Parallel Agent calls within one Claude Code session (no isolation needed for non-overlapping scopes)
+- **Multi-session:** Separate `claude -p` processes, each in its own git worktree. Fully isolated. Configurable concurrency (default: 3).
+
+```json
+{
+  "isolation": { "plan": "worktree" },
+  "parallel": { "concurrency": 3, "maxBudgetPerSpec": 5.0 }
+}
+```
+
+After a wave completes, worktree branches merge back. Scope enforcement via the pre-edit hook prevents parallel specs from touching the same files. Cleanup: `mint clean`.
+
+### File Freezing
+
+Protect files and directories from modification. The pre-edit hook **hard-blocks** writes — agents can't bypass it.
+
+```
+/freeze src/auth/                          # Block all edits under src/auth/
+/guard package.json "no new deps"          # Block + tell agents why
+/freeze src/**/*.test.ts                   # Glob patterns work
+/unfreeze src/auth/                        # Remove specific freeze
+/unfreeze --all                            # Remove all
+```
+
+Agents see the block reason and must adjust their approach — find an alternative, skip the file, or ask you. Session-scoped (clears when task completes).
+
+### Scope Enforcement
+
+Every spec declares `<can-modify>` and `<cannot-modify>`. The pre-edit hook reads the active spec and **blocks** writes outside scope — not advisory, not cooperative. Hard block.
+
+If an agent legitimately needs a file outside scope, it stops and reports the blocker. The orchestrator can expand scope with your approval.
 
 ### Browser Support
 
@@ -141,11 +194,16 @@ pinchtab &
 - Debug live apps — check console errors, DOM state, localStorage
 - Verify UI changes after implementation
 - Capture screenshots for review
+- **Persistent sessions** — login once, cookies survive between tasks
 
 **Commands:**
 - `/browse <url> [task]` — navigate and interact
 - `/screenshot [url]` — capture page state
 - `/scrape <url> [what]` — extract structured data
+- `/browser login <url>` — log in manually, mint saves the session
+- `/browser sessions` — list saved sessions
+
+**Smart, not blind:** Agents poll for page readiness instead of `sleep 3`. Error recovery diagnoses failures (stale refs, timeout, PinchTab down) and retries intelligently. Auto-starts PinchTab if not running.
 
 **Token-efficient:** Agents use the cheapest PinchTab endpoint per task — `/text` for content (~800 tokens), filtered snapshots for interactions (~3600), diffs for changes. Full snapshots only when needed.
 
@@ -298,31 +356,41 @@ A `PreToolUse` hook on `Edit|Write` checks whether mint was invoked before file 
 
 ## Review Pipeline
 
-Every spec goes through multi-stage review:
+Every spec goes through multi-stage review, **scaled by diff size:**
 
-1. **Spec Review** (gate) — does the implementation match the spec?
-2. **Parallel Audit** — reviewers run simultaneously:
-   - **Quality** — patterns, types, readability, over-engineering
-   - **Security** — injection, XSS, auth, secrets
-   - **Conventions** — naming, file structure, imports
-   - **Tests** — mock audit, assertion quality, edge cases
-   - **Business** — requirements alignment, domain logic
-   - **Performance** — re-renders, N+1, bundle impact (opt-in)
-   - **Design** — AI slop, RTL, i18n, accessibility, design consistency (if `design.enabled`)
+| Diff size | Review level |
+|-----------|-------------|
+| < 30 lines | Spec review only (light) |
+| 30-100 lines | Spec + quality + conventions (standard) |
+| 100-300 lines | Spec + all enabled reviewers (full) |
+| 300+ lines | Full + model escalation (opus for security/quality) |
 
-Issues are categorized: BLOCKING (must fix), WARNING (should fix), INFO (logged). Each reviewer can use a different Claude model.
+**Stage 1** (sequential gate): Spec reviewer — does the implementation match the spec?
+
+**Stage 2** (parallel audit): Enabled reviewers run simultaneously:
+- **Quality** — patterns, types, readability, over-engineering
+- **Security** — injection, XSS, auth, secrets
+- **Conventions** — naming, file structure, imports
+- **Tests** — mock audit, assertion quality, edge cases
+- **Business** — requirements alignment, domain logic
+- **Performance** — re-renders, N+1, bundle impact (opt-in)
+- **Design** — AI slop, RTL, i18n, accessibility (if `design.enabled`)
+
+Issues are categorized: BLOCKING (must fix), WARNING (should fix), INFO (logged). Each reviewer can use a different Claude model. Disable scaling with `config.reviewScaling: false`.
 
 ## Learning
 
-mint learns your project's conventions automatically. Three mechanisms:
+mint learns your project's conventions automatically. All learning logs use **JSONL** (one JSON object per line) — append-only, concurrent-safe, `grep`-able. No read-parse-modify-write cycle.
 
-- **Instincts** (`.mint/instincts.md`) — a PostToolUse hook observes every file edit and extracts patterns: import style, naming conventions, test framework, component patterns. Confidence grows as the same pattern appears across different files. The planner reads this before writing specs so new code matches existing conventions without scanning every file. High-confidence patterns (>= 3) are treated as project conventions.
+- **Instincts** (`.mint/instincts.jsonl`) — a PostToolUse hook observes every file edit and extracts patterns: import style, naming conventions, test framework, component patterns. Confidence grows as the same pattern appears. High-confidence (>= 3) are treated as conventions.
 
-- **Issues** (`.mint/issues.md`) — every blocker, root cause, and resolution is logged. The planner reads this to avoid repeating mistakes.
+- **Issues** (`.mint/issues.jsonl`) — every blocker, root cause, and resolution. The planner reads this to avoid repeating mistakes.
 
-- **Wins** (`.mint/wins.md`) — successful patterns and why they worked. The planner reads this to replicate what works.
+- **Wins** (`.mint/wins.jsonl`) — successful patterns and why they worked. The planner reads this to replicate what works.
 
-Patterns graduate automatically: instincts → patterns → permanent conventions. All three are committed to git — they're shared team knowledge, not throwaway state.
+- **Patterns** (`.mint/patterns.jsonl`) — graduated from issues/wins when a pattern repeats 3+ times.
+
+Patterns graduate automatically: instincts → patterns → permanent conventions. All are committed to git — shared team knowledge.
 
 ## Plugins
 
@@ -366,7 +434,12 @@ Key config in `.mint/config.json`:
 | `design.enabled` | `true` | Design intelligence — profiling, anti-patterns, RTL/i18n |
 | `design.uiFilePatterns` | `["*.tsx","*.jsx",...]` | File patterns that auto-trigger design context |
 | `reviewers` | smart defaults | Which reviewers run and their models |
+| `reviewScaling` | `true` | Scale review intensity by diff size |
 | `isolation` | `none` | Work isolation: none, branch, or worktree |
+| `parallel.concurrency` | `3` | Max parallel Claude Code sessions |
+| `parallel.maxBudgetPerSpec` | `5.0` | Max USD per spec in parallel mode |
+| `repoMode` | `collaborative` | `solo` (fix incidental issues) or `collaborative` (flag only) |
+| `challenge` | `auto` | Challenge assumptions before planning (auto = large tasks only) |
 | `plugins` | `[]` | Plugin paths |
 
 ## Golden Rules

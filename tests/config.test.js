@@ -75,9 +75,9 @@ describe('mint config set', () => {
     expect(readConfig().browser.enabled).toBe(false);
   });
 
-  test('creates intermediate objects', () => {
-    run('config set newSection.newKey hello');
-    expect(readConfig().newSection.newKey).toBe('hello');
+  test('rejects unknown config keys', () => {
+    const output = run('config set newSection.newKey hello');
+    expect(output).toContain('Unknown key');
   });
 });
 

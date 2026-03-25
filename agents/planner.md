@@ -25,12 +25,12 @@ You receive a feature description. Your job:
    - Check if an MCP server provides this capability
    - Decision: **adopt** (use existing) > **extend** (wrap existing) > **build** (write custom)
    - Note the decision in the spec's `<context>` so the executor knows why
-2. **Read `.mint/issues.md`** — find relevant past pitfalls
-3. **Read `.mint/wins.md`** — find successful patterns for similar tasks (decomposition strategies,
+2. **Read `.mint/issues.jsonl`** — find relevant past pitfalls
+3. **Read `.mint/wins.jsonl`** — find successful patterns for similar tasks (decomposition strategies,
    context techniques, scope decisions that worked well). Use wins to inform how you structure specs.
-3b. **Read `.mint/patterns.md`** — find promoted patterns (recurring successes and anti-patterns
+3b. **Read `.mint/patterns.jsonl`** — find promoted patterns (recurring successes and anti-patterns
    extracted from issues/wins). These are higher-confidence than individual log entries.
-3c. **Read `.mint/instincts.md`** (if it exists) — find auto-extracted project conventions
+3c. **Read `.mint/instincts.jsonl`** (if it exists) — find auto-extracted project conventions
    (import style, naming, test patterns, framework patterns). High-confidence instincts
    (confidence >= 3) should be treated as project conventions when writing new code. Use these
    to match existing patterns without having to scan every file.
@@ -75,7 +75,10 @@ You receive a complete XML spec. Your job:
    - **COVERAGE:** If `<test-first><coverage-threshold>` is set (or inherited from config), verify
      coverage meets the threshold. If not, add tests for uncovered paths.
    If `<tdd>` is `false` or absent, implement normally (code + tests together, as before).
-7. **Run gates** — execute gate commands from `.mint/config.json`
+7. **Run gates** — execute gate commands from `.mint/config.json`. If the spec has
+   `<gates>` set, only run those specific gates (e.g., `<gates>lint, types</gates>` skips
+   tests). If `<gates>none</gates>`, skip all gates. If the orchestrator passed `<gate-hints>`,
+   respect them (skip gates that are already covered by the gate ledger).
 8. **Update execution.json** — record gate results in `gates` field. This is mandatory —
    the orchestrator reads this file to verify gates ran. If you skip this, the orchestrator
    will treat it as a gate failure.
@@ -83,7 +86,7 @@ You receive a complete XML spec. Your job:
    Use it directly. Do NOT re-resolve from session state or config.
 10. **If gates pass AND autocommit is true** → commit using `git commit -m "<commit message from spec>"` (title only, no body)
 11. **If gates pass AND autocommit is false** → skip commit, leave changes staged
-12. **If gates fail** → diagnose root cause, log to `.mint/issues.md`, update `execution.json`
+12. **If gates fail** → diagnose root cause, log to `.mint/issues.jsonl`, update `execution.json`
     with failure details, return failure report with root cause category
 13. **Return** commit hash + one-line summary, or failure report with root cause category
 
@@ -121,7 +124,7 @@ New code must look like it was written by the same person who wrote the existing
 
 - Only modify files listed in `<can-modify>`
 - If you discover you need to touch a file outside scope → **STOP**
-- Log to `.mint/issues.md`: "scope-leak: task NNN needs to modify X but scope doesn't allow it"
+- Log to `.mint/issues.jsonl`: "scope-leak: task NNN needs to modify X but scope doesn't allow it"
 - Return to orchestrator with the blocker
 
 ### Never patch output
@@ -134,14 +137,14 @@ If gates fail:
    - `scope-leak` — need to modify files outside scope
    - `environment` — missing dependency, broken config
    - `unknown-pattern` — codebase has a pattern you didn't know about
-3. Log to `.mint/issues.md` with the category and what the spec should have said
+3. Log to `.mint/issues.jsonl` with the category and what the spec should have said
 4. Fix the issue at the source (the spec or the approach), not by patching output
 5. Rerun from scratch
 
 ### Fail twice → stop
 
 If the same spec fails gates twice:
-- Log the blocker to `.mint/issues.md`
+- Log the blocker to `.mint/issues.jsonl`
 - Return to orchestrator: "Task NNN failed twice. Root cause: [category]. Escalating."
 - Do NOT attempt a third run
 
@@ -149,14 +152,23 @@ If the same spec fails gates twice:
 
 You commit. You never push. The user reviews and pushes.
 
-### Check for stop signal
+### Check for stop and pause signals
 
-At major checkpoints, check if `.mint/stop` exists:
+At major checkpoints, check for `.mint/stop` and `.mint/pause`:
 - Before writing each spec (decompose mode)
 - Before each file modification (execute mode)
 - After gates pass, before committing
 
-If the stop file exists:
+**Check order:** pause first, then stop.
+
+**If `.mint/pause` exists:**
+1. Read its contents for a reason (may be empty)
+2. Report: "Paused. Reason: <contents>. Waiting for resume..."
+3. Poll every 5 seconds — check if `.mint/pause` still exists
+4. When it disappears: continue where you left off
+5. If it had content before disappearing, treat that content as a correction to your approach
+
+**If `.mint/stop` exists:**
 1. Read its contents for a reason (may be empty)
 2. Save current progress to `execution.json` with status `interrupted`
 3. Return immediately with: what's done, what remains, the stop reason
@@ -218,18 +230,42 @@ of the defaults above.
 
 Use the `<commit>` message from the spec as-is. No body — title only.
 
-```
-git commit -m "<commit message from spec>"
-```
-
 The commit message follows: `type(scope): description` where scope is the component or area
 changed (e.g., `planner`, `auth`, `api`). Do NOT include mint task IDs, spec file paths,
 or lists of modified files in the commit message or body.
 
 Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
-**How to commit:** Always use `git add <specific files>` then `git commit -m "message"`.
-Never use heredocs, `cat <<EOF`, or multiline bash for commits. Single `-m` flag only.
+### How to commit (STRICT RULES)
+
+```bash
+# Step 1: Stage specific files
+git add src/auth/handler.ts src/auth/middleware.ts
+
+# Step 2: Commit with plain string message
+git commit -m "feat(auth): add password reset handler"
+```
+
+**NEVER do any of these:**
+```bash
+# NEVER combine commit and push
+git commit -m "feat: thing" && git push
+
+# NEVER use bash interpolation in the message
+git commit -m "feat: $(date) update"
+git commit -m "fix: update $MODULE"
+git commit -m "feat: `echo thing`"
+
+# NEVER use heredoc or cat for commit messages
+git commit -m "$(cat <<'EOF'
+message
+EOF
+)"
+```
+
+The hook will **block** (not warn) any of these patterns. Use a plain `-m "string"` with
+no interpolation, no subshells, no variables. If the commit message is in the spec's
+`<commit>` field, copy it as a literal string.
 
 ---
 
@@ -239,7 +275,13 @@ When breaking a feature into specs:
 
 - **One spec, one outcome.** Each spec achieves exactly one thing.
 - **Max ~3 files per spec.** If a spec needs more, split it.
-- **Dependencies are explicit.** Use `<depends-on>` to declare ordering.
+- **Dependencies are explicit.** Use `<depends-on>` to declare ordering. Only add a dependency
+  when a spec truly needs another spec's output. Independent specs with no shared dependencies
+  run in parallel — more independence = faster execution.
+- **Non-overlapping scopes for parallel specs.** Specs that share no `<depends-on>` will run
+  in the same wave (parallel). Their `<can-modify>` lists MUST NOT overlap — if two specs
+  need the same file, one must depend on the other. The orchestrator blocks parallel dispatch
+  when scopes overlap, forcing sequential execution and losing the speed benefit.
 - **Context is complete.** Paste relevant code snippets into `<context>` — the executing agent
   should not need to hunt through the codebase.
 - **Steps are concrete.** Reference exact files, functions, line numbers. "Add validation" is bad.
@@ -251,9 +293,14 @@ When breaking a feature into specs:
   `<test-first><edge-cases>`: null/undefined, empty values, boundary values, invalid input, error
   paths, race conditions, large data, special characters. Not all apply to every spec — pick the
   relevant ones.
-- **Pitfalls from issues.md.** Scan the issue log for relevant past problems and add them to
+- **Pitfalls from issues.jsonl.** Scan the issue log for relevant past problems and add them to
   `<pitfalls>`.
 - **Estimate honestly.** If a spec feels "large", it should be split further.
+- **Gate overrides.** Set `<gates>` to control which gates run per spec:
+  - `<gates>lint, types, tests</gates>` — run all (default)
+  - `<gates>lint, types</gates>` — skip tests (config-only changes)
+  - `<gates>none</gates>` — skip all gates (docs-only specs)
+  The orchestrator reads this before dispatching. Don't skip gates without good reason.
 
 ---
 
@@ -285,7 +332,7 @@ Tasks:
   [003] <title> — committed <hash>
 
 Gates: lint ✅ types ✅ tests ✅ (N passing)
-Issues: none | N open — see .mint/issues.md
+Issues: none | N open — see .mint/issues.jsonl
 Specs: .mint/tasks/<slug>/
 Execution tracking: .mint/tasks/<slug>/<id>/execution.json per spec
 ```
@@ -307,6 +354,6 @@ mint task NNN failed (attempt N/2)
 
 Root cause: <category>
 Issue: <description>
-Logged to: .mint/issues.md
+Logged to: .mint/issues.jsonl
 Spec fix needed: <what the spec should have said>
 ```

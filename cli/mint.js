@@ -33,6 +33,11 @@ function showHelp() {
   console.log('    \x1b[36mmint update\x1b[0m              Update mint to latest version');
   console.log('    \x1b[36mmint update --deps\x1b[0m       Update core deps (PinchTab, context-mode)');
   console.log('    \x1b[36mmint update <dep>\x1b[0m        Update one dep (pinchtab, context-mode)');
+  console.log('    \x1b[36mmint clean\x1b[0m               Remove stale worktrees from parallel execution');
+  console.log('    \x1b[36mmint status\x1b[0m              Quick health check (instant, no gate runs)');
+  console.log('    \x1b[36mmint plugin list\x1b[0m         Browse available plugins');
+  console.log('    \x1b[36mmint plugin add <name>\x1b[0m   Install a plugin');
+  console.log('    \x1b[36mmint plugin info <name>\x1b[0m  Plugin details');
   console.log('');
   console.log('  \x1b[1mExamples:\x1b[0m\n');
   console.log('    \x1b[2m$ mint init\x1b[0m');
@@ -87,6 +92,30 @@ try {
     case 'update': {
       const { run } = await import('./commands/update.js');
       await run(positional.slice(1), flags);
+      break;
+    }
+    case 'clean': {
+      const { run } = await import('./commands/clean.js');
+      await run(positional.slice(1), flags);
+      break;
+    }
+    case 'status': {
+      const { run } = await import('./commands/status.js');
+      await run(positional.slice(1), flags);
+      break;
+    }
+    case 'plugin': {
+      const { run } = await import('./commands/plugin.js');
+      await run(positional.slice(1), flags);
+      break;
+    }
+    case 'completions': {
+      const { generateBashCompletion, generateZshCompletion, installCompletions } = await import('./completions.js');
+      const sub = positional[1];
+      if (sub === 'bash') console.log(generateBashCompletion());
+      else if (sub === 'zsh') console.log(generateZshCompletion());
+      else if (sub === 'install') installCompletions();
+      else console.log('  Usage: mint completions bash|zsh|install');
       break;
     }
     case 'help':

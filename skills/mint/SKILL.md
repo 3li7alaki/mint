@@ -122,6 +122,42 @@ These are non-negotiable. Violating any of these is a failure.
 - Subagents return **concise summaries only** — never full transcripts
 - Subagents write artifacts to disk (`.mint/`) so nothing is lost when they exit
 
+### User message awareness
+
+- **NEVER go silent between steps.** Always output a brief status message between dispatching
+  agents. This is how Claude Code checks for queued user messages — text output yields control.
+- After each subagent returns and before dispatching the next, output status: what completed,
+  what's next. This gives the user a chance to redirect, add context, or stop.
+- If the user typed something while an agent was running, it will surface after your status
+  output. Read it, process it, adjust if needed, then continue.
+
+### Asking the user (one decision per question)
+
+When asking the user a question — whether from the orchestrator or relaying from a subagent —
+follow this protocol strictly:
+
+1. **Re-ground context** — state the task, what was just completed, and what decision is needed
+   in 1-2 sentences. The user may have context-switched since their last message.
+
+2. **One decision per question.** Never batch unrelated decisions. If you need 3 decisions,
+   ask 3 separate questions. Sequential questions > one overloaded question.
+
+3. **Present focused options** with lettered choices and a recommendation:
+   ```
+   How should we handle the auth token storage?
+
+   A) localStorage — simple, works offline, XSS-vulnerable
+   B) httpOnly cookie — secure, requires server changes
+   C) In-memory only — most secure, lost on refresh
+
+   Recommendation: B — secure by default, server changes are minimal (1 endpoint).
+   ```
+
+4. **Include effort comparison** when relevant: `(human: ~2h / mint: ~15min)` per option.
+
+5. **Never be vague.** "That's interesting, we could look into it" is banned. Take a position.
+   "We can defer this" is only acceptable if the cost of doing it now is genuinely high.
+
 ### Delegation
 
 - Each subagent gets **one job** with a clear deliverable
@@ -129,6 +165,19 @@ These are non-negotiable. Violating any of these is a failure.
 - The orchestrator provides subagents with: the task (spec XML or description), project config
   (`.mint/config.json`), and hard blocks (`.mint/hard-blocks.md`)
 - Subagents that need to ask questions return the question — orchestrator relays to user
+
+### Repo ownership mode
+
+Check `config.repoMode` (default: `"collaborative"`):
+
+- **`"solo"`** — the user is the sole developer. When an agent discovers issues outside the
+  current task's scope (broken import, stale type, obvious bug), fix it proactively. Log what
+  was fixed alongside the main task. This prevents "I noticed X is broken but it's out of scope"
+  back-and-forth when there's nobody else who might be working on it.
+
+- **`"collaborative"`** — multiple people work in this repo. When an agent finds issues outside
+  scope, log them to `.mint/issues.jsonl` but do NOT fix them. Flag to user: "Found N issues
+  outside scope — logged to issues." This prevents stepping on other people's work.
 
 ### Quality
 
@@ -152,9 +201,34 @@ These are non-negotiable. Violating any of these is a failure.
   can review and commit manually (or batch multiple specs into one commit).
 - **Never fix bad output.** If a subagent produces wrong code, diagnose root cause, fix the spec,
   rerun from scratch. Never patch the output.
-- **Fail twice → stop.** If the same spec fails gates twice, log to `.mint/issues.md` and escalate
+- **Fail twice → stop.** If the same spec fails gates twice, log to `.mint/issues.jsonl` and escalate
   to the user. Never attempt a third run with the same spec.
 - **Never push.** Agents commit only. The user reviews and pushes manually.
+
+### Risk self-regulation (WTF-likelihood)
+
+The orchestrator tracks a **risk score** during task execution. When things go sideways,
+the score escalates. When it gets too high, the orchestrator stops and asks the user.
+
+**Risk events:**
+- Gate failure: +10%
+- Spec retry (rewrite): +15%
+- Fix touches >3 files: +5%
+- File modified outside `<can-modify>`: +20%
+- After 10 total fixes across all specs: +2% per additional fix
+- Revert detected (undoing previous work): +15%
+
+**Thresholds:**
+- **> 25%** → warn user: "Risk is elevated. N issues so far. Continue?"
+- **> 50%** → stop: "Risk too high. Recommend reviewing progress before continuing."
+- **Hard cap:** 30 total fix attempts across all specs → stop regardless of score
+
+The risk score resets to 0 at the start of each task. It's tracked in session state,
+not persisted between tasks.
+
+This prevents runaway agents from making things worse when they're clearly struggling.
+The earlier fail-twice-stop rule catches individual spec failures; WTF-likelihood catches
+the cumulative pattern of "nothing is working well."
 
 ### Completion check — Definition of Done (hard gate)
 
@@ -192,7 +266,7 @@ orchestrator skips verification, the feature is effectively disabled.
 | Stage 2 audit | All enabled reviewers dispatched, all returned results, no unresolved BLOCKINGs | Fix BLOCKINGs, re-run failed auditors (max 3 rounds) |
 | Doc-manifest | Tracked files checked against diff, documenter dispatched for matches | Dispatch documenter for missed sections |
 | Architectural change | Diff checked against critical file patterns, documenter dispatched | Dispatch documenter for matching trigger docs |
-| Win logging | `.mint/wins.md` updated on final spec success | Append win entry |
+| Win logging | `.mint/wins.jsonl` updated on final spec success | Append win entry |
 | DoD | All criteria verified via execution.json reads | Block completion until all criteria pass |
 | Session cleanup | `.mint/.session-state.json` deleted on task completion | Delete file |
 | Stop signal | Agent `interrupted` status triggers stop file consumption + user prompt | Consume stop file, update execution.json, prompt user |
@@ -215,8 +289,35 @@ This is the primary workflow for non-trivial tasks.
   - `"worktree"` — create worktree at `.mint/worktrees/<task-slug>`, work there
   - `"branch"` — create a feature branch, work in the main checkout
   - `"none"` — work directly on current branch, no isolation
-- Read `.mint/issues.md` for relevant past pitfalls
+- Read `.mint/issues.jsonl` for relevant past pitfalls
 - Check for resumable specs (see "Resuming Interrupted Work" below)
+
+### 1b. Challenge (optional, before decomposition)
+
+If `config.challenge` is `true` or `"auto"`, the orchestrator challenges the task before
+planning. This catches scope problems, missed alternatives, and unnecessary work early.
+
+**When it triggers (auto mode):**
+- Task description contains "system", "architecture", "redesign", "migrate", "real-time",
+  "rewrite", or other large-scope keywords
+- Task will likely touch >5 files
+- Task involves new infrastructure or external dependencies
+
+**What the challenge covers:**
+1. **Scope** — is this too big? Can it be smaller? Is the user asking for more than needed?
+2. **Alternatives** — is there a simpler way? Does something already exist in the codebase?
+   Check with grep/glob before suggesting new code.
+3. **Dependencies** — what else does this need? New packages? External services?
+4. **Risk** — what could go wrong? What's the blast radius?
+5. **Existing patterns** — does the codebase already have something similar?
+
+**Format:** Present the challenge as a focused question (following the one-decision-per-question
+protocol). The user can:
+- Address the concerns → orchestrator incorporates into planning
+- Say "just build it" → skip challenge, proceed to decomposition
+- Redirect → change approach before any code is written
+
+**Config:** `config.challenge: true | false | "auto"` (default: `"auto"`)
 
 ### 2. Decompose
 
@@ -233,7 +334,7 @@ before proceeding to execution. This is a hard gate — not optional.
 
 1. Check `.mint/tasks/<slug>/` exists and contains `.xml` files
 2. If **no XML files found** → the planner skipped spec creation. This is a failure:
-   - Log to `.mint/issues.md`: "spec-skip: planner returned without creating spec files for task <slug>"
+   - Log to `.mint/issues.jsonl`: "spec-skip: planner returned without creating spec files for task <slug>"
    - Re-dispatch planner with explicit instruction: "You MUST create XML spec files in
      `.mint/tasks/<slug>/`. Do not implement anything — only decompose and save specs."
    - If second attempt also produces no specs → escalate to user
@@ -244,9 +345,71 @@ before proceeding to execution. This is a hard gate — not optional.
 This gate exists because agents can silently skip spec creation and jump straight to
 implementation, bypassing the entire review pipeline.
 
-### 3. Execute each spec
+### 3. Build dependency graph and execute in waves
 
-For each spec (sequenced by `<depends-on>`):
+Instead of executing specs sequentially, the orchestrator builds a dependency graph from
+`<depends-on>` fields and groups independent specs into parallel waves.
+
+**Step 3a: Build the graph**
+
+1. Read all spec XML files in `.mint/tasks/<slug>/`
+2. For each spec, parse `<id>` and `<depends-on>` (comma-separated IDs, or "none")
+3. Build a DAG (directed acyclic graph): edges from dependency → dependent
+4. Group specs into waves — a wave contains specs whose dependencies are ALL satisfied
+   (completed in a previous wave or have no dependencies)
+
+**Example:**
+```
+Specs: 001, 002, 003, 004, 005
+Dependencies: 003 depends on 001, 004 depends on 001, 005 depends on 003 and 004
+
+Wave 1: [001, 002]       ← no dependencies, run in parallel
+Wave 2: [003, 004]       ← both depend only on 001 (done in wave 1), run in parallel
+Wave 3: [005]            ← depends on 003 and 004 (done in wave 2)
+```
+
+**Step 3b: Report the execution plan**
+
+Before executing, show the user the wave plan:
+```
+Execution plan (3 waves):
+  Wave 1: [001] auth-types, [002] api-schema  (parallel)
+  Wave 2: [003] auth-handler, [004] api-routes  (parallel)
+  Wave 3: [005] integration-tests  (sequential — depends on 003, 004)
+```
+
+**Step 3c: Execute wave by wave**
+
+For each wave:
+- If the wave has **1 spec** → execute sequentially (same as before)
+- If the wave has **2+ specs** → dispatch all in parallel using parallel Agent calls
+- Wait for ALL specs in the wave to complete before starting the next wave
+- If any spec in a wave fails → retry that spec (per retry protocol). Other passed specs
+  in the wave are not affected. Failed spec retries in the same wave position.
+- After the wave completes, run any shared gates if not isolated (see gate ledger, future)
+
+**MANDATORY: Status output between every step.** The orchestrator MUST output a brief status
+message between every major step — between specs, between waves, between review stages, between
+pipeline phases. Examples:
+
+- "Wave 1/3 complete (001, 002 passed). Starting wave 2..."
+- "Spec 003 implemented. Running gates..."
+- "Stage 1 review passed. Dispatching stage 2 reviewers..."
+- "All specs complete. Running final verification..."
+
+**Why this matters:** Claude Code checks for queued user messages when the assistant produces
+text output. If the orchestrator goes silent while dispatching agents, the user's typed messages
+sit unread in the queue. By always outputting status, the orchestrator naturally yields to check
+for user input. If the user typed something (a correction, an addition, a "wait stop"), it gets
+surfaced at the next status checkpoint.
+
+After outputting status and before dispatching the next step, if the user has responded:
+- **Correction** ("not that approach") → adjust remaining specs or re-plan
+- **Addition** ("also add X") → note it, incorporate in remaining specs or queue as follow-up
+- **Stop** ("wait" / "hold on") → pause execution, await direction
+- **Unrelated** → acknowledge briefly, continue
+
+**For each spec in a wave (parallel or sequential):**
 
 **Execution tracking (mandatory):** Before starting a spec, the orchestrator MUST:
 1. Create `.mint/tasks/<slug>/<spec-id>/execution.json` (see `templates/execution.json`)
@@ -258,8 +421,41 @@ If `execution.json` is missing at any point, the orchestrator creates it. The or
 owns this file — agents update it, but the orchestrator is the final authority. If an agent
 returns without updating it, the orchestrator updates it based on the agent's return value.
 
+**Parallel execution modes:**
+
+| Isolation config | How parallel specs run | Merge strategy |
+|-----------------|----------------------|---------------|
+| `"worktree"` | **Separate Claude Code sessions** — each spec gets its own git worktree + its own `claude -p` process via `cli/lib/parallel.js`. Fully independent. No scope conflicts possible. | Merge worktree branches back after wave completes. |
+| `"none"` or `"branch"` | **Parallel Agent calls** — specs run as parallel subagents within the same session. Scope enforcement via hook prevents file conflicts. | Direct — all changes are in the same working directory. |
+
+**Worktree mode (recommended for parallel):**
+
+The orchestrator uses `cli/lib/parallel.js` to spawn isolated sessions:
+1. `createWorktree(projectRoot, slug)` — creates `.mint/worktrees/spec-NNN/` with its own branch
+2. Copies `.env` files and `.mint/` config into the worktree
+3. Spawns `claude -p` pointed at the worktree with the spec prompt
+4. Collects JSON results from each session
+5. Merges successful worktree branches back to the base branch
+6. Cleans up worktrees (or preserves on failure for debugging)
+
+Concurrency is limited (default: 3 parallel sessions) to avoid API rate limits and cost explosion.
+Configurable via `config.parallel.concurrency` (default: 3) and `config.parallel.maxBudgetPerSpec`
+(default: 5.0 USD).
+
+**Non-worktree mode safety:** When specs share the working directory:
+- Each spec gets its own `execution.json` (no conflicts — different directories)
+- Scope enforcement prevents specs from stepping on each other's files
+- Specs in the same wave MUST NOT have overlapping `<can-modify>` paths
+- The orchestrator verifies this before dispatching: if two specs in the same wave share
+  any `<can-modify>` paths, execute them sequentially instead
+
+**Cleanup:** `mint clean` removes all stale worktrees from `.mint/worktrees/`.
+
 **a) Implementation**
 - Set `execution.json` status to `running`, record `startedAt` and new attempt entry
+- **Set active spec** — update `.mint/.session-state.json`: set `activeSpec` to the spec's
+  file path (e.g., `.mint/tasks/auth/001-handler.xml`). The pre-edit hook reads this to enforce
+  `<can-modify>` scope. Clear it (`null`) after the planner returns.
 - **Resolve autocommit** (orchestrator responsibility — do this BEFORE dispatching):
   1. Read `.mint/.session-state.json` → if `autoCommitOverride` is not `null`, use it
   2. Read spec `<autoCommit>` → if `true`/`false` (not `"inherit"`), use it
@@ -278,7 +474,7 @@ returns without updating it, the orchestrator updates it based on the agent's re
   - Read `execution.json` → confirm `gates` field is populated
   - If planner reported gates green + autocommit true: verify commit exists (`git log -1`)
   - If planner reported gates green + autocommit false: verify changes are staged (`git diff --cached`)
-  - If planner reported failure: verify `.mint/issues.md` was updated
+  - If planner reported failure: verify `.mint/issues.jsonl` was updated
   - Update `execution.json`: gate results in `gates`, commit hash in `commit` (or `null`)
 
 **a2) De-sloppify (orchestrator evaluates trigger)**
@@ -311,10 +507,27 @@ This is NOT optional. The orchestrator MUST dispatch the spec reviewer after imp
 
 **c) Stage 2 — Audit (mandatory parallel dispatch)**
 
-The orchestrator MUST dispatch all enabled reviewers. This is how to determine "enabled":
+The orchestrator MUST dispatch enabled reviewers, scaled by diff size.
+
+**Step 1: Measure diff size**
+Run `git diff --stat HEAD~1` (or against the pre-spec state) and count total lines changed.
+
+**Step 2: Scale review intensity**
+
+| Diff size | Review level | What runs |
+|-----------|-------------|-----------|
+| **< 30 lines** | Light | spec review only (stage 1). Skip stage 2 entirely. |
+| **30-100 lines** | Standard | spec + quality + conventions |
+| **100-300 lines** | Full | spec + all enabled reviewers |
+| **300+ lines** | Deep | spec + all enabled reviewers + model escalation (use opus for security + quality) |
+
+This prevents review fatigue on tiny changes and ensures thorough review on large ones.
+The user can override: `config.reviewScaling: false` disables scaling (always full review).
+
+**Step 3: Build dispatch list (for standard/full/deep)**
 
 1. Read `config.reviewers` — for each key:
-   - `true` or `{ "enabled": true }` → dispatch
+   - `true` or `{ "enabled": true }` → dispatch (if diff size qualifies)
    - `false` or `{ "enabled": false }` → skip
    - Not present → skip
 2. Build dispatch list from enabled reviewers:
@@ -326,7 +539,9 @@ The orchestrator MUST dispatch all enabled reviewers. This is how to determine "
    - `performance: true` → dispatch `mint-performance-reviewer`
    - `business: true` → dispatch `mint-business-reviewer`
    - If `config.design.enabled` → dispatch `mint-design-reviewer`
-3. Dispatch ALL in the list simultaneously (parallel Agent calls)
+3. For **deep** diffs (300+ lines): override `model` to `"opus"` for security and quality
+   reviewers regardless of their configured model
+4. Dispatch ALL in the list simultaneously (parallel Agent calls)
 4. **Orchestrator collects ALL results** — wait for every dispatched reviewer to return
 5. Parse each report for severity counts:
    - Count total BLOCKING, WARNING, INFO across all reports
@@ -342,11 +557,18 @@ The orchestrator MUST dispatch all enabled reviewers. This is how to determine "
 Every spec that passes all stages MUST complete ALL of these steps. The orchestrator
 executes each step and verifies it completed. Do not skip any.
 
-**d.1) Set execution state**
+**d.1) Definition of Done verification (runs BEFORE marking passed)**
+- Run the DoD gate (see "Completion check" in Orchestrator Rules above)
+- Read `execution.json` and verify every criterion (gates, spec review, stage 2 reviews)
+- If any criterion fails → address the failing criterion first. Do NOT proceed to d.2.
+- This runs first because marking `passed` before verifying DoD creates a wrong state.
+
+**d.2) Set execution state**
 - Update `execution.json`: status → `passed`, record `completedAt`
 - Verify by reading the file back
+- Clear `activeSpec` in `.mint/.session-state.json` (set to `null`)
 
-**d.2) Doc-manifest check**
+**d.3) Doc-manifest check**
 - Read `.mint/doc-manifest.json` (if it exists)
 - For each doc entry: check if any files matching its `sections[].tracks` globs were
   modified in this spec's diff (use `git diff --name-only` against the glob patterns)
@@ -356,7 +578,7 @@ executes each step and verifies it completed. Do not skip any.
 - This is NOT optional — skipping doc updates when tracked files changed is a pipeline violation
 - If no doc-manifest exists, skip this step (not a failure)
 
-**d.3) Architectural change detection**
+**d.4) Architectural change detection**
 - Check if the diff (via `git diff --name-only`) touches ANY of these patterns:
   - `.mint/config.json`
   - `skills/mint/SKILL.md` or `SKILL.md`
@@ -369,23 +591,18 @@ executes each step and verifies it completed. Do not skip any.
 - Dispatch `mint-documenter` for each matching doc
 - **Verify:** documenter returned for each dispatched doc
 
-**d.4) Log win**
+**d.5) Log win**
 - If this is the LAST spec in the task AND all specs passed:
-  - Append to `.mint/wins.md`: Date, task slug, what pattern worked, why
-  - **Verify:** read `.mint/wins.md` to confirm the entry was added
+  - Append to `.mint/wins.jsonl`: Date, task slug, what pattern worked, why
+  - **Verify:** read `.mint/wins.jsonl` to confirm the entry was added
 - If not the last spec, skip (not a failure)
-
-**d.5) Definition of Done verification**
-- Run the DoD gate (see "Completion check" in Orchestrator Rules above)
-- Read `execution.json` and verify every criterion
-- If any criterion fails → do not mark spec as complete, address the failing criterion first
 
 **d.6) Session state cleanup (on final spec only)**
 - If this is the LAST spec and all passed: delete `.mint/.session-state.json`
 - **Verify:** file no longer exists
 
 If spec failed and will be rewritten: set status to `rewriting`.
-If spec failed twice: set status to `failed`, log to `.mint/issues.md`.
+If spec failed twice: set status to `failed`, log to `.mint/issues.jsonl`.
 
 ### 3b. Spec Retry Protocol (orchestrator-driven)
 
@@ -394,7 +611,7 @@ The orchestrator — not the planner — drives retry logic. When a spec fails g
 **Step 1: Read and classify failure**
 1. Read the failure report from the subagent
 2. Read `execution.json` → check `attempts[]` count. If already 2 attempts → STOP, escalate
-3. Cross-reference `.mint/issues.md` for similar past failures (same files, similar patterns)
+3. Cross-reference `.mint/issues.jsonl` for similar past failures (same files, similar patterns)
 4. Diagnose root cause category:
    - `bad-spec` → spec was ambiguous, agent had to guess
    - `missing-context` → not enough info about existing code patterns or dependencies
@@ -416,7 +633,7 @@ Based on root cause:
 1. Update `execution.json`: status → `rewriting`, log the adjustment in `attempts[]`
 2. Save the rewritten spec XML to disk (overwrite the original `.xml` file)
 3. Dispatch fresh `mint-planner` with the rewritten spec + previous attempt's failure details
-4. If rewrite also fails → set status to `failed`, log to `.mint/issues.md`, escalate to user
+4. If rewrite also fails → set status to `failed`, log to `.mint/issues.jsonl`, escalate to user
 
 **Attempt tracking is enforced:** The orchestrator reads `execution.json` `attempts[]` length
 before every dispatch. Original attempt + one rewrite = two total. A third attempt is NEVER
@@ -429,7 +646,7 @@ After all specs complete, the orchestrator runs a final verification pass:
 1. **Read all execution.json files** — confirm every spec has status `passed`
 2. **Verify DoD** — for each spec, confirm all DoD criteria were met (see Completion check)
 3. **Verify doc-manifest** — confirm all stale sections were addressed (documenter dispatched)
-4. **Verify win logged** — if all specs passed, confirm `.mint/wins.md` has the new entry
+4. **Verify win logged** — if all specs passed, confirm `.mint/wins.jsonl` has the new entry
 5. **Verify session cleanup** — confirm `.mint/.session-state.json` was deleted
 6. **Present summary:**
    - Tasks, commits, gate results, doc updates, issues
@@ -457,6 +674,10 @@ For tasks touching ≤3 files with clear scope.
 architectural decisions, announce: "This is bigger than expected — switching to plan mode."
 
 No worktree. No reviewers. No spec files. Just gates.
+
+**Quick mode still checks docs.** After commit (or after staged changes if no autocommit),
+check the doc-manifest: did the changed files match any tracked sections? If yes, dispatch
+the documenter. Quick doesn't mean docs get skipped — it means reviews get skipped.
 
 When context-mode is enabled, gate runs use `ctx_execute` to keep output sandboxed even in
 quick mode.
@@ -607,16 +828,44 @@ Read `.mint/config.json` for browser settings:
 
 1. **Check plugin is enabled** — `browser.enabled` must be `true`
 2. **Pre-flight** — verify PinchTab is running at `browser.baseUrl` via `/health`
-3. **Route to agent:**
+3. **Load session cookies** — if `browser.persistSessions` is `true`:
+   a. Read `.mint/.browser-sessions.json`
+   b. Find the active session's cookies
+   c. Pass cookies to the browser agent for loading via `POST /cookies`
+4. **Route to agent:**
    - Debug tasks → `browser-debugger` agent
    - Everything else → `browser-runner` agent
-4. **Agent executes** — navigate, snapshot, act, verify loop via PinchTab HTTP API (curl)
-5. **Return result** — page state, extracted data, task confirmation, or debug report
+5. **Agent executes** — navigate, snapshot, act, verify loop via PinchTab HTTP API (curl)
+6. **Save session cookies** — if `browser.persistSessions` and agent returned cookies:
+   a. Read `.mint/.browser-sessions.json` (create if doesn't exist)
+   b. Update the active session's cookies with the agent's exported cookies
+   c. Write file back
+7. **Return result** — page state, extracted data, task confirmation, or debug report
+
+### Session management
+
+Browser sessions persist login state between tasks. Stored in `.mint/.browser-sessions.json`
+(gitignored):
+
+```json
+{
+  "activeSession": "default",
+  "sessions": {
+    "default": {
+      "cookies": [],
+      "savedAt": "ISO-8601",
+      "url": "http://localhost:3000"
+    }
+  }
+}
+```
 
 ### Graceful degradation
 
 If PinchTab is not running:
-- Return WARNING with start instructions: `pinchtab &`
+- Auto-start it (`pinchtab &`) if `browser.autoStart` is true
+- Poll for health (max 10s) — don't blind `sleep 3`
+- If still not running: return WARNING with start instructions
 - Never block the user's workflow
 - Suggest installing PinchTab if the binary is not found
 
@@ -626,6 +875,10 @@ Users can invoke browser operations directly:
 - `/browse <url> [task]` — navigate and interact
 - `/screenshot [url]` — capture page screenshot
 - `/scrape <url> [what]` — extract structured data
+- `/browser login <url>` — navigate, user logs in manually, mint saves session
+- `/browser sessions` — list saved sessions
+- `/browser switch <name>` — switch active session
+- `/browser clear` — wipe all saved sessions
 
 ---
 
@@ -774,18 +1027,28 @@ Only dispatched when layer 1 detects a problem:
 
 ---
 
-## Resuming Interrupted Work
+## Resuming Interrupted Work (Stage-Aware)
 
 On startup (during Setup), scan `.mint/tasks/` for execution.json files with non-terminal status
-(`running`, `rewriting`). These are specs from a previous session that didn't finish.
+(`running`, `rewriting`, `interrupted`). These are specs from a previous session that didn't finish.
 
 If found:
 1. Present the list to the user: "Found N interrupted specs from a previous session:"
-   - For each: spec ID, title, status, last attempt result
+   - For each: spec ID, title, status, last attempt result, **last completed stage**
 2. Ask: "Resume these specs?" — user can pick which to resume or start fresh
-3. For resumed specs: continue from the last completed stage (use `execution.json` to determine
-   where it left off — e.g., if gates passed but reviews didn't, skip straight to review)
+3. For resumed specs: **skip to the next stage** based on execution.json state:
+
+   | execution.json state | Resume from |
+   |---------------------|-------------|
+   | `gates` all pass, no `reviews` | Stage 1 — spec review |
+   | `reviews.spec` = passed, no stage 2 | Stage 2 — parallel audit |
+   | Stage 2 has some results but BLOCKINGs | Fix BLOCKINGs, re-run failed reviewers |
+   | All reviews passed, no `completedAt` | Completion checklist (d.1-d.6) |
+   | `gates` failed | Re-dispatch planner to fix, then gates |
+   | `status` = `rewriting` | Spec was being rewritten — dispatch planner with rewritten spec |
+
 4. For skipped specs: set their `execution.json` status to `failed` with reason "abandoned"
+5. **Clear gate ledger** on resume — stale gate results from previous session are unreliable
 
 ---
 
@@ -794,10 +1057,10 @@ If found:
 The orchestrator — not the planner — is responsible for providing learning context.
 Before dispatching the planner for decomposition, the orchestrator MUST:
 
-1. Read `.mint/issues.md` — include relevant past failures in the planner's context
-2. Read `.mint/wins.md` — include relevant successful patterns in the planner's context
-3. Read `.mint/patterns.md` — include promoted patterns in the planner's context
-4. If `config.instincts.enabled` is `true` (default): read `.mint/instincts.md` and include
+1. Read `.mint/issues.jsonl` — include relevant past failures in the planner's context
+2. Read `.mint/wins.jsonl` — include relevant successful patterns in the planner's context
+3. Read `.mint/patterns.jsonl` — include promoted patterns in the planner's context
+4. If `config.instincts.enabled` is `true` (default): read `.mint/instincts.jsonl` and include
    high-confidence instincts (confidence >= 3) in the planner's context
 
 The orchestrator passes this learning context to the planner as part of the dispatch.
@@ -816,12 +1079,23 @@ become future guidance.
 ### Logging wins
 
 After a full task completes successfully (all specs passed, reviews done), the orchestrator
-logs a win to `.mint/wins.md`:
+appends a win to `.mint/wins.jsonl`:
 
-- **Date** — when the task completed
-- **Task** — the task slug or feature name
-- **Pattern** — what worked (e.g., "split API + UI into separate specs", "included type signatures in context")
-- **Why It Worked** — why this pattern led to success (e.g., "kept agent context focused", "prevented scope leak")
+```jsonl
+{"date":"2025-03-25","task":"auth-reset","pattern":"Split API + UI into separate specs","why":"Kept agent context focused, prevented scope leak"}
+```
+
+Similarly, failures are logged to `.mint/issues.jsonl`:
+
+```jsonl
+{"date":"2025-03-25","task":"auth-003","severity":"BLOCKING","issue":"Scope leak into shared utils","rootCause":"scope-leak","resolution":"Split into two specs","specFix":"Tighten can-modify"}
+```
+
+**JSONL format for all logs.** All learning files (issues, wins, patterns, instincts) use JSONL —
+one JSON object per line. Append-only, concurrent-safe, `grep`-able. Never read-parse-modify-write.
+To add an entry: `fs.appendFileSync(file, JSON.stringify(entry) + '\n')`.
+
+Agents can read with: `readJsonl(path)` or filter with: `queryJsonl(path, predicate)`.
 
 ### Doc-manifest as knowledge graph
 
@@ -1149,7 +1423,8 @@ source of truth for cross-agent and cross-hook coordination within a session.
   "task": "short task description",
   "mode": "quick|plan|ship|research|verify",
   "autoCommitOverride": null,
-  "designContextLoaded": false
+  "designContextLoaded": false,
+  "activeSpec": null
 }
 ```
 
@@ -1163,6 +1438,7 @@ source of truth for cross-agent and cross-hook coordination within a session.
 | `mode` | string | Routed execution mode |
 | `autoCommitOverride` | boolean\|null | Session-level override: `true` = force commit, `false` = skip commit, `null` = use config default |
 | `designContextLoaded` | boolean | Whether design context was loaded for this task |
+| `activeSpec` | string\|null | Path to the currently executing spec XML (relative to project root). Set before dispatching planner, cleared after. The pre-edit hook reads this to enforce `<can-modify>` scope. |
 
 ### Lifecycle (orchestrator-enforced)
 
@@ -1231,6 +1507,58 @@ Every subagent gets exactly what it needs — no more, no less:
 | De-sloppifier | Git diff + spec XML + gate commands |
 | Build Error Resolver | Build/type error output + config + in-scope files |
 | Refactor Cleaner | Config + detection tool output + files to analyze |
+
+---
+
+## Agent Control — Pause Signal
+
+Pause is different from stop. Stop means "abort." Pause means "wait — I want to look at something."
+
+### How It Works
+
+**Pause file location:** `.mint/pause`
+
+**User action:**
+```bash
+touch .mint/pause                              # Pause with no message
+echo "let me check something" > .mint/pause    # Pause with reason
+```
+
+**Agent behavior:** Agents check for `.mint/pause` at the same checkpoints as `.mint/stop`.
+When detected:
+
+1. Agent finishes its current atomic operation (file write, single gate run)
+2. Agent **waits** — does NOT stop, does NOT proceed
+3. Reports: "Paused. Reason: <contents>. Waiting for resume..."
+4. Polls every 5 seconds for the pause file to disappear
+
+**Resume options:**
+
+```bash
+rm .mint/pause                                           # Resume — agent continues
+echo "change approach to X" > .mint/pause && rm .mint/pause  # Redirect then resume
+mv .mint/pause .mint/stop                                # Convert pause to stop
+```
+
+When the pause file is removed:
+- If `.mint/pause` had content before removal, agent reads it as a **correction** and
+  adjusts approach (same as `<correction>` block in retry)
+- If empty, agent continues exactly where it left off
+
+**Orchestrator behavior:** When an agent reports "paused":
+1. Relay the pause to the user: "Agent paused. <reason>"
+2. Wait for the user to resume (don't dispatch further agents)
+3. On resume: if user provided feedback, pass it to the agent as a correction
+
+### Why pause exists alongside stop
+
+| Signal | Meaning | Agent behavior | Recovery |
+|--------|---------|---------------|----------|
+| `.mint/stop` | Abort this approach | Stop, save progress, return | Resume/restart/abandon |
+| `.mint/pause` | Wait, I need to check | Freeze in place, poll | Continue/redirect/convert to stop |
+
+Stop requires explicit recovery choices. Pause is lightweight — remove the file and the
+agent picks up where it left off.
 
 ---
 
@@ -1341,3 +1669,79 @@ How do you want to proceed?
 - Clean up worktree
 
 The stop file is single-use — once consumed, agents run normally until a new stop is created.
+
+---
+
+## Agent Control — Freeze / Guard / Unfreeze
+
+Protect files and directories from modification. The pre-edit hook **blocks** (not warns)
+writes to frozen/guarded paths. Agents see the block reason and must adjust their approach.
+
+### Commands
+
+- `/freeze <path>` — freeze a file or directory. Agent cannot Edit/Write to it.
+- `/freeze <glob>` — freeze by pattern: `/freeze src/**/*.test.ts`
+- `/guard <path> <reason>` — freeze + explain why. Agent sees the reason in the block message.
+- `/unfreeze <path>` — remove freeze/guard from a specific path.
+- `/unfreeze --all` — remove all freezes/guards.
+
+### How it works
+
+Freezes are stored in `.mint/.freeze-list.json` (gitignored, session-scoped):
+
+```json
+{
+  "entries": [
+    { "path": "src/auth/", "type": "freeze", "reason": null, "frozenAt": "ISO-8601" },
+    { "path": "package.json", "type": "guard", "reason": "no new deps without discussion", "frozenAt": "ISO-8601" }
+  ]
+}
+```
+
+The pre-edit hook reads this file on every Edit/Write and blocks if the target path matches.
+Matching rules:
+- Exact file match: `/freeze src/auth/middleware.ts` blocks that file
+- Directory match: `/freeze src/auth/` blocks all files under that directory
+- Glob match: `/freeze src/**/*.test.ts` blocks all test files under src
+
+### Orchestrator behavior
+
+When the user says `/freeze`, `/guard`, or `/unfreeze`:
+
+**`/freeze <path>`:**
+1. Resolve path relative to project root
+2. Read `.mint/.freeze-list.json` (create if doesn't exist)
+3. Add entry: `{ "path": "<resolved>", "type": "freeze", "reason": null, "frozenAt": "<now>" }`
+4. Write file back
+5. Announce: "Frozen: `<path>`. Agents cannot modify files matching this path."
+
+**`/guard <path> <reason>`:**
+1. Same as freeze but with `"type": "guard"` and `"reason": "<reason>"`
+2. Announce: "Guarded: `<path>` — <reason>. Agents will see this reason if they try to modify it."
+
+**`/unfreeze <path>`:**
+1. Read `.mint/.freeze-list.json`
+2. Remove entries matching the path
+3. Write file back
+4. Announce: "Unfrozen: `<path>`."
+
+**`/unfreeze --all`:**
+1. Delete `.mint/.freeze-list.json`
+2. Announce: "All freezes/guards removed."
+
+### Agent experience
+
+When an agent tries to Edit/Write a frozen file, the hook returns:
+
+```
+[mint] FROZEN: src/auth/middleware.ts is frozen. Use /unfreeze to remove.
+```
+
+Or for guarded files:
+
+```
+[mint] GUARDED: package.json — no new deps without discussion
+```
+
+The agent sees this as a tool call rejection and must adjust its approach — find an
+alternative path, skip that file, or ask the orchestrator to relay the blocker to the user.

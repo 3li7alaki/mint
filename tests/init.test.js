@@ -18,7 +18,7 @@ function run(args = '') {
   return execSync(`bun "${CLI}" ${args}`, {
     cwd: TMP,
     encoding: 'utf8',
-    env: { ...process.env, NO_COLOR: '1' },
+    env: { ...process.env, NO_COLOR: '1', HOME: TMP },
   });
 }
 
@@ -45,14 +45,14 @@ describe('mint init --yes', () => {
     expect(fs.existsSync(path.join(TMP, '.mint', 'hard-blocks.md'))).toBe(true);
   });
 
-  test('creates issues.md', () => {
+  test('creates issues.jsonl', () => {
     run('init --yes');
-    expect(fs.existsSync(path.join(TMP, '.mint', 'issues.md'))).toBe(true);
+    expect(fs.existsSync(path.join(TMP, '.mint', 'issues.jsonl'))).toBe(true);
   });
 
-  test('creates wins.md', () => {
+  test('creates wins.jsonl', () => {
     run('init --yes');
-    expect(fs.existsSync(path.join(TMP, '.mint', 'wins.md'))).toBe(true);
+    expect(fs.existsSync(path.join(TMP, '.mint', 'wins.jsonl'))).toBe(true);
   });
 
   test('creates doc-manifest.json', () => {

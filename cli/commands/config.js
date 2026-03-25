@@ -2,6 +2,7 @@ import * as p from '@clack/prompts';
 import fs from 'fs';
 import path from 'path';
 import { readJsonSafe, fileExists, loadGlobalConfig, saveGlobalConfig, getGlobalConfigPath, mergeConfigs, GLOBAL_KEYS } from '../lib/detect.js';
+import { validateConfigValue, listConfigKeys } from '../lib/schema.js';
 
 function getConfigPath() {
   return path.join(process.cwd(), '.mint', 'config.json');
@@ -118,6 +119,14 @@ function showConfig() {
 }
 
 function setConfigValue(key, value, { global: isGlobal = false } = {}) {
+  // Validate against schema
+  const validation = validateConfigValue(key, value);
+  if (!validation.valid) {
+    p.log.error(validation.error);
+    return;
+  }
+
+  const coerced = validation.coerced;
   const config = isGlobal ? loadGlobalConfig() : loadConfig();
   const parts = key.split('.');
   let target = config;
@@ -126,19 +135,35 @@ function setConfigValue(key, value, { global: isGlobal = false } = {}) {
     target = target[parts[i]];
   }
 
-  if (value === 'true') value = true;
-  else if (value === 'false') value = false;
-  else if (!isNaN(value) && value !== '') value = Number(value);
-
-  target[parts[parts.length - 1]] = value;
+  target[parts[parts.length - 1]] = coerced;
 
   if (isGlobal) {
     saveGlobalConfig(config);
-    p.log.success(`Set \x1b[36m${key}\x1b[0m = \x1b[32m${String(value)}\x1b[0m \x1b[2m(global)\x1b[0m`);
+    p.log.success(`Set \x1b[36m${key}\x1b[0m = \x1b[32m${String(coerced)}\x1b[0m \x1b[2m(global)\x1b[0m`);
   } else {
     saveConfig(config);
-    p.log.success(`Set \x1b[36m${key}\x1b[0m = \x1b[32m${String(value)}\x1b[0m`);
+    p.log.success(`Set \x1b[36m${key}\x1b[0m = \x1b[32m${String(coerced)}\x1b[0m`);
   }
+}
+
+function showConfigList(scope) {
+  const keys = listConfigKeys(scope);
+  const d = (v) => `\x1b[2m${v}\x1b[0m`;
+
+  console.log(`\n  \x1b[1mAvailable config keys\x1b[0m${scope ? ` (${scope})` : ''}\n`);
+
+  let currentPrefix = '';
+  for (const k of keys) {
+    const prefix = k.key.split('.')[0];
+    if (prefix !== currentPrefix) {
+      if (currentPrefix) console.log('');
+      currentPrefix = prefix;
+    }
+    const type = k.values ? k.values.join('|') : k.type;
+    const def = k.default === false ? 'off' : k.default === true ? 'on' : String(k.default ?? '—');
+    console.log(`  \x1b[36m${k.key.padEnd(35)}\x1b[0m ${d(type.padEnd(12))} ${d(`[${def}]`.padEnd(10))} ${k.description}`);
+  }
+  console.log('');
 }
 
 async function managePlugins(action, pluginName) {
@@ -215,10 +240,15 @@ export async function run(args, flags = {}) {
     return;
   }
 
+  if (subcommand === 'list') {
+    showConfigList(isGlobal ? 'global' : null);
+    return;
+  }
+
   if (subcommand === 'plugins') {
     await managePlugins(args[1], args[2]);
     return;
   }
 
-  p.log.error(`Unknown: ${subcommand}. Try: show, set, plugins`);
+  p.log.error(`Unknown: ${subcommand}. Try: show, set, list, plugins`);
 }

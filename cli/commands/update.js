@@ -228,11 +228,11 @@ export async function run(positional = [], flags = {}) {
       const missing = NEW_CONFIG_KEYS.filter(k => config[k.key] === undefined);
       if (missing.length > 0) {
         if (headless) {
-          // Auto-enable new features in headless mode
+          // Headless mode uses safe defaults — never silently enable features
           for (const feat of missing) {
-            config[feat.key] = feat.default;
+            config[feat.key] = feat.defaultOff;
           }
-          p.log.success(`${missing.length} new feature${missing.length > 1 ? 's' : ''} auto-enabled`);
+          p.log.success(`${missing.length} new config key${missing.length > 1 ? 's' : ''} added (defaults)`);
         } else {
           p.log.info(`${missing.length} new feature${missing.length > 1 ? 's' : ''} available:`);
 

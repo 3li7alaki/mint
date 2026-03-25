@@ -42,7 +42,8 @@ export async function run(flags = {}) {
   const cwd = process.cwd();
   const mintDir = path.join(cwd, '.mint');
   const configPath = path.join(mintDir, 'config.json');
-  const headless = flags.yes || !process.stdin.isTTY;
+  // Only --yes makes it headless. Running from within Claude Code (piped stdin) is NOT headless.
+  const headless = flags.yes === true;
 
   // Smart init — Claude reads the project and configures mint perfectly.
   // Falls back to generic detection only if Claude CLI isn't available.

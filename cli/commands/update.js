@@ -42,13 +42,13 @@ function getVersion(cmd) {
 function updatePinchTab(s) {
   const before = getVersion('pinchtab --version 2>/dev/null');
   if (!before && !detectTool('pinchtab')) {
-    p.log.warn('PinchTab not installed — skipping. Install: curl -fsSL https://pinchtab.com/install.sh | sh');
+    p.log.warn('PinchTab not installed — skipping. Install: curl -fsSL https://pinchtab.com/install.sh | bash');
     return;
   }
 
   s.start(`Updating PinchTab${before ? ` (current: ${before})` : ''}...`);
   try {
-    execSync('curl -fsSL https://pinchtab.com/install.sh | sh', { stdio: 'pipe', timeout: 120000 });
+    execSync('curl -fsSL https://pinchtab.com/install.sh | bash', { stdio: 'pipe', timeout: 120000 });
     const after = getVersion('pinchtab --version 2>/dev/null');
     if (before && after && before !== after) {
       s.stop(`PinchTab updated: ${before} → ${after}`);
@@ -58,7 +58,7 @@ function updatePinchTab(s) {
       s.stop('PinchTab updated');
     }
   } catch {
-    s.stop('PinchTab update failed — try manually: curl -fsSL https://pinchtab.com/install.sh | sh');
+    s.stop('PinchTab update failed — try manually: curl -fsSL https://pinchtab.com/install.sh | bash');
   }
 }
 
@@ -116,7 +116,8 @@ const DEPS = {
 export async function run(positional = [], flags = {}) {
   const target = positional[0];
   const depsOnly = flags.deps || !!target;
-  const headless = flags.yes || !process.stdin.isTTY;
+  // Only --yes makes it headless. Running from within Claude Code (piped stdin) is NOT headless.
+  const headless = flags.yes === true;
 
   p.intro(`\x1b[32m mint update${depsOnly ? ' deps' : ''} \x1b[0m`);
 

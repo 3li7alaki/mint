@@ -260,6 +260,9 @@ returns without updating it, the orchestrator updates it based on the agent's re
 
 **a) Implementation**
 - Set `execution.json` status to `running`, record `startedAt` and new attempt entry
+- **Set active spec** — update `.mint/.session-state.json`: set `activeSpec` to the spec's
+  file path (e.g., `.mint/tasks/auth/001-handler.xml`). The pre-edit hook reads this to enforce
+  `<can-modify>` scope. Clear it (`null`) after the planner returns.
 - **Resolve autocommit** (orchestrator responsibility — do this BEFORE dispatching):
   1. Read `.mint/.session-state.json` → if `autoCommitOverride` is not `null`, use it
   2. Read spec `<autoCommit>` → if `true`/`false` (not `"inherit"`), use it
@@ -342,11 +345,18 @@ The orchestrator MUST dispatch all enabled reviewers. This is how to determine "
 Every spec that passes all stages MUST complete ALL of these steps. The orchestrator
 executes each step and verifies it completed. Do not skip any.
 
-**d.1) Set execution state**
+**d.1) Definition of Done verification (runs BEFORE marking passed)**
+- Run the DoD gate (see "Completion check" in Orchestrator Rules above)
+- Read `execution.json` and verify every criterion (gates, spec review, stage 2 reviews)
+- If any criterion fails → address the failing criterion first. Do NOT proceed to d.2.
+- This runs first because marking `passed` before verifying DoD creates a wrong state.
+
+**d.2) Set execution state**
 - Update `execution.json`: status → `passed`, record `completedAt`
 - Verify by reading the file back
+- Clear `activeSpec` in `.mint/.session-state.json` (set to `null`)
 
-**d.2) Doc-manifest check**
+**d.3) Doc-manifest check**
 - Read `.mint/doc-manifest.json` (if it exists)
 - For each doc entry: check if any files matching its `sections[].tracks` globs were
   modified in this spec's diff (use `git diff --name-only` against the glob patterns)
@@ -356,7 +366,7 @@ executes each step and verifies it completed. Do not skip any.
 - This is NOT optional — skipping doc updates when tracked files changed is a pipeline violation
 - If no doc-manifest exists, skip this step (not a failure)
 
-**d.3) Architectural change detection**
+**d.4) Architectural change detection**
 - Check if the diff (via `git diff --name-only`) touches ANY of these patterns:
   - `.mint/config.json`
   - `skills/mint/SKILL.md` or `SKILL.md`
@@ -369,16 +379,11 @@ executes each step and verifies it completed. Do not skip any.
 - Dispatch `mint-documenter` for each matching doc
 - **Verify:** documenter returned for each dispatched doc
 
-**d.4) Log win**
+**d.5) Log win**
 - If this is the LAST spec in the task AND all specs passed:
   - Append to `.mint/wins.md`: Date, task slug, what pattern worked, why
   - **Verify:** read `.mint/wins.md` to confirm the entry was added
 - If not the last spec, skip (not a failure)
-
-**d.5) Definition of Done verification**
-- Run the DoD gate (see "Completion check" in Orchestrator Rules above)
-- Read `execution.json` and verify every criterion
-- If any criterion fails → do not mark spec as complete, address the failing criterion first
 
 **d.6) Session state cleanup (on final spec only)**
 - If this is the LAST spec and all passed: delete `.mint/.session-state.json`
@@ -1149,7 +1154,8 @@ source of truth for cross-agent and cross-hook coordination within a session.
   "task": "short task description",
   "mode": "quick|plan|ship|research|verify",
   "autoCommitOverride": null,
-  "designContextLoaded": false
+  "designContextLoaded": false,
+  "activeSpec": null
 }
 ```
 
@@ -1163,6 +1169,7 @@ source of truth for cross-agent and cross-hook coordination within a session.
 | `mode` | string | Routed execution mode |
 | `autoCommitOverride` | boolean\|null | Session-level override: `true` = force commit, `false` = skip commit, `null` = use config default |
 | `designContextLoaded` | boolean | Whether design context was loaded for this task |
+| `activeSpec` | string\|null | Path to the currently executing spec XML (relative to project root). Set before dispatching planner, cleared after. The pre-edit hook reads this to enforce `<can-modify>` scope. |
 
 ### Lifecycle (orchestrator-enforced)
 
@@ -1231,6 +1238,58 @@ Every subagent gets exactly what it needs — no more, no less:
 | De-sloppifier | Git diff + spec XML + gate commands |
 | Build Error Resolver | Build/type error output + config + in-scope files |
 | Refactor Cleaner | Config + detection tool output + files to analyze |
+
+---
+
+## Agent Control — Pause Signal
+
+Pause is different from stop. Stop means "abort." Pause means "wait — I want to look at something."
+
+### How It Works
+
+**Pause file location:** `.mint/pause`
+
+**User action:**
+```bash
+touch .mint/pause                              # Pause with no message
+echo "let me check something" > .mint/pause    # Pause with reason
+```
+
+**Agent behavior:** Agents check for `.mint/pause` at the same checkpoints as `.mint/stop`.
+When detected:
+
+1. Agent finishes its current atomic operation (file write, single gate run)
+2. Agent **waits** — does NOT stop, does NOT proceed
+3. Reports: "Paused. Reason: <contents>. Waiting for resume..."
+4. Polls every 5 seconds for the pause file to disappear
+
+**Resume options:**
+
+```bash
+rm .mint/pause                                           # Resume — agent continues
+echo "change approach to X" > .mint/pause && rm .mint/pause  # Redirect then resume
+mv .mint/pause .mint/stop                                # Convert pause to stop
+```
+
+When the pause file is removed:
+- If `.mint/pause` had content before removal, agent reads it as a **correction** and
+  adjusts approach (same as `<correction>` block in retry)
+- If empty, agent continues exactly where it left off
+
+**Orchestrator behavior:** When an agent reports "paused":
+1. Relay the pause to the user: "Agent paused. <reason>"
+2. Wait for the user to resume (don't dispatch further agents)
+3. On resume: if user provided feedback, pass it to the agent as a correction
+
+### Why pause exists alongside stop
+
+| Signal | Meaning | Agent behavior | Recovery |
+|--------|---------|---------------|----------|
+| `.mint/stop` | Abort this approach | Stop, save progress, return | Resume/restart/abandon |
+| `.mint/pause` | Wait, I need to check | Freeze in place, poll | Continue/redirect/convert to stop |
+
+Stop requires explicit recovery choices. Pause is lightweight — remove the file and the
+agent picks up where it left off.
 
 ---
 

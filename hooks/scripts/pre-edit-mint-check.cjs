@@ -105,16 +105,55 @@ process.stdin.on('end', () => {
       // No freeze list or invalid JSON — no freezes active, continue
     }
 
-    // ── Check 2: Mint invocation warning ──────────────────────────────────
+    // ── Check 2: Spec scope enforcement ─────────────────────────────────
+    // If a spec is being executed, block writes outside its <can-modify>
     const sessionStatePath = path.join(mintDir, '.session-state.json');
     let mintInvoked = false;
+    let sessionState = null;
     try {
-      const state = JSON.parse(fs.readFileSync(sessionStatePath, 'utf8'));
-      mintInvoked = state.mintInvoked === true;
+      sessionState = JSON.parse(fs.readFileSync(sessionStatePath, 'utf8'));
+      mintInvoked = sessionState.mintInvoked === true;
     } catch {
       // No session state file — mint hasn't been invoked
     }
 
+    if (sessionState && sessionState.activeSpec) {
+      const specPath = sessionState.activeSpec;
+      try {
+        const specXml = fs.readFileSync(path.join(projectRoot, specPath), 'utf8');
+        const canModifyMatch = specXml.match(/<can-modify>([\s\S]*?)<\/can-modify>/);
+        if (canModifyMatch) {
+          const allowedPaths = canModifyMatch[1]
+            .split(',')
+            .map(p => p.trim())
+            .filter(Boolean);
+
+          const relFile = path.relative(projectRoot, path.resolve(filePath));
+          const isAllowed = allowedPaths.some(allowed => {
+            if (allowed.includes('*')) {
+              return matchGlob(allowed, filePath, projectRoot);
+            }
+            // Exact file match or directory prefix
+            const normalizedAllowed = path.normalize(allowed);
+            return relFile === normalizedAllowed
+              || relFile.startsWith(normalizedAllowed + path.sep);
+          });
+
+          if (!isAllowed) {
+            const result = {
+              decision: 'block',
+              reason: `[mint] SCOPE VIOLATION: ${relFile} is outside spec scope. Allowed: ${allowedPaths.join(', ')}. Request scope expansion or find an alternative approach.`
+            };
+            process.stdout.write(JSON.stringify(result));
+            return;
+          }
+        }
+      } catch {
+        // Can't read spec — don't block, just continue
+      }
+    }
+
+    // ── Check 3: Mint invocation warning ──────────────────────────────────
     if (!mintInvoked) {
       console.error(
         '[mint] File modification without mint invocation detected. ' +

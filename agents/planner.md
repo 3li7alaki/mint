@@ -149,14 +149,23 @@ If the same spec fails gates twice:
 
 You commit. You never push. The user reviews and pushes.
 
-### Check for stop signal
+### Check for stop and pause signals
 
-At major checkpoints, check if `.mint/stop` exists:
+At major checkpoints, check for `.mint/stop` and `.mint/pause`:
 - Before writing each spec (decompose mode)
 - Before each file modification (execute mode)
 - After gates pass, before committing
 
-If the stop file exists:
+**Check order:** pause first, then stop.
+
+**If `.mint/pause` exists:**
+1. Read its contents for a reason (may be empty)
+2. Report: "Paused. Reason: <contents>. Waiting for resume..."
+3. Poll every 5 seconds — check if `.mint/pause` still exists
+4. When it disappears: continue where you left off
+5. If it had content before disappearing, treat that content as a correction to your approach
+
+**If `.mint/stop` exists:**
 1. Read its contents for a reason (may be empty)
 2. Save current progress to `execution.json` with status `interrupted`
 3. Return immediately with: what's done, what remains, the stop reason

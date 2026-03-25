@@ -345,5 +345,29 @@ export async function run(positional = [], flags = {}) {
     }
   } catch { /* ignore */ }
 
+  // Smart update — Claude reads the project and applies config changes intelligently.
+  // Always runs when Claude is available and project has a config.
+  if (detectTool('claude') && !headless) {
+    const projectConfig = path.join(process.cwd(), '.mint', 'config.json');
+    if (readJsonSafe(projectConfig)) {
+      const s = p.spinner();
+      s.start('Running smart analysis (claude -p)...');
+      try {
+        const { smartUpdate } = await import('../lib/smart-session.js');
+        const analysis = await smartUpdate(process.cwd(), '0.6.x', version);
+        s.stop('Smart analysis complete');
+        if (analysis.success && analysis.result) {
+          console.log(`\n  \x1b[1mSmart recommendations for this project\x1b[0m\n`);
+          for (const line of analysis.result.split('\n')) {
+            if (line.trim()) console.log(`  ${line}`);
+          }
+          console.log('');
+        }
+      } catch (err) {
+        s.stop(`Smart analysis failed: ${err.message}`);
+      }
+    }
+  }
+
   p.outro(`mint v${version}${depsOnly ? '' : ' — restart Claude Code to activate'}`);
 }

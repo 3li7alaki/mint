@@ -44,6 +44,31 @@ export async function run(flags = {}) {
   const configPath = path.join(mintDir, 'config.json');
   const headless = flags.yes || !process.stdin.isTTY;
 
+  // Smart init — Claude reads the project and configures mint perfectly.
+  // Falls back to generic detection only if Claude CLI isn't available.
+  if (detectTool('claude') && !headless) {
+    p.intro('\x1b[32m mint init --smart \x1b[0m');
+    const s = p.spinner();
+    s.start('Analyzing project with Claude...');
+    try {
+      const { smartInit } = await import('../lib/smart-session.js');
+      const result = await smartInit(cwd);
+      s.stop(result.success ? 'Setup complete' : 'Setup finished with issues');
+      if (result.result) {
+        console.log('');
+        for (const line of result.result.split('\n')) {
+          if (line.trim()) console.log(`  ${line}`);
+        }
+        console.log('');
+      }
+    } catch (err) {
+      s.stop(`Smart init failed: ${err.message}`);
+      p.log.info('Falling back to standard init...');
+      // Fall through to standard init
+    }
+    return;
+  }
+
   // Load existing config for defaults, with global config as base layer
   const globalConfig = loadGlobalConfig();
   let existing = null;

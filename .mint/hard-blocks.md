@@ -1,8 +1,7 @@
 # Hard Blocks — What Agents Can NEVER Do
 
 ## Universal
-- NEVER `git push` — human reviews and pushes manually
-- NEVER combine `git commit` and `git push` in the same bash command — a user approving the commit accidentally approves the push
+- NEVER combine `git commit` and `git push` in the same bash command — user approving the commit accidentally approves the push. Push separately if needed.
 - NEVER use bash interpolation, subshells, or variables in commit messages — `$(...)`, backticks, and `$VAR` trigger permission prompts and defeat autocommit. Use plain string `-m "message"` only.
 - NEVER modify files outside declared task scope
 - NEVER fix bad output directly — reset and fix the spec

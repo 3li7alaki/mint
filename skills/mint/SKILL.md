@@ -1341,3 +1341,79 @@ How do you want to proceed?
 - Clean up worktree
 
 The stop file is single-use — once consumed, agents run normally until a new stop is created.
+
+---
+
+## Agent Control — Freeze / Guard / Unfreeze
+
+Protect files and directories from modification. The pre-edit hook **blocks** (not warns)
+writes to frozen/guarded paths. Agents see the block reason and must adjust their approach.
+
+### Commands
+
+- `/freeze <path>` — freeze a file or directory. Agent cannot Edit/Write to it.
+- `/freeze <glob>` — freeze by pattern: `/freeze src/**/*.test.ts`
+- `/guard <path> <reason>` — freeze + explain why. Agent sees the reason in the block message.
+- `/unfreeze <path>` — remove freeze/guard from a specific path.
+- `/unfreeze --all` — remove all freezes/guards.
+
+### How it works
+
+Freezes are stored in `.mint/.freeze-list.json` (gitignored, session-scoped):
+
+```json
+{
+  "entries": [
+    { "path": "src/auth/", "type": "freeze", "reason": null, "frozenAt": "ISO-8601" },
+    { "path": "package.json", "type": "guard", "reason": "no new deps without discussion", "frozenAt": "ISO-8601" }
+  ]
+}
+```
+
+The pre-edit hook reads this file on every Edit/Write and blocks if the target path matches.
+Matching rules:
+- Exact file match: `/freeze src/auth/middleware.ts` blocks that file
+- Directory match: `/freeze src/auth/` blocks all files under that directory
+- Glob match: `/freeze src/**/*.test.ts` blocks all test files under src
+
+### Orchestrator behavior
+
+When the user says `/freeze`, `/guard`, or `/unfreeze`:
+
+**`/freeze <path>`:**
+1. Resolve path relative to project root
+2. Read `.mint/.freeze-list.json` (create if doesn't exist)
+3. Add entry: `{ "path": "<resolved>", "type": "freeze", "reason": null, "frozenAt": "<now>" }`
+4. Write file back
+5. Announce: "Frozen: `<path>`. Agents cannot modify files matching this path."
+
+**`/guard <path> <reason>`:**
+1. Same as freeze but with `"type": "guard"` and `"reason": "<reason>"`
+2. Announce: "Guarded: `<path>` — <reason>. Agents will see this reason if they try to modify it."
+
+**`/unfreeze <path>`:**
+1. Read `.mint/.freeze-list.json`
+2. Remove entries matching the path
+3. Write file back
+4. Announce: "Unfrozen: `<path>`."
+
+**`/unfreeze --all`:**
+1. Delete `.mint/.freeze-list.json`
+2. Announce: "All freezes/guards removed."
+
+### Agent experience
+
+When an agent tries to Edit/Write a frozen file, the hook returns:
+
+```
+[mint] FROZEN: src/auth/middleware.ts is frozen. Use /unfreeze to remove.
+```
+
+Or for guarded files:
+
+```
+[mint] GUARDED: package.json — no new deps without discussion
+```
+
+The agent sees this as a tool call rejection and must adjust its approach — find an
+alternative path, skip that file, or ask the orchestrator to relay the blocker to the user.

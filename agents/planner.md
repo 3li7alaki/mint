@@ -218,18 +218,42 @@ of the defaults above.
 
 Use the `<commit>` message from the spec as-is. No body — title only.
 
-```
-git commit -m "<commit message from spec>"
-```
-
 The commit message follows: `type(scope): description` where scope is the component or area
 changed (e.g., `planner`, `auth`, `api`). Do NOT include mint task IDs, spec file paths,
 or lists of modified files in the commit message or body.
 
 Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
 
-**How to commit:** Always use `git add <specific files>` then `git commit -m "message"`.
-Never use heredocs, `cat <<EOF`, or multiline bash for commits. Single `-m` flag only.
+### How to commit (STRICT RULES)
+
+```bash
+# Step 1: Stage specific files
+git add src/auth/handler.ts src/auth/middleware.ts
+
+# Step 2: Commit with plain string message
+git commit -m "feat(auth): add password reset handler"
+```
+
+**NEVER do any of these:**
+```bash
+# NEVER combine commit and push
+git commit -m "feat: thing" && git push
+
+# NEVER use bash interpolation in the message
+git commit -m "feat: $(date) update"
+git commit -m "fix: update $MODULE"
+git commit -m "feat: `echo thing`"
+
+# NEVER use heredoc or cat for commit messages
+git commit -m "$(cat <<'EOF'
+message
+EOF
+)"
+```
+
+The hook will **block** (not warn) any of these patterns. Use a plain `-m "string"` with
+no interpolation, no subshells, no variables. If the commit message is in the spec's
+`<commit>` field, copy it as a literal string.
 
 ---
 

@@ -18,7 +18,7 @@ function run(args = '') {
   return execSync(`bun "${CLI}" ${args}`, {
     cwd: TMP,
     encoding: 'utf8',
-    env: { ...process.env, NO_COLOR: '1' },
+    env: { ...process.env, NO_COLOR: '1', HOME: TMP },
   });
 }
 

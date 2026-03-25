@@ -122,6 +122,15 @@ These are non-negotiable. Violating any of these is a failure.
 - Subagents return **concise summaries only** — never full transcripts
 - Subagents write artifacts to disk (`.mint/`) so nothing is lost when they exit
 
+### User message awareness
+
+- **NEVER go silent between steps.** Always output a brief status message between dispatching
+  agents. This is how Claude Code checks for queued user messages — text output yields control.
+- After each subagent returns and before dispatching the next, output status: what completed,
+  what's next. This gives the user a chance to redirect, add context, or stop.
+- If the user typed something while an agent was running, it will surface after your status
+  output. Read it, process it, adjust if needed, then continue.
+
 ### Delegation
 
 - Each subagent gets **one job** with a clear deliverable
@@ -286,6 +295,27 @@ For each wave:
 - If any spec in a wave fails → retry that spec (per retry protocol). Other passed specs
   in the wave are not affected. Failed spec retries in the same wave position.
 - After the wave completes, run any shared gates if not isolated (see gate ledger, future)
+
+**MANDATORY: Status output between every step.** The orchestrator MUST output a brief status
+message between every major step — between specs, between waves, between review stages, between
+pipeline phases. Examples:
+
+- "Wave 1/3 complete (001, 002 passed). Starting wave 2..."
+- "Spec 003 implemented. Running gates..."
+- "Stage 1 review passed. Dispatching stage 2 reviewers..."
+- "All specs complete. Running final verification..."
+
+**Why this matters:** Claude Code checks for queued user messages when the assistant produces
+text output. If the orchestrator goes silent while dispatching agents, the user's typed messages
+sit unread in the queue. By always outputting status, the orchestrator naturally yields to check
+for user input. If the user typed something (a correction, an addition, a "wait stop"), it gets
+surfaced at the next status checkpoint.
+
+After outputting status and before dispatching the next step, if the user has responded:
+- **Correction** ("not that approach") → adjust remaining specs or re-plan
+- **Addition** ("also add X") → note it, incorporate in remaining specs or queue as follow-up
+- **Stop** ("wait" / "hold on") → pause execution, await direction
+- **Unrelated** → acknowledge briefly, continue
 
 **For each spec in a wave (parallel or sequential):**
 

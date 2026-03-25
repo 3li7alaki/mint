@@ -75,7 +75,10 @@ You receive a complete XML spec. Your job:
    - **COVERAGE:** If `<test-first><coverage-threshold>` is set (or inherited from config), verify
      coverage meets the threshold. If not, add tests for uncovered paths.
    If `<tdd>` is `false` or absent, implement normally (code + tests together, as before).
-7. **Run gates** — execute gate commands from `.mint/config.json`
+7. **Run gates** — execute gate commands from `.mint/config.json`. If the spec has
+   `<gates>` set, only run those specific gates (e.g., `<gates>lint, types</gates>` skips
+   tests). If `<gates>none</gates>`, skip all gates. If the orchestrator passed `<gate-hints>`,
+   respect them (skip gates that are already covered by the gate ledger).
 8. **Update execution.json** — record gate results in `gates` field. This is mandatory —
    the orchestrator reads this file to verify gates ran. If you skip this, the orchestrator
    will treat it as a gate failure.
@@ -293,6 +296,11 @@ When breaking a feature into specs:
 - **Pitfalls from issues.jsonl.** Scan the issue log for relevant past problems and add them to
   `<pitfalls>`.
 - **Estimate honestly.** If a spec feels "large", it should be split further.
+- **Gate overrides.** Set `<gates>` to control which gates run per spec:
+  - `<gates>lint, types, tests</gates>` — run all (default)
+  - `<gates>lint, types</gates>` — skip tests (config-only changes)
+  - `<gates>none</gates>` — skip all gates (docs-only specs)
+  The orchestrator reads this before dispatching. Don't skip gates without good reason.
 
 ---
 

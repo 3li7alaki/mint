@@ -9,7 +9,7 @@
     {
       "name": "mint",
       "description": "Disciplined agentic development \u2014 auto-routing orchestrator with XML specs, atomic commits, multi-stage review, and plugin system",
-      "version": "0.6.9",
+      "version": "0.7.0",
       "source": "./",
       "author": {
         "name": "Ali AlHalaki",

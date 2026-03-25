@@ -244,9 +244,50 @@ before proceeding to execution. This is a hard gate — not optional.
 This gate exists because agents can silently skip spec creation and jump straight to
 implementation, bypassing the entire review pipeline.
 
-### 3. Execute each spec
+### 3. Build dependency graph and execute in waves
 
-For each spec (sequenced by `<depends-on>`):
+Instead of executing specs sequentially, the orchestrator builds a dependency graph from
+`<depends-on>` fields and groups independent specs into parallel waves.
+
+**Step 3a: Build the graph**
+
+1. Read all spec XML files in `.mint/tasks/<slug>/`
+2. For each spec, parse `<id>` and `<depends-on>` (comma-separated IDs, or "none")
+3. Build a DAG (directed acyclic graph): edges from dependency → dependent
+4. Group specs into waves — a wave contains specs whose dependencies are ALL satisfied
+   (completed in a previous wave or have no dependencies)
+
+**Example:**
+```
+Specs: 001, 002, 003, 004, 005
+Dependencies: 003 depends on 001, 004 depends on 001, 005 depends on 003 and 004
+
+Wave 1: [001, 002]       ← no dependencies, run in parallel
+Wave 2: [003, 004]       ← both depend only on 001 (done in wave 1), run in parallel
+Wave 3: [005]            ← depends on 003 and 004 (done in wave 2)
+```
+
+**Step 3b: Report the execution plan**
+
+Before executing, show the user the wave plan:
+```
+Execution plan (3 waves):
+  Wave 1: [001] auth-types, [002] api-schema  (parallel)
+  Wave 2: [003] auth-handler, [004] api-routes  (parallel)
+  Wave 3: [005] integration-tests  (sequential — depends on 003, 004)
+```
+
+**Step 3c: Execute wave by wave**
+
+For each wave:
+- If the wave has **1 spec** → execute sequentially (same as before)
+- If the wave has **2+ specs** → dispatch all in parallel using parallel Agent calls
+- Wait for ALL specs in the wave to complete before starting the next wave
+- If any spec in a wave fails → retry that spec (per retry protocol). Other passed specs
+  in the wave are not affected. Failed spec retries in the same wave position.
+- After the wave completes, run any shared gates if not isolated (see gate ledger, future)
+
+**For each spec in a wave (parallel or sequential):**
 
 **Execution tracking (mandatory):** Before starting a spec, the orchestrator MUST:
 1. Create `.mint/tasks/<slug>/<spec-id>/execution.json` (see `templates/execution.json`)
@@ -257,6 +298,16 @@ For each spec (sequenced by `<depends-on>`):
 If `execution.json` is missing at any point, the orchestrator creates it. The orchestrator
 owns this file — agents update it, but the orchestrator is the final authority. If an agent
 returns without updating it, the orchestrator updates it based on the agent's return value.
+
+**Parallel spec safety:** When dispatching multiple specs in parallel:
+- Each spec gets its own `execution.json` (no conflicts — different directories)
+- If isolation is `"worktree"`: each spec runs in its own worktree (fully independent)
+- If isolation is `"none"` or `"branch"`: specs share the working directory. The planner
+  must set `activeSpec` per-agent (each agent's session state is independent). Scope
+  enforcement prevents specs from stepping on each other's files — specs in the same wave
+  MUST NOT have overlapping `<can-modify>` paths. The orchestrator verifies this before
+  dispatching: if two specs in the same wave share any `<can-modify>` paths, execute them
+  sequentially instead.
 
 **a) Implementation**
 - Set `execution.json` status to `running`, record `startedAt` and new attempt entry

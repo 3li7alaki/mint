@@ -1,5 +1,7 @@
 {
   "specId": "NNN",
+  "wave": null,
+  "parallelWith": [],
   "status": "pending",
   "attempts": [
     {

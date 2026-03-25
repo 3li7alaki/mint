@@ -35,16 +35,21 @@ Plus: `.mint/config.json` and `.mint/hard-blocks.md`
 
 ### Phased tasks
 
-For each phase, apply full planner logic with verification:
+For each phase, apply full planner logic with wave-based execution:
 1. Decompose phase into XML specs (saved to `.mint/tasks/<phase-slug>/`)
 2. **Verify specs exist** — check `.mint/tasks/<phase-slug>/` contains `.xml` files before
    proceeding. If no specs were created, re-run decomposition with explicit instruction.
-3. Create `execution.json` for each spec before starting execution
-4. Execute each spec sequentially
-5. **After each spec:** verify `execution.json` was updated with gate results
-6. Run gates after every task — verify they passed before proceeding to next spec
-7. Commit atomically per spec (respect autocommit resolution from orchestrator)
-8. Run spec review after each spec — verify PASS before next spec
+3. **Build dependency graph** — parse `<depends-on>` from all specs, group into waves
+   (see SKILL.md "Build dependency graph and execute in waves" for algorithm)
+4. Create `execution.json` for each spec before starting execution
+5. **Execute wave by wave:**
+   - Wave with 1 spec → execute sequentially
+   - Wave with 2+ specs → dispatch in parallel (if scopes don't overlap)
+   - Wait for entire wave to complete before starting next wave
+6. **After each spec:** verify `execution.json` was updated with gate results
+7. Run gates after every task — verify they passed before proceeding
+8. Commit atomically per spec (respect autocommit resolution from orchestrator)
+9. Run spec review after each spec — verify PASS before next
 
 **Pace: careful** — after each phase, return to orchestrator with phase summary.
 Wait for user to say "continue" before next phase.

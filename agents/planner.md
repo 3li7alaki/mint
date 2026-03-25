@@ -272,7 +272,13 @@ When breaking a feature into specs:
 
 - **One spec, one outcome.** Each spec achieves exactly one thing.
 - **Max ~3 files per spec.** If a spec needs more, split it.
-- **Dependencies are explicit.** Use `<depends-on>` to declare ordering.
+- **Dependencies are explicit.** Use `<depends-on>` to declare ordering. Only add a dependency
+  when a spec truly needs another spec's output. Independent specs with no shared dependencies
+  run in parallel — more independence = faster execution.
+- **Non-overlapping scopes for parallel specs.** Specs that share no `<depends-on>` will run
+  in the same wave (parallel). Their `<can-modify>` lists MUST NOT overlap — if two specs
+  need the same file, one must depend on the other. The orchestrator blocks parallel dispatch
+  when scopes overlap, forcing sequential execution and losing the speed benefit.
 - **Context is complete.** Paste relevant code snippets into `<context>` — the executing agent
   should not need to hunt through the codebase.
 - **Steps are concrete.** Reference exact files, functions, line numbers. "Add validation" is bad.

@@ -109,6 +109,15 @@ try {
       await run(positional.slice(1), flags);
       break;
     }
+    case 'completions': {
+      const { generateBashCompletion, generateZshCompletion, installCompletions } = await import('./completions.js');
+      const sub = positional[1];
+      if (sub === 'bash') console.log(generateBashCompletion());
+      else if (sub === 'zsh') console.log(generateZshCompletion());
+      else if (sub === 'install') installCompletions();
+      else console.log('  Usage: mint completions bash|zsh|install');
+      break;
+    }
     case 'help':
     case '--help':
     case '-h':

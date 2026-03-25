@@ -1027,18 +1027,28 @@ Only dispatched when layer 1 detects a problem:
 
 ---
 
-## Resuming Interrupted Work
+## Resuming Interrupted Work (Stage-Aware)
 
 On startup (during Setup), scan `.mint/tasks/` for execution.json files with non-terminal status
-(`running`, `rewriting`). These are specs from a previous session that didn't finish.
+(`running`, `rewriting`, `interrupted`). These are specs from a previous session that didn't finish.
 
 If found:
 1. Present the list to the user: "Found N interrupted specs from a previous session:"
-   - For each: spec ID, title, status, last attempt result
+   - For each: spec ID, title, status, last attempt result, **last completed stage**
 2. Ask: "Resume these specs?" — user can pick which to resume or start fresh
-3. For resumed specs: continue from the last completed stage (use `execution.json` to determine
-   where it left off — e.g., if gates passed but reviews didn't, skip straight to review)
+3. For resumed specs: **skip to the next stage** based on execution.json state:
+
+   | execution.json state | Resume from |
+   |---------------------|-------------|
+   | `gates` all pass, no `reviews` | Stage 1 — spec review |
+   | `reviews.spec` = passed, no stage 2 | Stage 2 — parallel audit |
+   | Stage 2 has some results but BLOCKINGs | Fix BLOCKINGs, re-run failed reviewers |
+   | All reviews passed, no `completedAt` | Completion checklist (d.1-d.6) |
+   | `gates` failed | Re-dispatch planner to fix, then gates |
+   | `status` = `rewriting` | Spec was being rewritten — dispatch planner with rewritten spec |
+
 4. For skipped specs: set their `execution.json` status to `failed` with reason "abandoned"
+5. **Clear gate ledger** on resume — stale gate results from previous session are unreliable
 
 ---
 

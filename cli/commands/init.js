@@ -352,7 +352,7 @@ function writeFiles(mintDir, configPath, config) {
   // Add .mint state files to .gitignore
   const gitignorePath = path.join(path.dirname(mintDir), '.gitignore');
   const marker = '# mint local state';
-  const mintIgnore = `\n${marker}\n.mint/tasks/\n.mint/research/\n.mint/worktrees/\n.mint/plugins/\n.mint/ssh-cache.json\n.mint/.session-state.json\n.mint/.freeze-list.json\n`;
+  const mintIgnore = `\n${marker}\n.mint/tasks/\n.mint/research/\n.mint/worktrees/\n.mint/plugins/\n.mint/ssh-cache.json\n.mint/.session-state.json\n.mint/.freeze-list.json\n.mint/.browser-sessions.json\n`;
 
   let gitignore = '';
   try { gitignore = fs.readFileSync(gitignorePath, 'utf8'); } catch { /* no .gitignore yet */ }

@@ -663,16 +663,44 @@ Read `.mint/config.json` for browser settings:
 
 1. **Check plugin is enabled** — `browser.enabled` must be `true`
 2. **Pre-flight** — verify PinchTab is running at `browser.baseUrl` via `/health`
-3. **Route to agent:**
+3. **Load session cookies** — if `browser.persistSessions` is `true`:
+   a. Read `.mint/.browser-sessions.json`
+   b. Find the active session's cookies
+   c. Pass cookies to the browser agent for loading via `POST /cookies`
+4. **Route to agent:**
    - Debug tasks → `browser-debugger` agent
    - Everything else → `browser-runner` agent
-4. **Agent executes** — navigate, snapshot, act, verify loop via PinchTab HTTP API (curl)
-5. **Return result** — page state, extracted data, task confirmation, or debug report
+5. **Agent executes** — navigate, snapshot, act, verify loop via PinchTab HTTP API (curl)
+6. **Save session cookies** — if `browser.persistSessions` and agent returned cookies:
+   a. Read `.mint/.browser-sessions.json` (create if doesn't exist)
+   b. Update the active session's cookies with the agent's exported cookies
+   c. Write file back
+7. **Return result** — page state, extracted data, task confirmation, or debug report
+
+### Session management
+
+Browser sessions persist login state between tasks. Stored in `.mint/.browser-sessions.json`
+(gitignored):
+
+```json
+{
+  "activeSession": "default",
+  "sessions": {
+    "default": {
+      "cookies": [],
+      "savedAt": "ISO-8601",
+      "url": "http://localhost:3000"
+    }
+  }
+}
+```
 
 ### Graceful degradation
 
 If PinchTab is not running:
-- Return WARNING with start instructions: `pinchtab &`
+- Auto-start it (`pinchtab &`) if `browser.autoStart` is true
+- Poll for health (max 10s) — don't blind `sleep 3`
+- If still not running: return WARNING with start instructions
 - Never block the user's workflow
 - Suggest installing PinchTab if the binary is not found
 
@@ -682,6 +710,10 @@ Users can invoke browser operations directly:
 - `/browse <url> [task]` — navigate and interact
 - `/screenshot [url]` — capture page screenshot
 - `/scrape <url> [what]` — extract structured data
+- `/browser login <url>` — navigate, user logs in manually, mint saves session
+- `/browser sessions` — list saved sessions
+- `/browser switch <name>` — switch active session
+- `/browser clear` — wipe all saved sessions
 
 ---
 

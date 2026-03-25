@@ -2,7 +2,7 @@ import * as p from '@clack/prompts';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
-import { detectTool, detectContextMode, readJsonSafe, fileExists, ensureClaudeMd, getGlobalConfigPath, loadGlobalConfig, saveGlobalConfig, GLOBAL_KEYS } from '../lib/detect.js';
+import { detectTool, detectContextMode, readJsonSafe, fileExists, ensureClaudeMd, getGlobalConfigPath, loadGlobalConfig, saveGlobalConfig, GLOBAL_KEYS, registerProject, getRegisteredProjects } from '../lib/detect.js';
 
 // New core config keys added per version.
 const NEW_CONFIG_KEYS = [
@@ -116,8 +116,10 @@ const DEPS = {
 export async function run(positional = [], flags = {}) {
   const target = positional[0];
   const depsOnly = flags.deps || !!target;
-  // Only --yes makes it headless. Running from within Claude Code (piped stdin) is NOT headless.
-  const headless = flags.yes === true;
+  // Interactive = can show clack prompts (only when stdin is a TTY and --yes not passed)
+  // Smart = spawn claude -p for analysis (always when claude is available, regardless of TTY)
+  const interactive = process.stdin.isTTY && !flags.yes;
+  const headless = !interactive;
 
   p.intro(`\x1b[32m mint update${depsOnly ? ' deps' : ''} \x1b[0m`);
 
@@ -344,26 +346,39 @@ export async function run(positional = [], flags = {}) {
     }
   } catch { /* ignore */ }
 
-  // Smart update — Claude reads the project and applies config changes intelligently.
-  // Always runs when Claude is available and project has a config.
-  if (detectTool('claude') && !headless) {
-    const projectConfig = path.join(process.cwd(), '.mint', 'config.json');
-    if (readJsonSafe(projectConfig)) {
-      const s = p.spinner();
-      s.start('Running smart analysis (claude -p)...');
-      try {
-        const { smartUpdate } = await import('../lib/smart-session.js');
-        const analysis = await smartUpdate(process.cwd(), '0.6.x', version);
-        s.stop('Smart analysis complete');
-        if (analysis.success && analysis.result) {
-          console.log(`\n  \x1b[1mSmart recommendations for this project\x1b[0m\n`);
-          for (const line of analysis.result.split('\n')) {
-            if (line.trim()) console.log(`  ${line}`);
+  // ─── Register current project ───────────────────────────────────────────
+  const currentProjectConfig = path.join(process.cwd(), '.mint', 'config.json');
+  if (readJsonSafe(currentProjectConfig)) {
+    registerProject(process.cwd());
+  }
+
+  // ─── Smart update — all registered projects ───────────────────────────────
+  // Claude reads each project and applies context-aware config changes.
+  if (detectTool('claude') && !depsOnly) {
+    const projects = getRegisteredProjects();
+    if (projects.length > 0) {
+      p.log.info(`${projects.length} registered project${projects.length > 1 ? 's' : ''} found`);
+
+      for (const project of projects) {
+        const projName = path.basename(project.path);
+        const s = p.spinner();
+        s.start(`Smart update: ${projName}...`);
+        try {
+          const { smartUpdate } = await import('../lib/smart-session.js');
+          const analysis = await smartUpdate(project.path, '0.6.x', version);
+          if (analysis.success && analysis.result) {
+            s.stop(`${projName}: updated`);
+            // Show brief summary — first 3 lines of result
+            const lines = analysis.result.split('\n').filter(l => l.trim()).slice(0, 3);
+            for (const line of lines) {
+              console.log(`    \x1b[2m${line}\x1b[0m`);
+            }
+          } else {
+            s.stop(`${projName}: already optimal`);
           }
-          console.log('');
+        } catch (err) {
+          s.stop(`${projName}: smart update failed — ${err.message}`);
         }
-      } catch (err) {
-        s.stop(`Smart analysis failed: ${err.message}`);
       }
     }
   }

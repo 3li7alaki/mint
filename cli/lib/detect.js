@@ -33,6 +33,43 @@ const GLOBAL_KEYS = [
 
 export { GLOBAL_KEYS };
 
+// ─── Project registry (stored in global config) ─────────────────────────────
+
+/**
+ * Register a project in the global config's projects array.
+ * Called by `mint init` and `mint update`.
+ * @param {string} projectPath - absolute path to project root
+ */
+export function registerProject(projectPath) {
+  const config = loadGlobalConfig();
+  if (!config.projects) config.projects = [];
+
+  const absPath = path.resolve(projectPath);
+  const existing = config.projects.find(p => p.path === absPath);
+  if (existing) {
+    existing.lastSeen = new Date().toISOString();
+  } else {
+    config.projects.push({
+      path: absPath,
+      lastSeen: new Date().toISOString(),
+    });
+  }
+  saveGlobalConfig(config);
+}
+
+/**
+ * Get all registered projects.
+ * @returns {Array<{ path: string, lastSeen: string }>}
+ */
+export function getRegisteredProjects() {
+  const config = loadGlobalConfig();
+  return (config.projects || []).filter(p => {
+    // Only return projects that still exist
+    try { return fs.existsSync(path.join(p.path, '.mint', 'config.json')); }
+    catch { return false; }
+  });
+}
+
 export function mergeConfigs(globalConfig, projectConfig) {
   if (!globalConfig || Object.keys(globalConfig).length === 0) return projectConfig;
   if (!projectConfig) return null;

@@ -17,6 +17,7 @@ import {
   ensureClaudeMd,
   generateDocManifest,
   loadGlobalConfig,
+  registerProject,
 } from '../lib/detect.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -42,12 +43,12 @@ export async function run(flags = {}) {
   const cwd = process.cwd();
   const mintDir = path.join(cwd, '.mint');
   const configPath = path.join(mintDir, 'config.json');
-  // Only --yes makes it headless. Running from within Claude Code (piped stdin) is NOT headless.
-  const headless = flags.yes === true;
+  const interactive = process.stdin.isTTY && !flags.yes;
+  const headless = !interactive;
 
   // Smart init — Claude reads the project and configures mint perfectly.
-  // Falls back to generic detection only if Claude CLI isn't available.
-  if (detectTool('claude') && !headless) {
+  // Runs whenever Claude is available — headless or not. No prompts needed.
+  if (detectTool('claude') && !flags.yes) {
     p.intro('\x1b[32m mint init --smart \x1b[0m');
     const s = p.spinner();
     s.start('Analyzing project with Claude...');
@@ -279,6 +280,9 @@ export async function run(flags = {}) {
   });
 
   writeFiles(mintDir, configPath, config);
+
+  // Register this project in the global registry
+  registerProject(cwd);
 
   p.outro(`\x1b[32mmint configured!\x1b[0m Run \x1b[36mmint doctor\x1b[0m to verify.`);
 }

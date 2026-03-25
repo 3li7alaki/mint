@@ -9,7 +9,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.7.2 — Parallel execution. File freezing. Smart browser. Zero slop.
+> v0.7.3 — Parallel execution. File freezing. Smart browser. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 
@@ -33,7 +33,7 @@ mint config set --global k v    # set a global default
 mint config list                # show all available config keys with types and defaults
 mint doctor                     # health check — static checks + tiered output
 mint doctor --fix               # health check + Claude applies context-aware fixes
-mint update                     # update mint + Claude migrates project config intelligently
+mint update                     # update mint + Claude migrates ALL registered projects
 mint clean                      # remove stale worktrees from parallel execution
 ```
 
@@ -47,7 +47,7 @@ mint config set --global reviewers.security.model opus
 mint config set --global isolation.plan worktree
 ```
 
-Global config lives at `~/.mint/config.json`. Project config always overrides global.
+Global config lives at `~/.mint/config.json`. Project config always overrides global. Global config also tracks a **project registry** — every `mint init` registers the project, and `mint update` migrates all registered projects at once.
 
 ### Project Setup
 

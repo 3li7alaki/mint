@@ -161,7 +161,7 @@ These are non-negotiable. Violating any of these is a failure.
   can review and commit manually (or batch multiple specs into one commit).
 - **Never fix bad output.** If a subagent produces wrong code, diagnose root cause, fix the spec,
   rerun from scratch. Never patch the output.
-- **Fail twice → stop.** If the same spec fails gates twice, log to `.mint/issues.md` and escalate
+- **Fail twice → stop.** If the same spec fails gates twice, log to `.mint/issues.jsonl` and escalate
   to the user. Never attempt a third run with the same spec.
 - **Never push.** Agents commit only. The user reviews and pushes manually.
 
@@ -201,7 +201,7 @@ orchestrator skips verification, the feature is effectively disabled.
 | Stage 2 audit | All enabled reviewers dispatched, all returned results, no unresolved BLOCKINGs | Fix BLOCKINGs, re-run failed auditors (max 3 rounds) |
 | Doc-manifest | Tracked files checked against diff, documenter dispatched for matches | Dispatch documenter for missed sections |
 | Architectural change | Diff checked against critical file patterns, documenter dispatched | Dispatch documenter for matching trigger docs |
-| Win logging | `.mint/wins.md` updated on final spec success | Append win entry |
+| Win logging | `.mint/wins.jsonl` updated on final spec success | Append win entry |
 | DoD | All criteria verified via execution.json reads | Block completion until all criteria pass |
 | Session cleanup | `.mint/.session-state.json` deleted on task completion | Delete file |
 | Stop signal | Agent `interrupted` status triggers stop file consumption + user prompt | Consume stop file, update execution.json, prompt user |
@@ -224,7 +224,7 @@ This is the primary workflow for non-trivial tasks.
   - `"worktree"` — create worktree at `.mint/worktrees/<task-slug>`, work there
   - `"branch"` — create a feature branch, work in the main checkout
   - `"none"` — work directly on current branch, no isolation
-- Read `.mint/issues.md` for relevant past pitfalls
+- Read `.mint/issues.jsonl` for relevant past pitfalls
 - Check for resumable specs (see "Resuming Interrupted Work" below)
 
 ### 2. Decompose
@@ -242,7 +242,7 @@ before proceeding to execution. This is a hard gate — not optional.
 
 1. Check `.mint/tasks/<slug>/` exists and contains `.xml` files
 2. If **no XML files found** → the planner skipped spec creation. This is a failure:
-   - Log to `.mint/issues.md`: "spec-skip: planner returned without creating spec files for task <slug>"
+   - Log to `.mint/issues.jsonl`: "spec-skip: planner returned without creating spec files for task <slug>"
    - Re-dispatch planner with explicit instruction: "You MUST create XML spec files in
      `.mint/tasks/<slug>/`. Do not implement anything — only decompose and save specs."
    - If second attempt also produces no specs → escalate to user
@@ -382,7 +382,7 @@ Configurable via `config.parallel.concurrency` (default: 3) and `config.parallel
   - Read `execution.json` → confirm `gates` field is populated
   - If planner reported gates green + autocommit true: verify commit exists (`git log -1`)
   - If planner reported gates green + autocommit false: verify changes are staged (`git diff --cached`)
-  - If planner reported failure: verify `.mint/issues.md` was updated
+  - If planner reported failure: verify `.mint/issues.jsonl` was updated
   - Update `execution.json`: gate results in `gates`, commit hash in `commit` (or `null`)
 
 **a2) De-sloppify (orchestrator evaluates trigger)**
@@ -482,8 +482,8 @@ executes each step and verifies it completed. Do not skip any.
 
 **d.5) Log win**
 - If this is the LAST spec in the task AND all specs passed:
-  - Append to `.mint/wins.md`: Date, task slug, what pattern worked, why
-  - **Verify:** read `.mint/wins.md` to confirm the entry was added
+  - Append to `.mint/wins.jsonl`: Date, task slug, what pattern worked, why
+  - **Verify:** read `.mint/wins.jsonl` to confirm the entry was added
 - If not the last spec, skip (not a failure)
 
 **d.6) Session state cleanup (on final spec only)**
@@ -491,7 +491,7 @@ executes each step and verifies it completed. Do not skip any.
 - **Verify:** file no longer exists
 
 If spec failed and will be rewritten: set status to `rewriting`.
-If spec failed twice: set status to `failed`, log to `.mint/issues.md`.
+If spec failed twice: set status to `failed`, log to `.mint/issues.jsonl`.
 
 ### 3b. Spec Retry Protocol (orchestrator-driven)
 
@@ -500,7 +500,7 @@ The orchestrator — not the planner — drives retry logic. When a spec fails g
 **Step 1: Read and classify failure**
 1. Read the failure report from the subagent
 2. Read `execution.json` → check `attempts[]` count. If already 2 attempts → STOP, escalate
-3. Cross-reference `.mint/issues.md` for similar past failures (same files, similar patterns)
+3. Cross-reference `.mint/issues.jsonl` for similar past failures (same files, similar patterns)
 4. Diagnose root cause category:
    - `bad-spec` → spec was ambiguous, agent had to guess
    - `missing-context` → not enough info about existing code patterns or dependencies
@@ -522,7 +522,7 @@ Based on root cause:
 1. Update `execution.json`: status → `rewriting`, log the adjustment in `attempts[]`
 2. Save the rewritten spec XML to disk (overwrite the original `.xml` file)
 3. Dispatch fresh `mint-planner` with the rewritten spec + previous attempt's failure details
-4. If rewrite also fails → set status to `failed`, log to `.mint/issues.md`, escalate to user
+4. If rewrite also fails → set status to `failed`, log to `.mint/issues.jsonl`, escalate to user
 
 **Attempt tracking is enforced:** The orchestrator reads `execution.json` `attempts[]` length
 before every dispatch. Original attempt + one rewrite = two total. A third attempt is NEVER
@@ -535,7 +535,7 @@ After all specs complete, the orchestrator runs a final verification pass:
 1. **Read all execution.json files** — confirm every spec has status `passed`
 2. **Verify DoD** — for each spec, confirm all DoD criteria were met (see Completion check)
 3. **Verify doc-manifest** — confirm all stale sections were addressed (documenter dispatched)
-4. **Verify win logged** — if all specs passed, confirm `.mint/wins.md` has the new entry
+4. **Verify win logged** — if all specs passed, confirm `.mint/wins.jsonl` has the new entry
 5. **Verify session cleanup** — confirm `.mint/.session-state.json` was deleted
 6. **Present summary:**
    - Tasks, commits, gate results, doc updates, issues
@@ -932,10 +932,10 @@ If found:
 The orchestrator — not the planner — is responsible for providing learning context.
 Before dispatching the planner for decomposition, the orchestrator MUST:
 
-1. Read `.mint/issues.md` — include relevant past failures in the planner's context
-2. Read `.mint/wins.md` — include relevant successful patterns in the planner's context
-3. Read `.mint/patterns.md` — include promoted patterns in the planner's context
-4. If `config.instincts.enabled` is `true` (default): read `.mint/instincts.md` and include
+1. Read `.mint/issues.jsonl` — include relevant past failures in the planner's context
+2. Read `.mint/wins.jsonl` — include relevant successful patterns in the planner's context
+3. Read `.mint/patterns.jsonl` — include promoted patterns in the planner's context
+4. If `config.instincts.enabled` is `true` (default): read `.mint/instincts.jsonl` and include
    high-confidence instincts (confidence >= 3) in the planner's context
 
 The orchestrator passes this learning context to the planner as part of the dispatch.
@@ -954,12 +954,23 @@ become future guidance.
 ### Logging wins
 
 After a full task completes successfully (all specs passed, reviews done), the orchestrator
-logs a win to `.mint/wins.md`:
+appends a win to `.mint/wins.jsonl`:
 
-- **Date** — when the task completed
-- **Task** — the task slug or feature name
-- **Pattern** — what worked (e.g., "split API + UI into separate specs", "included type signatures in context")
-- **Why It Worked** — why this pattern led to success (e.g., "kept agent context focused", "prevented scope leak")
+```jsonl
+{"date":"2025-03-25","task":"auth-reset","pattern":"Split API + UI into separate specs","why":"Kept agent context focused, prevented scope leak"}
+```
+
+Similarly, failures are logged to `.mint/issues.jsonl`:
+
+```jsonl
+{"date":"2025-03-25","task":"auth-003","severity":"BLOCKING","issue":"Scope leak into shared utils","rootCause":"scope-leak","resolution":"Split into two specs","specFix":"Tighten can-modify"}
+```
+
+**JSONL format for all logs.** All learning files (issues, wins, patterns, instincts) use JSONL —
+one JSON object per line. Append-only, concurrent-safe, `grep`-able. Never read-parse-modify-write.
+To add an entry: `fs.appendFileSync(file, JSON.stringify(entry) + '\n')`.
+
+Agents can read with: `readJsonl(path)` or filter with: `queryJsonl(path, predicate)`.
 
 ### Doc-manifest as knowledge graph
 

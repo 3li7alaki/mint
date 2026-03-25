@@ -336,23 +336,33 @@ function writeFiles(mintDir, configPath, config) {
 
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
 
-  const files = {
+  // Create markdown files (hard-blocks is still markdown — it's human-authored, not machine-appended)
+  const mdFiles = {
     'hard-blocks.md': HARD_BLOCKS_TEMPLATE,
-    'issues.md': '# Mint Issues & Learnings\n\n_Centralized log. All agent blockers, root causes, and learnings go here._\n\n| Date | Task | Severity | Issue | Root Cause | Resolution | Spec Fix |\n|------|------|----------|-------|------------|------------|----------|\n',
-    'wins.md': '# Wins\n\n_Successful patterns. The planner reads this before writing specs._\n\n| Date | Task | Pattern | Why It Worked |\n|------|------|---------|---------------|\n',
   };
 
-  for (const [name, content] of Object.entries(files)) {
+  for (const [name, content] of Object.entries(mdFiles)) {
     const filePath = path.join(mintDir, name);
     if (!fileExists(filePath)) {
       fs.writeFileSync(filePath, content);
     }
   }
 
+  // Create JSONL files (machine-appended logs — concurrent-safe, grep-able)
+  const jsonlFiles = ['issues.jsonl', 'wins.jsonl', 'patterns.jsonl', 'instincts.jsonl'];
+  for (const name of jsonlFiles) {
+    const filePath = path.join(mintDir, name);
+    if (!fileExists(filePath)) {
+      fs.writeFileSync(filePath, '');
+    }
+  }
+
+  // Backwards compat: keep old .md files if they exist (migration happens in `mint update`)
+
   // Add .mint state files to .gitignore
   const gitignorePath = path.join(path.dirname(mintDir), '.gitignore');
   const marker = '# mint local state';
-  const mintIgnore = `\n${marker}\n.mint/tasks/\n.mint/research/\n.mint/worktrees/\n.mint/plugins/\n.mint/ssh-cache.json\n.mint/.session-state.json\n.mint/.freeze-list.json\n.mint/.browser-sessions.json\n`;
+  const mintIgnore = `\n${marker}\n.mint/tasks/\n.mint/research/\n.mint/worktrees/\n.mint/plugins/\n.mint/ssh-cache.json\n.mint/.session-state.json\n.mint/.freeze-list.json\n.mint/.browser-sessions.json\n.mint/.gate-ledger.jsonl\n`;
 
   let gitignore = '';
   try { gitignore = fs.readFileSync(gitignorePath, 'utf8'); } catch { /* no .gitignore yet */ }

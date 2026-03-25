@@ -25,12 +25,12 @@ You receive a feature description. Your job:
    - Check if an MCP server provides this capability
    - Decision: **adopt** (use existing) > **extend** (wrap existing) > **build** (write custom)
    - Note the decision in the spec's `<context>` so the executor knows why
-2. **Read `.mint/issues.md`** — find relevant past pitfalls
-3. **Read `.mint/wins.md`** — find successful patterns for similar tasks (decomposition strategies,
+2. **Read `.mint/issues.jsonl`** — find relevant past pitfalls
+3. **Read `.mint/wins.jsonl`** — find successful patterns for similar tasks (decomposition strategies,
    context techniques, scope decisions that worked well). Use wins to inform how you structure specs.
-3b. **Read `.mint/patterns.md`** — find promoted patterns (recurring successes and anti-patterns
+3b. **Read `.mint/patterns.jsonl`** — find promoted patterns (recurring successes and anti-patterns
    extracted from issues/wins). These are higher-confidence than individual log entries.
-3c. **Read `.mint/instincts.md`** (if it exists) — find auto-extracted project conventions
+3c. **Read `.mint/instincts.jsonl`** (if it exists) — find auto-extracted project conventions
    (import style, naming, test patterns, framework patterns). High-confidence instincts
    (confidence >= 3) should be treated as project conventions when writing new code. Use these
    to match existing patterns without having to scan every file.
@@ -83,7 +83,7 @@ You receive a complete XML spec. Your job:
    Use it directly. Do NOT re-resolve from session state or config.
 10. **If gates pass AND autocommit is true** → commit using `git commit -m "<commit message from spec>"` (title only, no body)
 11. **If gates pass AND autocommit is false** → skip commit, leave changes staged
-12. **If gates fail** → diagnose root cause, log to `.mint/issues.md`, update `execution.json`
+12. **If gates fail** → diagnose root cause, log to `.mint/issues.jsonl`, update `execution.json`
     with failure details, return failure report with root cause category
 13. **Return** commit hash + one-line summary, or failure report with root cause category
 
@@ -121,7 +121,7 @@ New code must look like it was written by the same person who wrote the existing
 
 - Only modify files listed in `<can-modify>`
 - If you discover you need to touch a file outside scope → **STOP**
-- Log to `.mint/issues.md`: "scope-leak: task NNN needs to modify X but scope doesn't allow it"
+- Log to `.mint/issues.jsonl`: "scope-leak: task NNN needs to modify X but scope doesn't allow it"
 - Return to orchestrator with the blocker
 
 ### Never patch output
@@ -134,14 +134,14 @@ If gates fail:
    - `scope-leak` — need to modify files outside scope
    - `environment` — missing dependency, broken config
    - `unknown-pattern` — codebase has a pattern you didn't know about
-3. Log to `.mint/issues.md` with the category and what the spec should have said
+3. Log to `.mint/issues.jsonl` with the category and what the spec should have said
 4. Fix the issue at the source (the spec or the approach), not by patching output
 5. Rerun from scratch
 
 ### Fail twice → stop
 
 If the same spec fails gates twice:
-- Log the blocker to `.mint/issues.md`
+- Log the blocker to `.mint/issues.jsonl`
 - Return to orchestrator: "Task NNN failed twice. Root cause: [category]. Escalating."
 - Do NOT attempt a third run
 
@@ -290,7 +290,7 @@ When breaking a feature into specs:
   `<test-first><edge-cases>`: null/undefined, empty values, boundary values, invalid input, error
   paths, race conditions, large data, special characters. Not all apply to every spec — pick the
   relevant ones.
-- **Pitfalls from issues.md.** Scan the issue log for relevant past problems and add them to
+- **Pitfalls from issues.jsonl.** Scan the issue log for relevant past problems and add them to
   `<pitfalls>`.
 - **Estimate honestly.** If a spec feels "large", it should be split further.
 
@@ -324,7 +324,7 @@ Tasks:
   [003] <title> — committed <hash>
 
 Gates: lint ✅ types ✅ tests ✅ (N passing)
-Issues: none | N open — see .mint/issues.md
+Issues: none | N open — see .mint/issues.jsonl
 Specs: .mint/tasks/<slug>/
 Execution tracking: .mint/tasks/<slug>/<id>/execution.json per spec
 ```
@@ -346,6 +346,6 @@ mint task NNN failed (attempt N/2)
 
 Root cause: <category>
 Issue: <description>
-Logged to: .mint/issues.md
+Logged to: .mint/issues.jsonl
 Spec fix needed: <what the spec should have said>
 ```

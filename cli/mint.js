@@ -33,6 +33,7 @@ function showHelp() {
   console.log('    \x1b[36mmint update\x1b[0m              Update mint to latest version');
   console.log('    \x1b[36mmint update --deps\x1b[0m       Update core deps (PinchTab, context-mode)');
   console.log('    \x1b[36mmint update <dep>\x1b[0m        Update one dep (pinchtab, context-mode)');
+  console.log('    \x1b[36mmint clean\x1b[0m               Remove stale worktrees from parallel execution');
   console.log('');
   console.log('  \x1b[1mExamples:\x1b[0m\n');
   console.log('    \x1b[2m$ mint init\x1b[0m');
@@ -86,6 +87,11 @@ try {
     }
     case 'update': {
       const { run } = await import('./commands/update.js');
+      await run(positional.slice(1), flags);
+      break;
+    }
+    case 'clean': {
+      const { run } = await import('./commands/clean.js');
       await run(positional.slice(1), flags);
       break;
     }

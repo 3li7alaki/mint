@@ -299,15 +299,35 @@ If `execution.json` is missing at any point, the orchestrator creates it. The or
 owns this file — agents update it, but the orchestrator is the final authority. If an agent
 returns without updating it, the orchestrator updates it based on the agent's return value.
 
-**Parallel spec safety:** When dispatching multiple specs in parallel:
+**Parallel execution modes:**
+
+| Isolation config | How parallel specs run | Merge strategy |
+|-----------------|----------------------|---------------|
+| `"worktree"` | **Separate Claude Code sessions** — each spec gets its own git worktree + its own `claude -p` process via `cli/lib/parallel.js`. Fully independent. No scope conflicts possible. | Merge worktree branches back after wave completes. |
+| `"none"` or `"branch"` | **Parallel Agent calls** — specs run as parallel subagents within the same session. Scope enforcement via hook prevents file conflicts. | Direct — all changes are in the same working directory. |
+
+**Worktree mode (recommended for parallel):**
+
+The orchestrator uses `cli/lib/parallel.js` to spawn isolated sessions:
+1. `createWorktree(projectRoot, slug)` — creates `.mint/worktrees/spec-NNN/` with its own branch
+2. Copies `.env` files and `.mint/` config into the worktree
+3. Spawns `claude -p` pointed at the worktree with the spec prompt
+4. Collects JSON results from each session
+5. Merges successful worktree branches back to the base branch
+6. Cleans up worktrees (or preserves on failure for debugging)
+
+Concurrency is limited (default: 3 parallel sessions) to avoid API rate limits and cost explosion.
+Configurable via `config.parallel.concurrency` (default: 3) and `config.parallel.maxBudgetPerSpec`
+(default: 5.0 USD).
+
+**Non-worktree mode safety:** When specs share the working directory:
 - Each spec gets its own `execution.json` (no conflicts — different directories)
-- If isolation is `"worktree"`: each spec runs in its own worktree (fully independent)
-- If isolation is `"none"` or `"branch"`: specs share the working directory. The planner
-  must set `activeSpec` per-agent (each agent's session state is independent). Scope
-  enforcement prevents specs from stepping on each other's files — specs in the same wave
-  MUST NOT have overlapping `<can-modify>` paths. The orchestrator verifies this before
-  dispatching: if two specs in the same wave share any `<can-modify>` paths, execute them
-  sequentially instead.
+- Scope enforcement prevents specs from stepping on each other's files
+- Specs in the same wave MUST NOT have overlapping `<can-modify>` paths
+- The orchestrator verifies this before dispatching: if two specs in the same wave share
+  any `<can-modify>` paths, execute them sequentially instead
+
+**Cleanup:** `mint clean` removes all stale worktrees from `.mint/worktrees/`.
 
 **a) Implementation**
 - Set `execution.json` status to `running`, record `startedAt` and new attempt entry

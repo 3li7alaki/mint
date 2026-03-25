@@ -42,7 +42,14 @@ A Claude Code skill (`SKILL.md`) + agent prompts (`agents/`) + CLI (`cli/`) + co
 |------|---------|
 | `SKILL.md` | Orchestrator brain — routing, execution flows, plugin loading |
 | `agents/*.md` | One prompt per agent — planner, reviewers, browser, researcher, etc. |
-| `cli/` | mint CLI — init, config, doctor, update |
+| `cli/` | mint CLI — init, config, doctor, update, clean |
+| `cli/lib/parallel.js` | Parallel spec execution — spawns isolated `claude -p` sessions in worktrees |
+| `cli/lib/worktree.js` | Git worktree lifecycle — create, merge, cleanup |
+| `cli/lib/jsonl.js` | JSONL utilities — append, read, query, migrate from markdown |
+| `cli/lib/schema.js` | Config validation schema — types, defaults, allowed values |
+| `cli/lib/errors.js` | Structured error formatting with actionable guidance |
+| `cli/lib/detect.js` | Stack, PM, gate auto-detection |
+| `cli/commands/clean.js` | `mint clean` — remove stale worktrees from parallel execution |
 | `tests/` | Test suite — `bun test` |
 | `references/` | PinchTab API docs, token strategy, context-mode API, context-mode strategy |
 | `agents/context-setup.md` | Context Mode setup agent — detection, installation, configuration |
@@ -51,14 +58,19 @@ A Claude Code skill (`SKILL.md`) + agent prompts (`agents/`) + CLI (`cli/`) + co
 | `~/.mint/config.json` | Global user defaults — reviewer models, autoCommit, TDD, isolation prefs |
 | `.mint/config.json` | Project config — gates, reviewers, browser, context, design, plugins |
 | `.mint/hard-blocks.md` | Immutable constraints agents can never violate |
-| `.mint/issues.md` | Failure log — planner reads before writing specs |
-| `.mint/instincts.md` | Auto-learned conventions — committed, shared knowledge |
-| `.mint/.session-state.json` | Session state — mint invocation, autocommit override, task info (gitignored) |
+| `.mint/issues.jsonl` | Failure log (JSONL) — planner reads before writing specs |
+| `.mint/wins.jsonl` | Success log (JSONL) — planner reads for patterns that worked |
+| `.mint/instincts.jsonl` | Auto-learned conventions (JSONL) — committed, shared knowledge |
+| `.mint/.session-state.json` | Session state — invocation, autocommit, active spec (gitignored) |
+| `.mint/.freeze-list.json` | Frozen/guarded file paths — pre-edit hook enforces (gitignored) |
+| `.mint/.browser-sessions.json` | Browser cookie persistence across tasks (gitignored) |
+| `.mint/.gate-ledger.jsonl` | Gate run tracking — prevents redundant lint/test runs (gitignored) |
 | `.mint/doc-manifest.json` | Doc tracking manifest — maps doc sections to code dependencies |
 | `commands/doc-setup.md` | Command to build doc-manifest for existing projects |
 | `templates/doc-manifest.json` | Doc-manifest template for new projects |
 | `templates/spec.xml` | XML spec schema — every task gets one |
-| `hooks/scripts/pre-edit-mint-check.cjs` | PreToolUse hook — warns if mint not invoked before file edits |
+| `hooks/scripts/pre-edit-mint-check.cjs` | PreToolUse hook — freeze/guard enforcement, scope enforcement, mint invocation check |
+| `hooks/scripts/pre-bash-git-push.cjs` | PreToolUse hook — blocks git push and bash interpolation in commits |
 | `scripts/bump.sh` | Version bump script — updates all version locations |
 | `docs/conventions.md` | File formats, naming, config schema, git strategy |
 | `docs/architecture.md` | System design, philosophy, isolation rules |

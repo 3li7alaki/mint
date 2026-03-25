@@ -675,6 +675,10 @@ architectural decisions, announce: "This is bigger than expected — switching t
 
 No worktree. No reviewers. No spec files. Just gates.
 
+**Quick mode still checks docs.** After commit (or after staged changes if no autocommit),
+check the doc-manifest: did the changed files match any tracked sections? If yes, dispatch
+the documenter. Quick doesn't mean docs get skipped — it means reviews get skipped.
+
 When context-mode is enabled, gate runs use `ctx_execute` to keep output sandboxed even in
 quick mode.
 

@@ -82,9 +82,63 @@ This prevents context pollution. An agent that builds up too much context makes 
 
 When workspace is configured, agents receive scoped workspace context relevant to their task — not the full workspace. The orchestrator decides what each agent needs to see.
 
+## Wave-Based Parallel Execution
+
+Specs don't execute sequentially. The orchestrator builds a dependency graph from `<depends-on>`
+fields and groups independent specs into waves:
+
+```
+Specs: 001, 002, 003, 004, 005
+Dependencies: 003→001, 004→001, 005→003+004
+
+Wave 1: [001, 002]       ← independent, run in parallel
+Wave 2: [003, 004]       ← both depend on 001 (done), parallel
+Wave 3: [005]            ← depends on 003+004 (done)
+```
+
+**Two parallel modes:**
+- **In-session** (`isolation: "none"`) — parallel Agent calls within one Claude Code session.
+  Scope enforcement prevents file conflicts between parallel specs.
+- **Multi-session** (`isolation: "worktree"`) — `cli/lib/parallel.js` spawns separate `claude -p`
+  processes, each in its own git worktree at `.mint/worktrees/<slug>`. Fully isolated.
+  `cli/lib/worktree.js` handles creation, env propagation, merge, and cleanup.
+
+**Safety:** Before dispatching parallel specs, the orchestrator verifies `<can-modify>` paths
+don't overlap. Overlapping scopes → forced sequential execution.
+
+**Concurrency:** Configurable via `config.parallel.concurrency` (default: 3) and
+`config.parallel.maxBudgetPerSpec` (default: $5 USD).
+
+## File Freezing
+
+Runtime file protection via `/freeze`, `/guard`, `/unfreeze` commands. The pre-edit hook
+reads `.mint/.freeze-list.json` and **hard-blocks** writes to matching paths.
+
+- `/freeze src/auth/` — blocks all writes under that directory
+- `/guard package.json "no new deps"` — blocks + shows reason to agents
+- Supports exact files, directories, and glob patterns (`src/**/*.test.ts`)
+- Session-scoped — clears on task completion
+- Agents see the block reason and must adjust their approach
+
+## Scope Enforcement
+
+Every spec declares `<can-modify>` paths. The pre-edit hook reads the active spec from
+session state and blocks writes outside scope. This is preventive (blocks before the write)
+not reactive (catches after the fact).
+
+## Risk Self-Regulation (WTF-Likelihood)
+
+The orchestrator tracks a cumulative risk score during execution. Gate failures (+10%),
+spec rewrites (+15%), out-of-scope file modifications (+20%) all escalate the score.
+At 25% the orchestrator warns; at 50% it stops. Hard cap: 30 fix attempts across all specs.
+
+This catches the pattern where nothing is working well but individual failures don't
+trigger the 2-attempt limit.
+
 ## Review Pipeline
 
-Two stages, by design:
+Two stages, by design. **Review intensity scales by diff size** — small diffs (<30 lines) get
+spec review only. Large diffs (300+ lines) get full review with model escalation.
 
 **Stage 1 (sequential gate):** Spec reviewer. Must pass before anything else. Checks: does the implementation match what was asked? No extra code, no missing requirements, scope respected.
 
@@ -96,15 +150,25 @@ Why parallel? Because reviewers don't depend on each other. Quality review doesn
 
 ## Learning Loop
 
-Two complementary logs feed the planner:
+All learning logs use **JSONL** (JSON Lines) — one JSON object per line. Append-only,
+concurrent-safe (two agents appending simultaneously just add two lines), `grep`-able.
+No read-parse-modify-write cycle.
 
-**Instincts** (`.mint/instincts.md`) — auto-extracted by hooks observing every Edit/Write. Tracks import styles, naming conventions, test patterns, and framework usage. Confidence increases when the same pattern appears across multiple files. High-confidence instincts (>= 3) are treated as project conventions by the planner. Controlled by `config.instincts.enabled`.
+**Instincts** (`.mint/instincts.jsonl`) — auto-extracted by hooks observing every Edit/Write.
+Tracks import styles, naming conventions, test patterns, framework usage. Confidence increases
+with repetition. High-confidence (>= 3) are treated as project conventions.
 
-**Issue log** (`.mint/issues.md`) — tracks failures. Columns: Date, Task, Severity, Issue, Root Cause, Resolution, Spec Fix. Root cause categories: `bad-spec`, `missing-context`, `scope-leak`, `environment`, `hard-block`, `unknown-pattern`. Relevant issues become `<pitfalls>` in new specs.
+**Issue log** (`.mint/issues.jsonl`) — tracks failures with root cause categories (`bad-spec`,
+`missing-context`, `scope-leak`, `environment`, `hard-block`, `unknown-pattern`). Relevant
+issues become `<pitfalls>` in new specs.
 
-**Wins log** (`.mint/wins.md`) — tracks successes. Columns: Date, Task, Pattern, Why It Worked. Logged by the orchestrator after full task completion. Wins inform spec decomposition strategy.
+**Wins log** (`.mint/wins.jsonl`) — tracks successes and what patterns worked. Informs
+decomposition strategy.
 
-The planner reads both before creating new specs. Past mistakes become prevention. Past wins become guidance.
+**Patterns** (`.mint/patterns.jsonl`) — graduated from issues/wins when a pattern repeats 3+ times.
+
+The planner reads all four before creating new specs. Past mistakes become prevention.
+Past wins become guidance. JSONL utilities: `cli/lib/jsonl.js` (append, read, query, migrate).
 
 ## Documentation Intelligence
 
@@ -175,16 +239,20 @@ context-mode is an external dependency (ELv2 license). mint wraps it, never fork
 
 ## Hooks System
 
-Real-time Claude Code hooks provide instant feedback during development:
+Real-time Claude Code hooks provide instant feedback and enforcement:
 
+- **PreToolUse (Edit|Write)** — freeze/guard enforcement, spec scope enforcement, mint invocation check
+- **PreToolUse (Bash)** — git push blocker, bash interpolation in commit messages blocker
 - **PostToolUse (Edit)** — auto-format, typecheck, console.log warning
-- **PostToolUse (Edit|Write)** — quality gate (lint check)
-- **PreToolUse (Bash)** — git push safety reminder
+- **PostToolUse (Edit|Write)** — quality gate (lint check), instinct observation
 - **Stop** — cost tracking per session
 
+Pre-edit hooks return `decision: "block"` to prevent operations — not warnings. git push,
+frozen file writes, and out-of-scope writes are hard-blocked. Agents see the block reason
+and must adjust.
+
 Hooks are lightweight Node.js scripts in `hooks/scripts/`. They fire deterministically on every
-tool use — no probability, no skipping. Hook scripts are the one exception to mint's "no runtime"
-rule: they're standalone scripts with no dependencies beyond Node.js.
+tool use — no probability, no skipping.
 
 ## TDD Support
 

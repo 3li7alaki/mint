@@ -18,62 +18,62 @@ function run(args = '') {
   return execSync(`bun "${CLI}" ${args}`, {
     cwd: TMP,
     encoding: 'utf8',
-    env: { ...process.env, NO_COLOR: '1' },
+    env: { ...process.env, NO_COLOR: '1', HOME: TMP },
   });
 }
 
 describe('mint doctor', () => {
-  test('reports missing config', () => {
+  test('reports missing config as critical', () => {
     const output = run('doctor');
     expect(output).toContain('missing');
+    expect(output).toContain('critical');
   });
 
-  test('reports valid config after init', () => {
+  test('no critical issues after init with git', () => {
+    execSync('git init', { cwd: TMP, stdio: 'pipe' });
     run('init --yes');
-    const output = run('doctor');
-    expect(output).toContain('config.json valid');
+    const output = run('doctor --quick');
+    expect(output).not.toContain('CRITICAL');
   });
 
-  test('reports hard-blocks present', () => {
+  test('reports not a git repo as critical', () => {
     run('init --yes');
-    const output = run('doctor');
-    expect(output).toContain('hard-blocks.md present');
-  });
-
-  test('reports browser enabled', () => {
-    run('init --yes');
-    const output = run('doctor');
-    expect(output).toContain('Browser: enabled');
-  });
-
-  test('does not report browser when disabled', () => {
-    run('init --yes --browser false');
-    const output = run('doctor');
-    expect(output).not.toContain('Browser: enabled');
-  });
-
-  test('reports not a git repository', () => {
-    run('init --yes');
-    const output = run('doctor');
+    const output = run('doctor --quick');
     expect(output).toContain('Not a git repository');
   });
 
-  test('reports git initialized when .git exists', () => {
+  test('does not report browser warning when disabled', () => {
+    execSync('git init', { cwd: TMP, stdio: 'pipe' });
+    run('init --yes --browser false');
+    const output = run('doctor --quick');
+    expect(output).not.toContain('PinchTab');
+  });
+
+  test('shows tiered output with summary', () => {
+    run('init --yes');
+    const output = run('doctor --quick');
+    // Should have some output categories
+    expect(output).toMatch(/critical|warning|info|healthy/i);
+  });
+
+  test('quick mode skips gate execution', () => {
     execSync('git init', { cwd: TMP, stdio: 'pipe' });
     run('init --yes');
-    const output = run('doctor');
-    expect(output).toContain('Git initialized');
+    // Quick should be fast — no gate timeouts
+    const start = Date.now();
+    run('doctor --quick');
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(5000); // Should be < 5s without gates
   });
 
-  test('reports doc-manifest after init', () => {
+  test('--fix repairs missing learning files', () => {
+    execSync('git init', { cwd: TMP, stdio: 'pipe' });
     run('init --yes');
-    const output = run('doctor');
-    expect(output).toContain('Doc-manifest');
-  });
-
-  test('shows summary counts', () => {
-    run('init --yes');
-    const output = run('doctor');
-    expect(output).toMatch(/\d+ passed/);
+    // Delete a learning file
+    fs.unlinkSync(path.join(TMP, '.mint', 'issues.jsonl'));
+    const output = run('doctor --fix --quick');
+    expect(output).toContain('fixed');
+    // File should be restored
+    expect(fs.existsSync(path.join(TMP, '.mint', 'issues.jsonl'))).toBe(true);
   });
 });

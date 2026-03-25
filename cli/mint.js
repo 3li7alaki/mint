@@ -34,6 +34,10 @@ function showHelp() {
   console.log('    \x1b[36mmint update --deps\x1b[0m       Update core deps (PinchTab, context-mode)');
   console.log('    \x1b[36mmint update <dep>\x1b[0m        Update one dep (pinchtab, context-mode)');
   console.log('    \x1b[36mmint clean\x1b[0m               Remove stale worktrees from parallel execution');
+  console.log('    \x1b[36mmint status\x1b[0m              Quick health check (instant, no gate runs)');
+  console.log('    \x1b[36mmint plugin list\x1b[0m         Browse available plugins');
+  console.log('    \x1b[36mmint plugin add <name>\x1b[0m   Install a plugin');
+  console.log('    \x1b[36mmint plugin info <name>\x1b[0m  Plugin details');
   console.log('');
   console.log('  \x1b[1mExamples:\x1b[0m\n');
   console.log('    \x1b[2m$ mint init\x1b[0m');
@@ -92,6 +96,16 @@ try {
     }
     case 'clean': {
       const { run } = await import('./commands/clean.js');
+      await run(positional.slice(1), flags);
+      break;
+    }
+    case 'status': {
+      const { run } = await import('./commands/status.js');
+      await run(positional.slice(1), flags);
+      break;
+    }
+    case 'plugin': {
+      const { run } = await import('./commands/plugin.js');
       await run(positional.slice(1), flags);
       break;
     }

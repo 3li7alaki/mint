@@ -9,353 +9,237 @@ export async function run(flags = {}) {
   const mintDir = path.join(cwd, '.mint');
   const configPath = path.join(mintDir, 'config.json');
   const autoFix = flags.fix || false;
+  const quick = flags.quick || false;
 
-  p.intro(`\x1b[32m mint doctor${autoFix ? ' --fix' : ''} \x1b[0m`);
+  p.intro(`\x1b[32m mint doctor${autoFix ? ' --fix' : ''}${quick ? ' --quick' : ''} \x1b[0m`);
 
-  let passed = 0, warnings = 0, failed = 0, fixed = 0;
+  const critical = [];  // Blocks work
+  const warns = [];     // Degrades quality
+  const info = [];      // Suggestions
+  let fixed = 0;
 
-  function ok(msg) { p.log.success(msg); passed++; }
-  function warn(msg) { p.log.warn(msg); warnings++; }
-  function fail(msg) { p.log.error(msg); failed++; }
+  function addCritical(msg, fix) { critical.push({ msg, fix }); }
+  function addWarn(msg, fix) { warns.push({ msg, fix }); }
+  function addInfo(msg) { info.push(msg); }
 
-  function fixable(msg, fixFn) {
-    if (autoFix) {
-      try {
-        fixFn();
-        p.log.success(`${msg} — fixed`);
-        fixed++;
-      } catch (e) {
-        p.log.error(`${msg} — fix failed: ${e.message}`);
-        failed++;
-      }
-    } else {
-      warn(`${msg} — run with --fix to repair`);
+  function tryFix(issue) {
+    if (!autoFix || !issue.fix) return false;
+    try {
+      issue.fix();
+      fixed++;
+      return true;
+    } catch {
+      return false;
     }
   }
 
+  // ─── Critical checks (blocks work) ──────────────────────────────────────
+
   // Config
-  if (fileExists(configPath) && readJsonSafe(configPath)) ok('.mint/config.json valid');
-  else fail('.mint/config.json missing or invalid');
-
-  // Global config
-  const globalConfigPath = getGlobalConfigPath();
-  const globalConfig = loadGlobalConfig();
-  if (fileExists(globalConfigPath) && Object.keys(globalConfig).length > 0) {
-    const keys = Object.keys(globalConfig).filter(k => GLOBAL_KEYS.includes(k));
-    ok(`Global config: ${keys.length} preference${keys.length !== 1 ? 's' : ''} set (${keys.join(', ')})`);
-  } else {
-    p.log.info('Global config: not set — use \x1b[36mmint config set --global\x1b[0m to set user defaults');
+  if (!fileExists(configPath) || !readJsonSafe(configPath)) {
+    addCritical('.mint/config.json missing or invalid — run mint init');
   }
-
-  // Hard blocks
-  if (fileExists(path.join(mintDir, 'hard-blocks.md'))) ok('.mint/hard-blocks.md present');
-  else warn('.mint/hard-blocks.md missing');
 
   const config = readJsonSafe(configPath) || {};
 
-  // Stack
-  const detected = detectStack(cwd);
-  if (config.stack && config.stack !== 'none' && detected !== 'none' && config.stack !== detected) {
-    warn(`Stack: config=${config.stack}, detected=${detected}`);
-  } else {
-    ok(`Stack: ${config.stack || 'none'}`);
+  // Hard blocks
+  if (!fileExists(path.join(mintDir, 'hard-blocks.md'))) {
+    addCritical('.mint/hard-blocks.md missing', () => {
+      fs.writeFileSync(path.join(mintDir, 'hard-blocks.md'),
+        '# Hard Blocks — What Agents Can NEVER Do\n\n## Universal\n- NEVER `git push`\n- NEVER modify files outside declared task scope\n- NEVER fix bad output directly — reset and fix the spec\n- NEVER continue after 2 failures on the same spec\n');
+    });
   }
 
-  // PM
-  ok(`Package manager: ${config.packageManager || 'none'}`);
-
-  // Gates
-  if (config.gates) {
-    function runGate(label, cmd) {
-      if (!cmd || cmd === false) return;
-      if (typeof cmd === 'string') {
-        try {
-          execSync(cmd, { cwd, stdio: 'ignore', timeout: 30000 });
-          ok(`Gate: ${label} — ${cmd}`);
-        } catch {
-          fail(`Gate: ${label} — ${cmd}`);
-        }
-      } else if (typeof cmd === 'object' && cmd.command) {
-        // { command: "...", threshold: 80 } format
-        runGate(label, cmd.command);
-      } else if (typeof cmd === 'object') {
-        // Nested sub-gates: { "api": "cmd1", "web": "cmd2" }
-        for (const [sub, subCmd] of Object.entries(cmd)) {
-          runGate(`${label}.${sub}`, subCmd);
-        }
+  // Gates (only run in non-quick mode)
+  if (!quick && config.gates) {
+    for (const [name, cmd] of Object.entries(config.gates)) {
+      if (!cmd || cmd === false) continue;
+      const command = typeof cmd === 'string' ? cmd : cmd.command;
+      if (!command) continue;
+      try {
+        execSync(command, { cwd, stdio: 'ignore', timeout: 30000 });
+      } catch {
+        addCritical(`Gate: ${name} fails — \`${command}\`\n    Fix: Run the command manually to see full output`);
       }
     }
-    for (const [name, cmd] of Object.entries(config.gates)) {
-      runGate(name, cmd);
+  }
+
+  // Bun
+  if (!detectTool('bun')) {
+    addCritical('Bun not installed — mint CLI requires Bun\n    Fix: curl -fsSL https://bun.sh/install | bash');
+  }
+
+  // Git
+  if (!fileExists(path.join(cwd, '.git'))) {
+    addCritical('Not a git repository — mint requires git');
+  }
+
+  // ─── Warning checks (degrades quality) ──────────────────────────────────
+
+  // Learning files — JSONL format (new) with backwards compat for .md (old)
+  const learningFiles = [
+    { name: 'issues', ext: 'jsonl' },
+    { name: 'wins', ext: 'jsonl' },
+    { name: 'patterns', ext: 'jsonl' },
+    { name: 'instincts', ext: 'jsonl' },
+  ];
+  for (const { name, ext } of learningFiles) {
+    const jsonlPath = path.join(mintDir, `${name}.${ext}`);
+    const mdPath = path.join(mintDir, `${name}.md`);
+    if (fileExists(jsonlPath)) {
+      // Good — using new format
+    } else if (fileExists(mdPath)) {
+      addWarn(`${name}.md exists but ${name}.jsonl doesn't — migrate to JSONL for concurrent-safe appending`, () => {
+        fs.writeFileSync(jsonlPath, '');
+        // Note: actual data migration happens via cli/lib/jsonl.js migrateMarkdownTableToJsonl
+      });
+    } else {
+      addWarn(`.mint/${name}.${ext} missing`, () => {
+        fs.writeFileSync(jsonlPath, '');
+      });
     }
   }
 
-  // Browser (core feature)
+  // Browser
   if (config.browser?.enabled) {
-    ok('Browser: enabled');
-    if (detectTool('pinchtab')) ok('PinchTab installed');
-    else warn('PinchTab not installed — run: curl -fsSL https://pinchtab.com/install.sh | sh');
+    if (!detectTool('pinchtab')) {
+      addWarn('Browser enabled but PinchTab not installed\n    Fix: curl -fsSL https://pinchtab.com/install.sh | sh');
+    }
   }
 
-  // Context Mode (core feature)
+  // Context Mode
   if (config.context?.enabled) {
-    ok('Context Mode: enabled');
-    if (detectContextMode()) ok('context-mode installed');
-    else warn('context-mode not installed — install via: claude mcp add context-mode -- npx -y context-mode');
-  } else {
-    warn('Context Mode: disabled — enable in .mint/config.json for sandboxed execution in large codebases');
+    if (!detectContextMode()) {
+      addWarn('Context Mode enabled but context-mode not installed\n    Fix: claude mcp add context-mode -- npx -y context-mode');
+    }
   }
 
-  // Design Intelligence (core feature)
+  // Design
   if (config.design?.enabled) {
-    ok('Design: enabled');
-    const reviewChecks = config.design.review || {};
-    const enabledChecks = Object.entries(reviewChecks).filter(([, v]) => v).map(([k]) => k);
-    ok(`Design checks: ${enabledChecks.join(', ') || 'none'}`);
     const profilePath = config.design.profile
       ? path.join(cwd, config.design.profile)
       : path.join(mintDir, 'design-profile.json');
-    if (fileExists(profilePath)) ok(`Design profile: ${config.design.profile || '.mint/design-profile.json'}`);
-    else warn('No design profile — run /design:profile build or it will auto-build on first UI task');
+    if (!fileExists(profilePath)) {
+      addWarn('Design enabled but no profile built\n    Fix: Run /design:profile build after you have UI code');
+    }
+  }
 
-    // Check for Impeccable (optional)
-    const hasImpeccable = fileExists(path.join(cwd, '.claude', 'skills', 'frontend-design', 'SKILL.md'))
-      || fileExists(path.join(process.env.HOME || '', '.claude', 'skills', 'frontend-design', 'SKILL.md'));
-    if (hasImpeccable) ok('Impeccable skill installed (steering commands available)');
+  // Reviewers
+  const importantReviewers = ['spec', 'quality', 'conventions'];
+  for (const name of importantReviewers) {
+    const rev = config.reviewers?.[name];
+    if (!rev || rev === false || (typeof rev === 'object' && !rev.enabled)) {
+      addWarn(`Reviewer disabled: ${name}\n    Why: ${name === 'spec' ? 'Spec compliance is the stage 1 gate' : name === 'security' ? 'OWASP top 10 checks won\'t run' : 'Quality checks skipped'}`);
+    }
+  }
+
+  // CLAUDE.md
+  const claudeMdPath = path.join(cwd, 'CLAUDE.md');
+  if (fileExists(claudeMdPath)) {
+    const claudeMd = fs.readFileSync(claudeMdPath, 'utf8');
+    if (!claudeMd.includes('<!-- mint:start')) {
+      addWarn('CLAUDE.md missing mint section — run mint init to add');
+    }
+  } else {
+    addWarn('CLAUDE.md not found — run mint init to create');
   }
 
   // Doc-manifest
   const manifestPath = path.join(mintDir, 'doc-manifest.json');
   if (fileExists(manifestPath)) {
     const manifest = readJsonSafe(manifestPath);
-    if (manifest && manifest.$schema === 'doc-manifest-v1') {
-      const docCount = manifest.docs?.length || 0;
-      const sectionCount = manifest.docs?.reduce((sum, d) => sum + (d.sections?.length || 0), 0) || 0;
-      ok(`Doc-manifest: ${docCount} docs, ${sectionCount} tracked sections`);
-
-      // Check that tracked doc files actually exist
-      for (const doc of manifest.docs || []) {
-        if (!fileExists(path.join(cwd, doc.path))) {
-          warn(`Doc-manifest: ${doc.path} listed but file not found`);
-        }
-      }
-    } else {
-      warn('Doc-manifest: invalid schema — expected doc-manifest-v1');
-    }
-  } else {
-    warn('Doc-manifest: not found — run mint init to generate, or create .mint/doc-manifest.json');
-  }
-
-  // Learning files
-  const issuesPath = path.join(mintDir, 'issues.md');
-  if (!fileExists(issuesPath)) {
-    fixable('.mint/issues.md missing', () => {
-      fs.writeFileSync(issuesPath, '# Mint Issues & Learnings\n\n_Centralized log. All agent blockers, root causes, and learnings go here._\n\n| Date | Task | Severity | Issue | Root Cause | Resolution | Spec Fix |\n|------|------|----------|-------|------------|------------|----------|\n');
-    });
-  } else {
-    ok('.mint/issues.md present');
-  }
-
-  const winsPath = path.join(mintDir, 'wins.md');
-  if (!fileExists(winsPath)) {
-    fixable('.mint/wins.md missing', () => {
-      fs.writeFileSync(winsPath, '# Wins\n\n_Successful patterns. The planner reads this before writing specs._\n\n| Date | Task | Pattern | Why It Worked |\n|------|------|---------|---------------|\n');
-    });
-  } else {
-    ok('.mint/wins.md present');
-  }
-
-  const instinctsPath = path.join(mintDir, 'instincts.md');
-  if (!fileExists(instinctsPath)) {
-    fixable('.mint/instincts.md missing', () => {
-      fs.writeFileSync(instinctsPath, '# Instincts\n\nAuto-extracted patterns from code observations. The planner reads this to match\nexisting project conventions. Confidence grows as patterns repeat across files.\n\n**High-confidence (>= 3):** Follow by default when writing new code.\n**Low-confidence (1-2):** Observed but not yet established — use judgment.\n\n| Category | Pattern | Files Seen | Confidence | Last Updated |\n|----------|---------|-----------|------------|--------------|\n');
-    });
-  } else {
-    ok('.mint/instincts.md present');
-  }
-
-  const patternsPath = path.join(mintDir, 'patterns.md');
-  if (!fileExists(patternsPath)) {
-    fixable('.mint/patterns.md missing', () => {
-      fs.writeFileSync(patternsPath, '# Patterns\n\n_Promoted from issues/wins. Higher confidence than individual log entries._\n\n| Pattern | Source | Confidence | Action |\n|---------|--------|------------|--------|\n');
-    });
-  } else {
-    ok('.mint/patterns.md present');
-  }
-
-  // Config completeness
-  const configChecks = [
-    { path: 'definitionOfDone', default: { gatesPassing: true, specReviewPassed: true, stage2ReviewsPassed: true, docCheckPassed: true, screenshotReminder: 'ui-changes' } },
-    { path: 'definitionOfDone.docCheckPassed', default: true },
-    { path: 'instincts', default: { enabled: true } },
-    { path: 'modelRouting', default: { enabled: true, override: {} } },
-    { path: 'tdd', default: { default: false, desloppify: true, coverageThreshold: 80 } },
-    { path: 'isolation', default: { plan: 'none', ship: 'none', quick: 'none' } },
-  ];
-
-  for (const check of configChecks) {
-    const parts = check.path.split('.');
-    let val = config;
-    for (const part of parts) {
-      val = val?.[part];
-    }
-    if (val === undefined) {
-      fixable(`Config missing: ${check.path}`, () => {
-        let target = config;
-        const pathParts = check.path.split('.');
-        for (let i = 0; i < pathParts.length - 1; i++) {
-          if (target[pathParts[i]] === undefined) target[pathParts[i]] = {};
-          target = target[pathParts[i]];
-        }
-        target[pathParts[pathParts.length - 1]] = check.default;
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
-      });
-    }
-  }
-
-  // Reviewer optimization
-  const importantReviewers = ['spec', 'quality', 'security', 'conventions'];
-  for (const name of importantReviewers) {
-    const rev = config.reviewers?.[name];
-    if (!rev || rev === false || (typeof rev === 'object' && !rev.enabled)) {
-      warn(`Reviewer disabled: ${name} — this is a key quality gate. Enable in config if possible.`);
-    }
-  }
-
-  for (const [name, val] of Object.entries(config.reviewers || {})) {
-    if (val === true) {
-      fixable(`Reviewer ${name}: enabled but no model assigned`, () => {
-        const defaults = { spec: 'opus', quality: 'sonnet', security: 'sonnet', conventions: 'haiku', tests: 'sonnet', business: 'opus', performance: 'sonnet' };
-        config.reviewers[name] = { enabled: true, model: defaults[name] || 'sonnet' };
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
-      });
-    }
-  }
-
-  // CLAUDE.md mint section
-  const claudeMdPath = path.join(cwd, 'CLAUDE.md');
-  if (fileExists(claudeMdPath)) {
-    let claudeMd = '';
-    try { claudeMd = fs.readFileSync(claudeMdPath, 'utf8'); } catch { /* */ }
-    if (claudeMd.includes('<!-- mint:start')) {
-      const versionMatch = claudeMd.match(/<!-- mint:start v(\d+) -->/);
-      const version = versionMatch ? versionMatch[1] : '0';
-      ok(`CLAUDE.md: mint section present (v${version})`);
-    } else {
-      warn('CLAUDE.md: missing mint section — run mint init to add it');
-    }
-  } else {
-    warn('CLAUDE.md: file not found — run mint init to create it with mint section');
-  }
-
-  // README signature
-  if (config.signature) {
-    const readmePath = path.join(cwd, 'README.md');
-    if (fileExists(readmePath)) {
-      const readme = fs.readFileSync(readmePath, 'utf8');
-      if (readme.includes('3li7alaki/mint">mint</a>')) {
-        ok('README: mint signature present');
-      } else {
-        fixable('README: signature enabled but not present', () => {
-          ensureReadmeSignature(cwd);
-        });
-      }
-    }
-  }
-
-  // Doc-manifest section quality
-  if (fileExists(manifestPath)) {
-    const manifestData = readJsonSafe(manifestPath);
-    if (manifestData?.docs) {
-      const emptySections = manifestData.docs.filter(d => !d.sections || d.sections.length === 0);
+    if (manifest?.docs) {
+      const emptySections = manifest.docs.filter(d => !d.sections || d.sections.length === 0);
       if (emptySections.length > 0) {
-        warn(`Doc-manifest: ${emptySections.length} docs with no tracked sections — run /doc-setup to populate`);
+        addWarn(`Doc-manifest: ${emptySections.length} docs with no tracked sections\n    Fix: Run /doc-setup to populate`);
       }
     }
   }
 
   // .gitignore completeness
   const gitignorePath = path.join(cwd, '.gitignore');
-  const requiredIgnores = ['.mint/tasks/', '.mint/research/', '.mint/worktrees/', '.mint/.session-state.json'];
+  const requiredIgnores = [
+    '.mint/tasks/', '.mint/research/', '.mint/worktrees/', '.mint/plugins/',
+    '.mint/.session-state.json', '.mint/.freeze-list.json', '.mint/.browser-sessions.json',
+    '.mint/.gate-ledger.jsonl',
+  ];
   if (fileExists(gitignorePath)) {
     const gi = fs.readFileSync(gitignorePath, 'utf8');
-    for (const ignore of requiredIgnores) {
-      if (!gi.includes(ignore)) {
-        fixable(`.gitignore missing: ${ignore}`, () => {
-          fs.appendFileSync(gitignorePath, `${ignore}\n`);
-        });
-      }
+    const missing = requiredIgnores.filter(i => !gi.includes(i));
+    if (missing.length > 0) {
+      addWarn(`.gitignore missing ${missing.length} mint entries`, () => {
+        fs.appendFileSync(gitignorePath, missing.map(i => i + '\n').join(''));
+      });
     }
   }
 
-  // Plugin hooks
-  const home = process.env.HOME || process.env.USERPROFILE || '';
-  const pluginJsonPaths = [
-    path.join(cwd, '.claude-plugin', 'plugin.json'),
-    path.join(home, '.mint', '.claude-plugin', 'plugin.json'),
-    path.join(home, '.claude', 'plugins', 'marketplaces', 'mint', '.claude-plugin', 'plugin.json'),
-  ];
-  for (const pjPath of pluginJsonPaths) {
-    if (fileExists(pjPath)) {
-      const pj = readJsonSafe(pjPath);
-      if (pj && !pj.hooks) {
-        fail(`plugin.json missing "hooks" field at ${pjPath} — hooks won't load. Add: "hooks": "./hooks/hooks.json"`);
-      } else if (pj && pj.hooks) {
-        ok('Plugin hooks declared in plugin.json');
-      }
-      break;
+  // ─── Info checks (suggestions) ──────────────────────────────────────────
+
+  // Global config
+  const globalConfig = loadGlobalConfig();
+  if (Object.keys(globalConfig).length === 0) {
+    addInfo('No global config — set user defaults with: mint config set --global');
+  }
+
+  // Stack detection
+  const detected = detectStack(cwd);
+  if (config.stack && detected !== 'none' && config.stack !== detected) {
+    addInfo(`Stack mismatch: config=${config.stack}, detected=${detected}`);
+  }
+
+  // Claude CLI
+  if (!detectTool('claude')) {
+    addInfo('Claude CLI not found — plugin features won\'t work');
+  }
+
+  // Signature (only inform if undefined, never nag if false)
+  if (config.signature === undefined) {
+    addInfo('Signature not configured — set config.signature to true/false');
+  }
+
+  // ─── Auto-fix ───────────────────────────────────────────────────────────
+
+  if (autoFix) {
+    for (const issue of [...critical, ...warns]) {
+      tryFix(issue);
     }
   }
 
-  // Plugins
-  const marketplaceDir = path.join(home, '.claude', 'plugins', 'marketplaces', 'mint');
+  // ─── Output (tiered) ───────────────────────────────────────────────────
 
-  for (const plugin of config.plugins || []) {
-    const name = path.basename(plugin);
-    const paths = [
-      path.join(cwd, plugin, 'manifest.json'),
-      path.join(marketplaceDir, plugin, 'manifest.json'),
-    ];
-
-    let found = false;
-    for (const mp of paths) {
-      if (fileExists(mp) && readJsonSafe(mp)) { found = true; break; }
-    }
-
-    if (found) {
-      ok(`Plugin: ${name}`);
-    } else {
-      fail(`Plugin: ${name} — manifest not found`);
+  if (critical.length > 0) {
+    console.log(`\n  \x1b[31mCRITICAL (blocks work)\x1b[0m`);
+    for (const issue of critical) {
+      const fixedTag = autoFix && issue.fix ? ' \x1b[34m— fixed\x1b[0m' : '';
+      console.log(`  \x1b[31m✗\x1b[0m ${issue.msg}${fixedTag}`);
     }
   }
 
-  // Tools
-  // Runtime tools
-  if (detectTool('bun')) {
-    try {
-      const bunVersion = execSync('bun --version', { encoding: 'utf8', timeout: 5000 }).trim();
-      ok(`Bun: ${bunVersion} (required for mint CLI)`);
-    } catch {
-      ok('Bun: installed (required for mint CLI)');
+  if (warns.length > 0) {
+    console.log(`\n  \x1b[33mWARNINGS (degrades quality)\x1b[0m`);
+    for (const issue of warns) {
+      const fixedTag = autoFix && issue.fix ? ' \x1b[34m— fixed\x1b[0m' : '';
+      console.log(`  \x1b[33m⚠\x1b[0m ${issue.msg}${fixedTag}`);
     }
-  } else {
-    fail('Bun not installed — mint CLI requires Bun. Install: curl -fsSL https://bun.sh/install | bash');
   }
 
-  if (detectTool('claude')) ok('Claude CLI installed');
-  else warn('Claude CLI not found');
+  if (info.length > 0) {
+    console.log(`\n  \x1b[2mINFO (suggestions)\x1b[0m`);
+    for (const msg of info) {
+      console.log(`  \x1b[2m○\x1b[0m ${msg}`);
+    }
+  }
 
-  if (fileExists(path.join(cwd, '.git'))) ok('Git initialized');
-  else warn('Not a git repository');
-
-  ok(`Node.js ${process.version}`);
+  if (critical.length === 0 && warns.length === 0) {
+    console.log(`\n  \x1b[32m✓ All checks passed\x1b[0m`);
+  }
 
   // Summary
   const parts = [];
-  if (passed) parts.push(`\x1b[32m${passed} passed\x1b[0m`);
-  if (warnings) parts.push(`\x1b[33m${warnings} warnings\x1b[0m`);
-  if (failed) parts.push(`\x1b[31m${failed} failed\x1b[0m`);
+  if (critical.length) parts.push(`\x1b[31m${critical.length} critical\x1b[0m`);
+  if (warns.length) parts.push(`\x1b[33m${warns.length} warnings\x1b[0m`);
+  if (info.length) parts.push(`\x1b[2m${info.length} info\x1b[0m`);
   if (fixed) parts.push(`\x1b[34m${fixed} fixed\x1b[0m`);
 
-  p.outro(parts.join(', '));
+  p.outro(parts.join(', ') || '\x1b[32mhealthy\x1b[0m');
 }

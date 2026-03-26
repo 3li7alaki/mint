@@ -16,6 +16,5 @@
     "review",
     "quality-gates",
     "plugins"
-  ],
-  "hooks": "./hooks/hooks.json"
+  ]
 }

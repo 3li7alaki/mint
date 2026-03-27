@@ -770,7 +770,7 @@ QUICK MODE PIPELINE:
   ──── output status ────
   Step 5: Doc-manifest check             → documenter agent (if needed)
   ──── output status ────
-  Step 6: Done                           → orchestrator
+  Step 6: Session cleanup + done          → orchestrator
 ```
 
 **Step 1:** Write an inline spec (not saved to disk):
@@ -794,12 +794,15 @@ QUICK MODE PIPELINE:
 - If no matches: announce "No tracked docs affected."
 - Output: "Docs: updated [file] (N sections)." or "Docs: no tracked files affected."
 
-**Step 6:** Done. Output summary.
+**Step 6:** Session cleanup + summary.
+- Delete `.mint/sessions/<session-id>.json` (task is done — clean slate for next task)
+- **Verify:** confirm the file no longer exists
+- Output summary.
 
 **Auto-escalation:** If during implementation you realize the task needs >3 files or has
 architectural decisions, announce: "This is bigger than expected — switching to plan mode."
 
-No worktree. No reviewers. No spec files. Just gates + docs.
+No worktree. No reviewers. No spec files. Just gates + docs + session cleanup.
 
 When context-mode is enabled, gate runs use `ctx_execute` to keep output sandboxed even in
 quick mode.

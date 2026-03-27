@@ -61,7 +61,10 @@ A Claude Code skill (`SKILL.md`) + agent prompts (`agents/`) + CLI (`cli/`) + co
 | `.mint/issues.jsonl` | Failure log (JSONL) — planner reads before writing specs |
 | `.mint/wins.jsonl` | Success log (JSONL) — planner reads for patterns that worked |
 | `.mint/instincts.jsonl` | Auto-learned conventions (JSONL) — committed, shared knowledge |
-| `.mint/.session-state.json` | Session state — invocation, autocommit, active spec (gitignored) |
+| `.mint/sessions/<id>.json` | Per-session state — invocation, autocommit, active spec (gitignored) |
+| `cli/lib/session.js` | Session state management — read, write, list, cleanup per-session files |
+| `cli/lib/atomic.js` | Atomic file write utilities — write-to-tmp + rename for concurrent safety |
+| `cli/lib/gitignore.js` | Gitignore management — entry-by-entry handling, no string concat bugs |
 | `.mint/.freeze-list.json` | Frozen/guarded file paths — pre-edit hook enforces (gitignored) |
 | `.mint/.browser-sessions.json` | Browser cookie persistence across tasks (gitignored) |
 | `.mint/.gate-ledger.jsonl` | Gate run tracking — prevents redundant lint/test runs (gitignored) |

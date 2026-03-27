@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { atomicWriteJsonSync } from './atomic.js';
 
 export function fileExists(filePath) {
   try { return fs.existsSync(filePath); }
@@ -20,9 +21,7 @@ export function loadGlobalConfig() {
 
 export function saveGlobalConfig(config) {
   const configPath = getGlobalConfigPath();
-  const dir = path.dirname(configPath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+  atomicWriteJsonSync(configPath, config);
 }
 
 // Keys that are user preferences (not project-specific)

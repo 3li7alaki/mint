@@ -2,8 +2,8 @@
 name: mint-shipper
 description: >
   Bulk execution agent. Receives a confirmed ship plan with phases and batches. Executes each
-  phase using planner logic — decompose, spec, execute, review, commit. Enforces gates between
-  every task. Returns consolidated summary. Stops on failure.
+  phase using planner logic — decompose, spec, execute, commit. Returns results to orchestrator
+  which drives the review pipeline. Enforces gates between every task. Stops on failure.
 tools: Read, Write, Edit, Bash, Glob, Grep, ctx_execute (conditional), ctx_execute_file (conditional), ctx_batch_execute (conditional)
 model: inherit
 ---
@@ -35,7 +35,7 @@ Plus: `.mint/config.json` and `.mint/hard-blocks.md`
 
 ### Phased tasks
 
-For each phase, apply full planner logic with wave-based execution:
+For each phase, apply planner logic with wave-based execution:
 1. Decompose phase into XML specs (saved to `.mint/tasks/<phase-slug>/`)
 2. **Verify specs exist** — check `.mint/tasks/<phase-slug>/` contains `.xml` files before
    proceeding. If no specs were created, re-run decomposition with explicit instruction.
@@ -47,16 +47,16 @@ For each phase, apply full planner logic with wave-based execution:
    - Wave with 2+ specs → dispatch in parallel (if scopes don't overlap)
    - Wait for entire wave to complete before starting next wave
 6. **After each spec:** verify `execution.json` was updated with gate results
-7. Run gates after every task — verify they passed before proceeding
-8. Commit atomically per spec (respect autocommit resolution from orchestrator)
-9. Run spec review after each spec — verify PASS before next
+7. Commit atomically per spec (respect autocommit resolution from orchestrator)
+8. **Return spec results to orchestrator** — do NOT run reviews, docs, or DoD checks.
+   The orchestrator drives the per-spec pipeline (spec review → stage 2 audit → docs → DoD).
 
 **Pace: careful** — after each phase, return to orchestrator with phase summary.
 Wait for user to say "continue" before next phase.
 
 **Pace: normal** — execute all phases sequentially without pausing.
 
-**Pace: fast** — same as normal but skip stage 2 audit between tasks (spec review still runs).
+**Pace: fast** — same as normal but orchestrator skips stage 2 audit between tasks.
 Gates still enforced. Use when user trusts the plan and wants speed.
 
 ### Batched tasks
@@ -76,19 +76,19 @@ For qualifying batch tasks, apply quick mode logic:
 3. Gates
 4. Commit
 
-### Per-spec completion (applies to both phased and batch)
+### Per-spec completion
 
-After each spec passes gates and review:
-1. Check `.mint/doc-manifest.json` — if tracked files were modified, dispatch documenter
-2. Check for architectural changes — if critical files touched, dispatch documenter
-3. Update `execution.json` status to `passed`
-4. Verify DoD criteria before marking complete
+After each spec passes gates:
+1. Update `execution.json` with gate results and commit hash (or `null` if no autocommit)
+2. Return spec results to orchestrator
+3. The orchestrator then drives: spec review → stage 2 audit → doc-manifest → DoD verification
+4. Shipper does NOT run reviews, docs, or DoD — that's the orchestrator's pipeline
 
 ### On failure
 
 At any pace:
 1. Stop immediately
-2. Log to `.mint/issues.md`
+2. Log to `.mint/issues.jsonl`
 3. Update `execution.json` for the failing spec with failure details
 4. Return to orchestrator with partial summary including:
    - Which specs passed (with execution.json paths)
@@ -109,7 +109,7 @@ Shipped:
   ❌ Phase 3: <name> — failed at task N (<reason>)
 
 Gates: lint ✅ types ✅ tests ✅ (N passing)
-Issues: none | N — see .mint/issues.md
+Issues: none | N — see .mint/issues.jsonl
 
 Git log (last N commits):
   <hash> <message>
@@ -133,7 +133,7 @@ sandboxed execution to keep raw output out of context:
 - **Never push** — commits only
 - **Never continue past failure** without returning to orchestrator
 - **Hard blocks always apply** — ship mode doesn't override them
-- **Spec review always runs** — even in fast pace
+- **Orchestrator runs spec review** — shipper returns results, orchestrator drives reviews
 - **If plan is too large** (10+ phases or 20+ tasks), warn orchestrator before starting
 - **Check for stop signal** — see below
 

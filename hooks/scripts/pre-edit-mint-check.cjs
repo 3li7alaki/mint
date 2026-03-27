@@ -107,14 +107,35 @@ process.stdin.on('end', () => {
 
     // ── Check 2: Spec scope enforcement ─────────────────────────────────
     // If a spec is being executed, block writes outside its <can-modify>
-    const sessionStatePath = path.join(mintDir, '.session-state.json');
+    // Session isolation: each session has its own state file in .mint/sessions/
     let mintInvoked = false;
     let sessionState = null;
-    try {
-      sessionState = JSON.parse(fs.readFileSync(sessionStatePath, 'utf8'));
-      mintInvoked = sessionState.mintInvoked === true;
-    } catch {
-      // No session state file — mint hasn't been invoked
+
+    const sessionsDir = path.join(mintDir, 'sessions');
+    const sessionId = process.env.CLAUDE_SESSION_ID;
+    if (sessionId) {
+      const sessionPath = path.join(sessionsDir, `${sessionId}.json`);
+      try {
+        sessionState = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+        mintInvoked = sessionState.mintInvoked === true;
+      } catch { /* no session file for this session */ }
+    }
+
+    // No CLAUDE_SESSION_ID — scan all session files for any active session
+    if (!sessionState) {
+      try {
+        const files = fs.readdirSync(sessionsDir).filter(f => f.endsWith('.json'));
+        for (const f of files) {
+          try {
+            const s = JSON.parse(fs.readFileSync(path.join(sessionsDir, f), 'utf8'));
+            if (s.mintInvoked) {
+              sessionState = s;
+              mintInvoked = true;
+              break;
+            }
+          } catch { /* skip invalid */ }
+        }
+      } catch { /* no sessions dir yet */ }
     }
 
     if (sessionState && sessionState.activeSpec) {

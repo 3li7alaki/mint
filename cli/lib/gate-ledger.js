@@ -125,6 +125,55 @@ export function recordGateResult(projectRoot, gate, options) {
 }
 
 /**
+ * Atomically claim a gate run and check if it's already covered.
+ *
+ * This combines recordGateStart + checkGateCoverage into a single operation
+ * to eliminate the race condition where two sessions both check "is gate running?",
+ * both see "no", and both start the same gate.
+ *
+ * Pattern: append "running" FIRST, then read the ledger. If we see another "running"
+ * entry for the same gate that isn't ours, we know we lost the race.
+ *
+ * @param {string} projectRoot
+ * @param {string} gate
+ * @param {object} options
+ * @param {string} options.startedBy - spec ID or agent name
+ * @param {string[]} [options.coveredSpecs]
+ * @param {string|null} [options.worktree]
+ * @returns {{ shouldRun: boolean, reason: string }}
+ */
+export function claimGateRun(projectRoot, gate, options) {
+  const ledgerPath = path.join(projectRoot, LEDGER_FILE);
+  const now = new Date();
+  const ourEntry = {
+    gate,
+    ranAt: now.toISOString(),
+    result: 'running',
+    startedBy: options.startedBy,
+    coveredSpecs: options.coveredSpecs || [],
+    worktree: options.worktree || null,
+  };
+
+  // Step 1: Claim our spot first (append is atomic)
+  appendJsonl(ledgerPath, ourEntry);
+
+  // Step 2: Now read and check — if someone else also claimed, accept duplicate
+  // This is intentionally lenient: occasional duplicate gate runs are harmless
+  // and vastly better than the old race condition where both sessions skip the gate
+  const coverage = checkGateCoverage(projectRoot, gate, {
+    worktree: options.worktree,
+    specIds: options.coveredSpecs,
+  });
+
+  // If already covered by a recent pass, our "running" entry is harmless noise
+  if (coverage.covered) {
+    return { shouldRun: false, reason: coverage.reason };
+  }
+
+  return { shouldRun: true, reason: `claimed gate run for ${gate}` };
+}
+
+/**
  * Clear the gate ledger (on session start or stop signal).
  * @param {string} projectRoot
  */

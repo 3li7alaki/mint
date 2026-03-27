@@ -3,6 +3,7 @@ import path from 'path';
 import { readJsonSafe, fileExists, loadGlobalConfig } from '../lib/detect.js';
 import { readJsonl } from '../lib/jsonl.js';
 import { listWorktrees } from '../lib/worktree.js';
+import { listSessions } from '../lib/session.js';
 
 export async function run(args = [], flags = {}) {
   const cwd = process.cwd();
@@ -82,12 +83,13 @@ export async function run(args = [], flags = {}) {
     console.log(`  Worktrees:  ${worktrees.length} active`);
   }
 
-  // Session
-  const sessionPath = path.join(mintDir, '.session-state.json');
-  if (fileExists(sessionPath)) {
-    const session = readJsonSafe(sessionPath);
-    if (session) {
-      console.log(`  Session:    ${c(session.mode)} — ${session.task || 'unknown task'}`);
+  // Sessions (per-session isolation)
+  const sessions = listSessions(cwd);
+  if (sessions.length > 0) {
+    console.log(`  Sessions:   ${sessions.length} active`);
+    for (const { id, state } of sessions) {
+      const shortId = id.length > 12 ? id.slice(0, 12) + '…' : id;
+      console.log(`              ${d(shortId)} ${c(state.mode)} — ${state.task || 'unknown task'}`);
     }
   }
 

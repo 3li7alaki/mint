@@ -76,5 +76,12 @@
     "enabled": false
   },
   "signature": true,
+  "repoMode": "solo",
+  "challenge": "auto",
+  "reviewScaling": true,
+  "parallel": {
+    "concurrency": 3,
+    "maxBudgetPerSpec": 5.0
+  },
   "plugins": []
 }

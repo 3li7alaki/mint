@@ -19,5 +19,9 @@ docs/plans/
 # mint config files are committed:
 # .mint/config.json — shared project settings
 # .mint/hard-blocks.md — rules everyone follows
-# .mint/issues.md — institutional knowledge
-.mint/.session-state.json
+# .mint/issues.md, issues.jsonl — institutional knowledge
+# .mint/wins.jsonl, patterns.jsonl, instincts.jsonl — learning logs
+.mint/sessions/
+.mint/.freeze-list.json
+.mint/.browser-sessions.json
+.mint/.gate-ledger.jsonl

@@ -62,7 +62,11 @@ Evaluate in this order:
 
 ### Write session state
 
-After routing (and before announcing), write `.mint/.session-state.json`:
+After routing (and before announcing), write session state to `.mint/sessions/<session-id>.json`:
+
+**Session ID resolution:** Use the `CLAUDE_SESSION_ID` environment variable (set automatically
+by Claude Code). If not available, generate a random ID (`local-<8 hex chars>`). The session ID
+is stable for the entire Claude Code session, so concurrent sessions each get their own file.
 
 ```json
 {
@@ -79,7 +83,7 @@ If the user included an autocommit flag (`--no-commit` or verbal "no commits"), 
 `autoCommitOverride` to `false` (or `true` for explicit commit). This file is read by hooks
 and agents — it's the coordination point for the session.
 
-**On task completion**, delete `.mint/.session-state.json` to reset for the next task.
+**On task completion**, delete `.mint/sessions/<session-id>.json` to reset for the next task.
 
 ### Announce the route
 
@@ -100,7 +104,7 @@ Before routing, scan the user's input for autocommit signals:
 - **Verbal:** "no autocommit", "don't commit", "no commits", "skip commits", "stop committing"
 - **Positive:** "autocommit on", "start committing", "commit after each"
 
-If detected, set `autoCommitOverride` in `.mint/.session-state.json` immediately. Announce once:
+If detected, set `autoCommitOverride` in the session state file immediately. Announce once:
 "Autocommit disabled for this session." — then never mention it again. The override persists for
 the entire plan/session across all specs.
 
@@ -122,14 +126,30 @@ These are non-negotiable. Violating any of these is a failure.
 - Subagents return **concise summaries only** — never full transcripts
 - Subagents write artifacts to disk (`.mint/`) so nothing is lost when they exit
 
-### User message awareness
+### User message awareness (critical — do not skip)
 
-- **NEVER go silent between steps.** Always output a brief status message between dispatching
-  agents. This is how Claude Code checks for queued user messages — text output yields control.
+Claude Code only checks for queued user messages when the assistant produces **text output**.
+If you dispatch agents back-to-back without outputting text between them, the user's messages
+sit unread until everything finishes. This makes the user feel ignored and unable to steer.
+
+**Hard rule: output text BEFORE every Agent tool call.** Not after — before. Even one short
+sentence is enough. This is what yields control and lets Claude Code surface queued messages.
+
+```
+✅ "Spec 001 passed. Dispatching spec 002..."  → [Agent call]
+✅ "Gates green. Running spec review..."        → [Agent call]
+✅ "Wave 1 done. Starting wave 2..."            → [Agent call]
+
+❌ [Agent call] → [Agent call] → [Agent call]   ← user is locked out
+❌ [Agent returns] → [Agent call]                ← no text = no message check
+```
+
 - After each subagent returns and before dispatching the next, output status: what completed,
   what's next. This gives the user a chance to redirect, add context, or stop.
 - If the user typed something while an agent was running, it will surface after your status
   output. Read it, process it, adjust if needed, then continue.
+- **Even in quick mode** — output brief status between implementation and gates, between gates
+  and commit. Quick doesn't mean silent.
 
 ### Asking the user (one decision per question)
 
@@ -191,7 +211,7 @@ Check `config.repoMode` (default: `"collaborative"`):
   works — a global default that individual specs can override. The planner MUST check this config
   before writing specs and set `<tdd>` accordingly.
 - **`autoCommit` control.** Autocommit is resolved in priority order:
-  1. **Session override** (`autoCommitOverride` in `.mint/.session-state.json`) — if the user said
+  1. **Session override** (`autoCommitOverride` in session state) — if the user said
      "no commits" or used `--no-commit`, this is `false` for all specs in the session. Once set,
      it persists — **never re-ask**.
   2. **Per-spec** (`<autoCommit>` field in spec XML) — `true`/`false` overrides for individual specs.
@@ -268,7 +288,7 @@ orchestrator skips verification, the feature is effectively disabled.
 | Architectural change | Diff checked against critical file patterns, documenter dispatched | Dispatch documenter for matching trigger docs |
 | Win logging | `.mint/wins.jsonl` updated on final spec success | Append win entry |
 | DoD | All criteria verified via execution.json reads | Block completion until all criteria pass |
-| Session cleanup | `.mint/.session-state.json` deleted on task completion | Delete file |
+| Session cleanup | `.mint/sessions/<session-id>.json` deleted on task completion | Delete file |
 | Stop signal | Agent `interrupted` status triggers stop file consumption + user prompt | Consume stop file, update execution.json, prompt user |
 | Learning loop | Issues/wins/patterns/instincts read and passed to planner context | Read files before dispatch |
 | Retry protocol | `attempts[]` length checked before re-dispatch, max 2 | Escalate to user on third attempt |
@@ -388,20 +408,18 @@ For each wave:
   in the wave are not affected. Failed spec retries in the same wave position.
 - After the wave completes, run any shared gates if not isolated (see gate ledger, future)
 
-**MANDATORY: Status output between every step.** The orchestrator MUST output a brief status
-message between every major step — between specs, between waves, between review stages, between
-pipeline phases. Examples:
+**MANDATORY: Text output before every Agent dispatch.** The orchestrator MUST output a brief
+status message BEFORE every Agent tool call — not after, BEFORE. This is not cosmetic. Claude
+Code polls for queued user messages only when the assistant produces text. No text = user is
+locked out. One sentence is enough:
 
 - "Wave 1/3 complete (001, 002 passed). Starting wave 2..."
 - "Spec 003 implemented. Running gates..."
 - "Stage 1 review passed. Dispatching stage 2 reviewers..."
 - "All specs complete. Running final verification..."
 
-**Why this matters:** Claude Code checks for queued user messages when the assistant produces
-text output. If the orchestrator goes silent while dispatching agents, the user's typed messages
-sit unread in the queue. By always outputting status, the orchestrator naturally yields to check
-for user input. If the user typed something (a correction, an addition, a "wait stop"), it gets
-surfaced at the next status checkpoint.
+If you find yourself about to call Agent without having output text since the last Agent
+returned — stop and output status first. This is a hard rule, not a suggestion.
 
 After outputting status and before dispatching the next step, if the user has responded:
 - **Correction** ("not that approach") → adjust remaining specs or re-plan
@@ -451,13 +469,49 @@ Configurable via `config.parallel.concurrency` (default: 3) and `config.parallel
 
 **Cleanup:** `mint clean` removes all stale worktrees from `.mint/worktrees/`.
 
-**a) Implementation**
+### Per-Spec Pipeline (orchestrator-driven, mandatory)
+
+**THIS IS THE CORE OF MINT.** The orchestrator drives each spec through a strict pipeline of
+discrete steps. Each step is a separate agent dispatch (or orchestrator action) with mandatory
+text output between every step. The planner does NOT run the full pipeline — it only implements
+and runs gates. Everything else is orchestrator-driven.
+
+**Why discrete steps matter:** Claude Code only polls for queued user messages when the assistant
+produces text output. If the orchestrator dispatches one monolithic agent that does everything,
+the user is locked out for the entire duration. By breaking the pipeline into discrete steps
+with text output between each, the user can steer, correct, or stop at any checkpoint.
+
+```
+PIPELINE PER SPEC:
+  Step 1: Implement + gates + commit     → planner agent
+  ──── output status, poll messages ────
+  Step 2: De-sloppify (conditional)      → de-sloppifier agent
+  ──── output status, poll messages ────
+  Step 3: Spec review (stage 1)          → spec-reviewer agent
+  ──── output status, poll messages ────
+  Step 4: Audit (stage 2, parallel)      → reviewer agents
+  ──── output status, poll messages ────
+  Step 5: Fix BLOCKINGs (if any)         → planner agent (loop back to 3-4)
+  ──── output status, poll messages ────
+  Step 6: Doc-manifest + arch detection  → documenter agent(s)
+  ──── output status, poll messages ────
+  Step 7: DoD verification + cleanup     → orchestrator (no agent)
+```
+
+**Every `────` line is a HARD REQUIREMENT to output text.** Not optional. Not "when convenient."
+The orchestrator MUST produce text output (even one sentence) before dispatching the next agent.
+
+---
+
+**Step 1: Implementation** (Agent: `mint-planner`)
+
+Pre-dispatch (orchestrator does this):
 - Set `execution.json` status to `running`, record `startedAt` and new attempt entry
-- **Set active spec** — update `.mint/.session-state.json`: set `activeSpec` to the spec's
+- **Set active spec** — update `.mint/sessions/<session-id>.json`: set `activeSpec` to the spec's
   file path (e.g., `.mint/tasks/auth/001-handler.xml`). The pre-edit hook reads this to enforce
   `<can-modify>` scope. Clear it (`null`) after the planner returns.
 - **Resolve autocommit** (orchestrator responsibility — do this BEFORE dispatching):
-  1. Read `.mint/.session-state.json` → if `autoCommitOverride` is not `null`, use it
+  1. Read session state → if `autoCommitOverride` is not `null`, use it
   2. Read spec `<autoCommit>` → if `true`/`false` (not `"inherit"`), use it
   3. Fall back to `config.autoCommit` (default: `true`)
   4. Pass the resolved value to the planner — planner does NOT re-resolve this
@@ -467,24 +521,33 @@ Configurable via `config.parallel.concurrency` (default: 3) and `config.parallel
   - `large` → dispatch with `model: "opus"`
   - If `config.modelRouting` is `false`, use session default for all specs
   - If `config.modelRouting.override` has a mapping for this estimate, use that model
-- Dispatch `mint-planner` subagent with: spec XML (full text), resolved autocommit value,
-  and resolved TDD value (from `config.tdd.default` or spec `<tdd>`)
-- Planner implements and runs gates
-- **Orchestrator verifies after planner returns:**
-  - Read `execution.json` → confirm `gates` field is populated
-  - If planner reported gates green + autocommit true: verify commit exists (`git log -1`)
-  - If planner reported gates green + autocommit false: verify changes are staged (`git diff --cached`)
-  - If planner reported failure: verify `.mint/issues.jsonl` was updated
-  - Update `execution.json`: gate results in `gates`, commit hash in `commit` (or `null`)
 
-**a2) De-sloppify (orchestrator evaluates trigger)**
+Dispatch: `mint-planner` subagent with: spec XML (full text), resolved autocommit value,
+and resolved TDD value (from `config.tdd.default` or spec `<tdd>`)
 
-The orchestrator — not the agent — evaluates whether de-sloppify runs. Check these conditions:
+The planner implements, runs gates, and commits (or stages if autocommit false). **That's all
+the planner does.** It does NOT run reviews, docs, or DoD checks.
+
+Post-dispatch verification (orchestrator):
+- Read `execution.json` → confirm `gates` field is populated
+- If planner reported gates green + autocommit true: verify commit exists (`git log -1`)
+- If planner reported gates green + autocommit false: verify changes are staged (`git diff --cached`)
+- If planner reported failure: verify `.mint/issues.jsonl` was updated
+- Update `execution.json`: gate results in `gates`, commit hash in `commit` (or `null`)
+- Clear `activeSpec` in session state (set to `null`)
+
+**→ Output status:** "Spec NNN implemented. Gates: lint ✅ types ✅ tests ✅. Moving to review..."
+
+---
+
+**Step 2: De-sloppify** (Agent: `mint-de-sloppifier`, conditional)
+
+The orchestrator — not the agent — evaluates whether de-sloppify runs:
 
 1. Read `config.tdd.desloppify` — if explicitly `false`, skip entirely
 2. Read spec `<tdd>` field — if `true` (explicitly or inherited from `config.tdd.default`), trigger
 3. If `config.tdd.desloppify` is `true` AND the spec has `<tests>` entries, trigger
-4. If neither condition met, skip
+4. If neither condition met, skip to step 3
 
 When triggered:
 - Dispatch `mint-de-sloppifier` subagent with: git diff + spec XML + gate commands
@@ -492,27 +555,32 @@ When triggered:
 - Runs tests after cleanup to verify nothing broke
 - **Orchestrator verifies:** gates still pass after de-sloppify (re-run if needed)
 
-**b) Stage 1 — Spec Review (mandatory sequential gate)**
+**→ Output status:** "De-sloppify complete. N items cleaned. Gates still green." (or "De-sloppify
+skipped — not triggered." if skipped)
+
+---
+
+**Step 3: Spec Review — Stage 1** (Agent: `mint-spec-reviewer`, mandatory)
 
 This is NOT optional. The orchestrator MUST dispatch the spec reviewer after implementation.
 
 1. Dispatch `mint-spec-reviewer` subagent with: spec XML + git diff
 2. **Orchestrator reads the reviewer's report** — look for the verdict line (`PASS` or `FAIL`)
-3. If `FAIL` with BLOCKING issues:
-   - Re-dispatch planner to fix the specific issues cited
-   - Re-dispatch spec-reviewer to re-review
-   - Max 2 review rounds — if still failing, escalate to user
-4. Update `execution.json`: `reviews.spec` = `"passed"` or `"failed"`
-5. **Gate check:** If `reviews.spec` is `"failed"`, do NOT proceed to stage 2. Block here.
+3. Update `execution.json`: `reviews.spec` = `"passed"` or `"failed"`
+4. **Gate check:** If `reviews.spec` is `"failed"`, do NOT proceed to stage 2. Go to step 5.
 
-**c) Stage 2 — Audit (mandatory parallel dispatch)**
+**→ Output status:** "Spec review: PASSED." or "Spec review: FAILED — N blocking issues. Fixing..."
+
+---
+
+**Step 4: Audit — Stage 2** (Agents: reviewer agents in parallel, conditional on diff size)
 
 The orchestrator MUST dispatch enabled reviewers, scaled by diff size.
 
-**Step 1: Measure diff size**
+**4a: Measure diff size**
 Run `git diff --stat HEAD~1` (or against the pre-spec state) and count total lines changed.
 
-**Step 2: Scale review intensity**
+**4b: Scale review intensity**
 
 | Diff size | Review level | What runs |
 |-----------|-------------|-----------|
@@ -524,7 +592,7 @@ Run `git diff --stat HEAD~1` (or against the pre-spec state) and count total lin
 This prevents review fatigue on tiny changes and ensures thorough review on large ones.
 The user can override: `config.reviewScaling: false` disables scaling (always full review).
 
-**Step 3: Build dispatch list (for standard/full/deep)**
+**4c: Build dispatch list (for standard/full/deep)**
 
 1. Read `config.reviewers` — for each key:
    - `true` or `{ "enabled": true }` → dispatch (if diff size qualifies)
@@ -541,65 +609,93 @@ The user can override: `config.reviewScaling: false` disables scaling (always fu
    - If `config.design.enabled` → dispatch `mint-design-reviewer`
 3. For **deep** diffs (300+ lines): override `model` to `"opus"` for security and quality
    reviewers regardless of their configured model
-4. Dispatch ALL in the list simultaneously (parallel Agent calls)
-4. **Orchestrator collects ALL results** — wait for every dispatched reviewer to return
-5. Parse each report for severity counts:
-   - Count total BLOCKING, WARNING, INFO across all reports
-   - Record each reviewer's verdict in `execution.json` → `reviews.<key>` = `"passed"` or `"failed"`
-6. If any BLOCKING issues exist:
-   - Re-dispatch planner to fix BLOCKING + WARNING issues
-   - Re-run ONLY the reviewers that returned FAIL (not all of them)
-   - Track round count — max 3 rounds total, then escalate to user
-7. **Gate check:** All dispatched reviewers must show `"passed"` before proceeding
 
-**d) Completion — MANDATORY CHECKLIST**
+**4d: Dispatch and collect**
 
-Every spec that passes all stages MUST complete ALL of these steps. The orchestrator
-executes each step and verifies it completed. Do not skip any.
+Output status FIRST: "Dispatching stage 2 reviewers: quality, security, conventions..."
+Then dispatch ALL in the list simultaneously (parallel Agent calls).
 
-**d.1) Definition of Done verification (runs BEFORE marking passed)**
-- Run the DoD gate (see "Completion check" in Orchestrator Rules above)
-- Read `execution.json` and verify every criterion (gates, spec review, stage 2 reviews)
-- If any criterion fails → address the failing criterion first. Do NOT proceed to d.2.
-- This runs first because marking `passed` before verifying DoD creates a wrong state.
+**Orchestrator collects ALL results** — wait for every dispatched reviewer to return.
+Parse each report for severity counts:
+- Count total BLOCKING, WARNING, INFO across all reports
+- Record each reviewer's verdict in `execution.json` → `reviews.<key>` = `"passed"` or `"failed"`
 
-**d.2) Set execution state**
+**→ Output status:** "Stage 2 review: quality ✅ security ✅ conventions ⚠️ (2 warnings).
+No blockers." (or list blockers if any)
+
+---
+
+**Step 5: Fix BLOCKINGs** (Agent: `mint-planner`, conditional — only if steps 3 or 4 found BLOCKINGs)
+
+If any BLOCKING issues exist from spec review or stage 2:
+1. Re-dispatch planner to fix BLOCKING + WARNING issues (pass the specific issues cited)
+2. Re-run gates after fixes
+3. Re-run ONLY the reviewers that returned FAIL (not all of them)
+4. Track round count — max 3 rounds total, then escalate to user
+
+This loops back through steps 3-4 as needed.
+
+**→ Output status:** "Fixed N blocking issues. Re-running failed reviewers..." or "BLOCKING issues
+persist after 3 rounds. Escalating to user."
+
+---
+
+**Step 6: Documentation** (Agent: `mint-documenter`, conditional)
+
+This is a MANDATORY pipeline step — not a nice-to-have buried in a checklist. The orchestrator
+runs this after all reviews pass.
+
+**6a: Doc-manifest check**
+- Read `.mint/doc-manifest.json` (if it exists)
+- Get the list of files changed in this spec: `git diff --name-only HEAD~1` (or against pre-spec)
+- For each doc entry in the manifest: check if any changed files match `sections[].tracks` globs
+- Build a list of (doc path, matching section IDs, description)
+
+**6b: Architectural change detection**
+- Check if the changed files match ANY of these patterns:
+  - `.mint/config.json`, `SKILL.md`, `agents/*.md`, `package.json`, lockfiles, `CLAUDE.md`,
+    `templates/*`, `cli/commands/*.js`
+- If YES: read doc-manifest for docs with `trigger: "on-architectural-change"`
+- Add those to the dispatch list
+
+**6c: Dispatch documenter(s)**
+- If the dispatch list is non-empty: dispatch `mint-documenter` for each doc that needs updating
+  - Pass: the doc path, its description, matching section IDs, and a summary of what changed
+  - **Verify:** documenter returned successfully and reported which sections were updated
+- If no matches: skip (not a failure — announce "No tracked docs affected.")
+
+**→ Output status:** "Docs: updated architecture.md (2 sections), conventions.md (1 section)."
+or "Docs: no tracked files affected, skipping."
+
+---
+
+**Step 7: DoD Verification + Cleanup** (Orchestrator — no agent dispatch)
+
+This is the final gate. The orchestrator does this itself — no agent needed.
+
+**7a: Definition of Done verification**
+- Read `execution.json` and verify every criterion:
+  - `gatesPassing`: all `gates.*` show `pass`
+  - `specReviewPassed`: `reviews.spec === "passed"`
+  - `stage2ReviewsPassed`: no reviewer key has unresolved BLOCKINGs
+  - `docCheckPassed`: step 6 completed (docs dispatched for all matches)
+  - `screenshotReminder`: if `"ui-changes"` and diff touched UI files, remind user
+- If any criterion fails → go back to the failing step. Do NOT proceed.
+
+**7b: Set execution state**
 - Update `execution.json`: status → `passed`, record `completedAt`
 - Verify by reading the file back
-- Clear `activeSpec` in `.mint/.session-state.json` (set to `null`)
 
-**d.3) Doc-manifest check**
-- Read `.mint/doc-manifest.json` (if it exists)
-- For each doc entry: check if any files matching its `sections[].tracks` globs were
-  modified in this spec's diff (use `git diff --name-only` against the glob patterns)
-- If matches found: dispatch `mint-documenter` subagent with: the doc path, its description,
-  the matching section IDs, and a summary of what changed
-- **Verify:** documenter returned successfully and reported which sections were updated
-- This is NOT optional — skipping doc updates when tracked files changed is a pipeline violation
-- If no doc-manifest exists, skip this step (not a failure)
-
-**d.4) Architectural change detection**
-- Check if the diff (via `git diff --name-only`) touches ANY of these patterns:
-  - `.mint/config.json`
-  - `skills/mint/SKILL.md` or `SKILL.md`
-  - `agents/*.md`
-  - `package.json` or lockfiles (`bun.lockb`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`)
-  - `CLAUDE.md`
-  - `templates/*`
-  - `cli/commands/*.js`
-- If YES: read doc-manifest for docs with `trigger: "on-architectural-change"`
-- Dispatch `mint-documenter` for each matching doc
-- **Verify:** documenter returned for each dispatched doc
-
-**d.5) Log win**
+**7c: Log win** (on final spec only)
 - If this is the LAST spec in the task AND all specs passed:
   - Append to `.mint/wins.jsonl`: Date, task slug, what pattern worked, why
   - **Verify:** read `.mint/wins.jsonl` to confirm the entry was added
-- If not the last spec, skip (not a failure)
 
-**d.6) Session state cleanup (on final spec only)**
-- If this is the LAST spec and all passed: delete `.mint/.session-state.json`
+**7d: Session state cleanup** (on final spec only)
+- If this is the LAST spec and all passed: delete `.mint/sessions/<session-id>.json`
 - **Verify:** file no longer exists
+
+**→ Output status:** "Spec NNN: DoD ✅ — all criteria met." or full summary on final spec.
 
 If spec failed and will be rewritten: set status to `rewriting`.
 If spec failed twice: set status to `failed`, log to `.mint/issues.jsonl`.
@@ -647,7 +743,7 @@ After all specs complete, the orchestrator runs a final verification pass:
 2. **Verify DoD** — for each spec, confirm all DoD criteria were met (see Completion check)
 3. **Verify doc-manifest** — confirm all stale sections were addressed (documenter dispatched)
 4. **Verify win logged** — if all specs passed, confirm `.mint/wins.jsonl` has the new entry
-5. **Verify session cleanup** — confirm `.mint/.session-state.json` was deleted
+5. **Verify session cleanup** — confirm `.mint/sessions/<session-id>.json` was deleted
 6. **Present summary:**
    - Tasks, commits, gate results, doc updates, issues
    - Doc-manifest status: which docs were updated, which sections were refreshed
@@ -659,25 +755,51 @@ After all specs complete, the orchestrator runs a final verification pass:
 
 ## Execution Flow — Quick Mode
 
-For tasks touching ≤3 files with clear scope.
+For tasks touching ≤3 files with clear scope. Quick mode still has a structured pipeline —
+it just skips reviews and spec files. The orchestrator outputs text between every step.
 
-1. Write an inline spec (not saved to disk):
-   - Goal, files to modify, steps, acceptance criteria
-2. Implement in main context
-3. Run gates
-4. Resolve autocommit: session override → `config.autoCommit`
-5. If green AND autocommit resolved to `true` → commit
-6. If green AND autocommit resolved to `false` → skip commit, inform user changes are ready
-6. If red → one retry with fixed approach, then escalate
+```
+QUICK MODE PIPELINE:
+  Step 1: Write inline spec (not saved)  → orchestrator
+  ──── output status ────
+  Step 2: Implement in main context      → orchestrator (no agent)
+  ──── output status ────
+  Step 3: Run gates                      → orchestrator (bash)
+  ──── output status ────
+  Step 4: Commit (or stage)              → orchestrator
+  ──── output status ────
+  Step 5: Doc-manifest check             → documenter agent (if needed)
+  ──── output status ────
+  Step 6: Done                           → orchestrator
+```
+
+**Step 1:** Write an inline spec (not saved to disk):
+- Goal, files to modify, steps, acceptance criteria
+- Output: "Quick mode: implementing [task]. Files: [list]."
+
+**Step 2:** Implement in main context.
+- Output: "Implementation complete. Running gates..."
+
+**Step 3:** Run gates. Resolve autocommit: session override → `config.autoCommit`.
+- If red → one retry with fixed approach, then escalate.
+- Output: "Gates: lint ✅ types ✅ tests ✅" (or failure details)
+
+**Step 4:** If green AND autocommit true → commit. If autocommit false → skip, inform user.
+- Output: "Committed: [hash]" or "Changes staged for manual review."
+
+**Step 5:** Doc-manifest check (MANDATORY — quick doesn't skip docs):
+- Get changed files from the commit or staged diff
+- Read `.mint/doc-manifest.json` and check for matches
+- If matches: dispatch `mint-documenter` with the doc path, section IDs, and change summary
+- If no matches: announce "No tracked docs affected."
+- Output: "Docs: updated [file] (N sections)." or "Docs: no tracked files affected."
+
+**Step 6:** Done. Output summary.
 
 **Auto-escalation:** If during implementation you realize the task needs >3 files or has
 architectural decisions, announce: "This is bigger than expected — switching to plan mode."
 
-No worktree. No reviewers. No spec files. Just gates.
-
-**Quick mode still checks docs.** After commit (or after staged changes if no autocommit),
-check the doc-manifest: did the changed files match any tracked sections? If yes, dispatch
-the documenter. Quick doesn't mean docs get skipped — it means reviews get skipped.
+No worktree. No reviewers. No spec files. Just gates + docs.
 
 When context-mode is enabled, gate runs use `ctx_execute` to keep output sandboxed even in
 quick mode.
@@ -1429,8 +1551,23 @@ If a spec includes `<workspace-impact>`:
 
 ## Session State
 
-mint tracks session-level state in `.mint/.session-state.json` (gitignored). This file is the
-source of truth for cross-agent and cross-hook coordination within a session.
+mint tracks session-level state in `.mint/sessions/<session-id>.json` (gitignored). Each
+Claude Code session gets its own state file, preventing concurrent sessions from stomping
+on each other.
+
+### Session ID
+
+The session ID comes from the `CLAUDE_SESSION_ID` environment variable (set automatically by
+Claude Code). If unavailable, a random ID is generated (`local-<8 hex chars>`). This ensures
+each concurrent session has its own isolated state.
+
+**File layout:**
+```
+.mint/sessions/
+  abc123def456.json     ← Claude Code session 1
+  789ghi012jkl.json     ← Claude Code session 2
+  local-a1b2c3d4.json   ← fallback (no CLAUDE_SESSION_ID)
+```
 
 ### Schema
 
@@ -1460,7 +1597,8 @@ source of truth for cross-agent and cross-hook coordination within a session.
 
 ### Lifecycle (orchestrator-enforced)
 
-1. **On mint invocation:** Write session state with `mintInvoked: true`, task info, and mode.
+1. **On mint invocation:** Write session state to `.mint/sessions/<session-id>.json` with
+   `mintInvoked: true`, task info, and mode. Uses atomic write (write-to-tmp + rename).
    **Verify:** Read the file back to confirm it was written correctly.
 2. **On user autocommit override:** Set `autoCommitOverride` to `true` or `false` — this persists
    for the entire plan/session. Once the user says "no autocommit", ALL specs in the plan respect
@@ -1469,11 +1607,15 @@ source of truth for cross-agent and cross-hook coordination within a session.
    for next task). **Verify:** Confirm the file no longer exists. If deletion fails, warn user.
 4. **On task abandonment or escalation:** Also delete session state — stale state from a failed
    task must not leak into the next task.
-5. **Hooks read this file** to check invocation status and autocommit preference
+5. **Hooks read session files** to check invocation status and autocommit preference. The
+   pre-edit hook resolves session by `CLAUDE_SESSION_ID` first, then scans all session files
+   as fallback.
+6. **Stale session cleanup:** Sessions older than 24h are cleaned up by `cleanStaleSessions()`.
+   The `mint clean` command also removes stale sessions.
 
 ### Writing session state
 
-On mint invocation, the orchestrator writes `.mint/.session-state.json`:
+On mint invocation, the orchestrator writes `.mint/sessions/<session-id>.json`:
 
 ```javascript
 // Pseudo — orchestrator writes this before routing

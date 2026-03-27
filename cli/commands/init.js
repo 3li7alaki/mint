@@ -19,6 +19,7 @@ import {
   loadGlobalConfig,
   registerProject,
 } from '../lib/detect.js';
+import { ensureGitignore } from '../lib/gitignore.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VERSION = JSON.parse(fs.readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf8')).version;
@@ -249,16 +250,7 @@ function writeFiles(mintDir, configPath, config) {
   // Backwards compat: keep old .md files if they exist (migration happens in `mint update`)
 
   // Add .mint state files to .gitignore
-  const gitignorePath = path.join(path.dirname(mintDir), '.gitignore');
-  const marker = '# mint local state';
-  const mintIgnore = `\n${marker}\n.mint/tasks/\n.mint/research/\n.mint/worktrees/\n.mint/plugins/\n.mint/ssh-cache.json\n.mint/.session-state.json\n.mint/.freeze-list.json\n.mint/.browser-sessions.json\n.mint/.gate-ledger.jsonl\n`;
-
-  let gitignore = '';
-  try { gitignore = fs.readFileSync(gitignorePath, 'utf8'); } catch { /* no .gitignore yet */ }
-
-  if (!gitignore.includes(marker)) {
-    fs.appendFileSync(gitignorePath, mintIgnore);
-  }
+  ensureGitignore(path.dirname(mintDir));
 
   // Generate doc-manifest from template or scan existing docs
   const manifestPath = path.join(mintDir, 'doc-manifest.json');

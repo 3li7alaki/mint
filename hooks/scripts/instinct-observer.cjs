@@ -71,60 +71,30 @@ function extractPatterns(filePath, content) {
   return patterns;
 }
 
-const HEADER = `# Instincts
-
-Auto-extracted patterns from code observations. The planner reads this to match
-existing project conventions. Confidence grows as patterns repeat across files.
-
-**High-confidence (>= 3):** Follow by default when writing new code.
-**Low-confidence (1-2):** Observed but not yet established — use judgment.
-
-| Category | Pattern | Files Seen | Confidence | Last Updated |
-|----------|---------|-----------|------------|--------------|
-`;
-
+/**
+ * Record an instinct observation as a JSONL append.
+ *
+ * Instead of read-modify-write on a markdown table (which races under concurrent
+ * sessions), we append one JSON line per observation. Confidence is computed at
+ * read time by counting distinct files per (category, observation) pair.
+ *
+ * Entry format: { category, observation, file, date }
+ * To compute confidence: group by (category, observation), count distinct files.
+ */
 function recordInstinct(mintDir, pattern) {
-  const instinctsPath = path.join(mintDir, 'instincts.md');
-  let existing = '';
-  try { existing = fs.readFileSync(instinctsPath, 'utf8'); } catch { /* new file */ }
-
-  const key = `| ${pattern.category} | ${pattern.observation} |`;
+  const instinctsPath = path.join(mintDir, 'instincts.jsonl');
   const fileName = path.basename(pattern.file);
   const today = new Date().toISOString().split('T')[0];
 
-  if (existing.includes(key)) {
-    // Pattern exists — increment confidence and update files seen
-    const lines = existing.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith(key)) {
-        const cols = lines[i].split('|').map(c => c.trim());
-        // cols: ['', category, observation, filesSeen, confidence, date, '']
-        const seenFiles = cols[3] || '';
-        const confidence = parseInt(cols[4]) || 1;
+  const entry = JSON.stringify({
+    category: pattern.category,
+    observation: pattern.observation,
+    file: fileName,
+    date: today,
+  });
 
-        // Only bump confidence if this is a different file
-        if (!seenFiles.includes(fileName)) {
-          const newSeen = seenFiles ? `${seenFiles}, ${fileName}` : fileName;
-          // Cap the files list to avoid mega-long rows
-          const truncatedSeen = newSeen.length > 60 ? newSeen.substring(0, 57) + '...' : newSeen;
-          cols[3] = truncatedSeen;
-          cols[4] = String(confidence + 1);
-          cols[5] = today;
-          lines[i] = `| ${cols[1]} | ${cols[2]} | ${cols[3]} | ${cols[4]} | ${cols[5]} |`;
-        }
-        break;
-      }
-    }
-    fs.writeFileSync(instinctsPath, lines.join('\n'));
-  } else if (!existing) {
-    // New file
-    const entry = `| ${pattern.category} | ${pattern.observation} | ${fileName} | 1 | ${today} |\n`;
-    fs.writeFileSync(instinctsPath, HEADER + entry);
-  } else {
-    // Append new pattern
-    const entry = `| ${pattern.category} | ${pattern.observation} | ${fileName} | 1 | ${today} |\n`;
-    fs.appendFileSync(instinctsPath, entry);
-  }
+  // appendFileSync is atomic for writes under 4KB on POSIX
+  fs.appendFileSync(instinctsPath, entry + '\n');
 }
 
 process.stdin.on('end', () => {

@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
 import { detectTool, detectContextMode, readJsonSafe, fileExists, ensureClaudeMd, getGlobalConfigPath, loadGlobalConfig, saveGlobalConfig, GLOBAL_KEYS, registerProject, getRegisteredProjects } from '../lib/detect.js';
+import { ensureGitignore } from '../lib/gitignore.js';
 
 // New core config keys added per version.
 const NEW_CONFIG_KEYS = [
@@ -292,15 +293,14 @@ export async function run(positional = [], flags = {}) {
       if (claudeResult === 'created') p.log.success('Created CLAUDE.md with mint section');
       else if (claudeResult === 'updated') p.log.success('Updated mint section in CLAUDE.md');
 
-      // Ensure .gitignore has .session-state.json
-      const gitignorePath = path.join(process.cwd(), '.gitignore');
-      try {
-        const gi = fs.readFileSync(gitignorePath, 'utf8');
-        if (!gi.includes('.session-state.json')) {
-          fs.appendFileSync(gitignorePath, '.mint/.session-state.json\n');
-          p.log.success('Added .session-state.json to .gitignore');
-        }
-      } catch { /* no gitignore */ }
+      // Ensure .gitignore has all mint entries
+      const { added } = ensureGitignore(process.cwd());
+      if (added.length > 0) {
+        p.log.success(`Added ${added.length} entries to .gitignore`);
+      }
+      // Clean up old .session-state.json file if it exists
+      const oldSessionState = path.join(process.cwd(), '.mint', '.session-state.json');
+      try { fs.unlinkSync(oldSessionState); } catch { /* already gone */ }
     }
   }
 

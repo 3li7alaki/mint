@@ -157,19 +157,17 @@ export async function run(flags = {}) {
   }
 
   // .gitignore completeness
-  const gitignorePath = path.join(cwd, '.gitignore');
-  const requiredIgnores = [
-    '.mint/tasks/', '.mint/research/', '.mint/worktrees/', '.mint/plugins/',
-    '.mint/.session-state.json', '.mint/.freeze-list.json', '.mint/.browser-sessions.json',
-    '.mint/.gate-ledger.jsonl',
-  ];
-  if (fileExists(gitignorePath)) {
-    const gi = fs.readFileSync(gitignorePath, 'utf8');
-    const missing = requiredIgnores.filter(i => !gi.includes(i));
-    if (missing.length > 0) {
-      addWarn(`.gitignore missing ${missing.length} mint entries`, () => {
-        fs.appendFileSync(gitignorePath, missing.map(i => i + '\n').join(''));
-      });
+  {
+    const { MINT_IGNORE_ENTRIES, ensureGitignore: ensureGI } = await import('../lib/gitignore.js');
+    const gitignorePath = path.join(cwd, '.gitignore');
+    if (fileExists(gitignorePath)) {
+      const gi = fs.readFileSync(gitignorePath, 'utf8');
+      const missing = MINT_IGNORE_ENTRIES.filter(i => !gi.includes(i));
+      if (missing.length > 0) {
+        addWarn(`.gitignore missing ${missing.length} mint entries`, () => {
+          ensureGI(cwd);
+        });
+      }
     }
   }
 
@@ -246,7 +244,7 @@ export async function run(flags = {}) {
   // ─── Smart analysis — Claude reads the project and applies fixes ─────────
   // Always runs when Claude is available. This is how mint works.
 
-  if (detectTool('claude') && autoFix) {
+  if (detectTool('claude') && autoFix && !quick) {
     console.log('');
     const s = p.spinner();
     s.start('Running smart analysis (claude -p)...');

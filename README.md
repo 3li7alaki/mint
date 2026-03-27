@@ -9,7 +9,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.7.4 — Parallel execution. File freezing. Smart browser. Zero slop.
+> v0.7.5 — Parallel execution. File freezing. Smart browser. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 
@@ -61,7 +61,8 @@ Run `mint init` in your project (seeds from global defaults if set):
 ├── wins.jsonl              — success log (JSONL)
 ├── patterns.jsonl          — graduated recurring patterns (JSONL)
 ├── instincts.jsonl         — auto-learned conventions (JSONL)
-├── .session-state.json     — session state (gitignored)
+├── sessions/               — per-session state files (gitignored)
+│   └── <session-id>.json  — one file per concurrent Claude Code session
 ├── .freeze-list.json       — frozen/guarded file paths (gitignored)
 ├── .browser-sessions.json  — browser cookie persistence (gitignored)
 └── .gate-ledger.jsonl      — gate run tracking for dedup (gitignored)
@@ -350,7 +351,7 @@ Session override wins over per-spec, which wins over global. When autocommit is 
 
 ## Auto-Invocation Enforcement
 
-A `PreToolUse` hook on `Edit|Write` checks whether mint was invoked before file modifications. If not, a visible warning fires — so you never accidentally bypass mint's quality pipeline. Session state is tracked in `.mint/.session-state.json` (gitignored).
+A `PreToolUse` hook on `Edit|Write` checks whether mint was invoked before file modifications. If not, a visible warning fires — so you never accidentally bypass mint's quality pipeline. Session state is tracked per-session in `.mint/sessions/<session-id>.json` (gitignored), so concurrent sessions never stomp on each other.
 
 `mint init` and `mint update` automatically inject a version-tagged mint section into your project's `CLAUDE.md`. `mint doctor` warns if it's missing.
 

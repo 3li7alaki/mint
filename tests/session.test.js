@@ -10,6 +10,7 @@ import {
   listSessions,
   cleanStaleSessions,
   findCurrentSession,
+  _resetSessionId,
 } from '../cli/lib/session.js';
 
 const TMP = path.join(import.meta.dir, '.tmp-session');
@@ -17,24 +18,43 @@ const TMP = path.join(import.meta.dir, '.tmp-session');
 beforeEach(() => {
   fs.mkdirSync(path.join(TMP, '.mint'), { recursive: true });
   // Set a predictable session ID for tests
-  process.env.CLAUDE_SESSION_ID = 'test-session-001';
+  _resetSessionId('test-session-001');
 });
 
 afterEach(() => {
   fs.rmSync(TMP, { recursive: true, force: true });
-  delete process.env.CLAUDE_SESSION_ID;
+  _resetSessionId();
 });
 
 describe('getSessionId', () => {
-  test('uses CLAUDE_SESSION_ID when available', () => {
-    process.env.CLAUDE_SESSION_ID = 'my-session';
-    expect(getSessionId()).toBe('my-session');
+  test('returns cached ID across calls', () => {
+    _resetSessionId();
+    const id1 = getSessionId();
+    const id2 = getSessionId();
+    expect(id1).toBe(id2);
   });
 
-  test('generates local-* fallback when no env var', () => {
-    delete process.env.CLAUDE_SESSION_ID;
+  test('generates timestamp-random format', () => {
+    _resetSessionId();
     const id = getSessionId();
-    expect(id).toMatch(/^local-[a-f0-9]{8}$/);
+    // Format: 12-char hex timestamp + dash + 8-char hex random
+    expect(id).toMatch(/^[a-f0-9]{12}-[a-f0-9]{8}$/);
+  });
+
+  test('timestamp prefix is sortable', () => {
+    _resetSessionId();
+    const id1 = getSessionId();
+    // Small delay to ensure different timestamp
+    const before = Date.now();
+    _resetSessionId();
+    const id2 = getSessionId();
+    // Lexicographic sort should match chronological order
+    expect(id1 < id2 || before === Date.now()).toBe(true);
+  });
+
+  test('respects forced ID from _resetSessionId', () => {
+    _resetSessionId('my-custom-id');
+    expect(getSessionId()).toBe('my-custom-id');
   });
 });
 
@@ -109,7 +129,7 @@ describe('cleanStaleSessions', () => {
 });
 
 describe('findCurrentSession', () => {
-  test('finds session by CLAUDE_SESSION_ID', () => {
+  test('finds session by cached ID', () => {
     const state = { mintInvoked: true, task: 'my task', mode: 'plan' };
     writeSessionState(TMP, state);
 

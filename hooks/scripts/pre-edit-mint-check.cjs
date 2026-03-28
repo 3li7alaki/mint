@@ -111,32 +111,21 @@ process.stdin.on('end', () => {
     let mintInvoked = false;
     let sessionState = null;
 
+    // Scan session files for any active session (most recent first by filename — IDs are timestamp-prefixed)
     const sessionsDir = path.join(mintDir, 'sessions');
-    const sessionId = process.env.CLAUDE_SESSION_ID;
-    if (sessionId) {
-      const sessionPath = path.join(sessionsDir, `${sessionId}.json`);
-      try {
-        sessionState = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
-        mintInvoked = sessionState.mintInvoked === true;
-      } catch { /* no session file for this session */ }
-    }
-
-    // No CLAUDE_SESSION_ID — scan all session files for any active session
-    if (!sessionState) {
-      try {
-        const files = fs.readdirSync(sessionsDir).filter(f => f.endsWith('.json'));
-        for (const f of files) {
-          try {
-            const s = JSON.parse(fs.readFileSync(path.join(sessionsDir, f), 'utf8'));
-            if (s.mintInvoked) {
-              sessionState = s;
-              mintInvoked = true;
-              break;
-            }
-          } catch { /* skip invalid */ }
-        }
-      } catch { /* no sessions dir yet */ }
-    }
+    try {
+      const files = fs.readdirSync(sessionsDir).filter(f => f.endsWith('.json')).sort().reverse();
+      for (const f of files) {
+        try {
+          const s = JSON.parse(fs.readFileSync(path.join(sessionsDir, f), 'utf8'));
+          if (s.mintInvoked) {
+            sessionState = s;
+            mintInvoked = true;
+            break;
+          }
+        } catch { /* skip invalid */ }
+      }
+    } catch { /* no sessions dir yet */ }
 
     if (sessionState && sessionState.activeSpec) {
       const specPath = sessionState.activeSpec;

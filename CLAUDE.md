@@ -16,75 +16,40 @@ The only exceptions:
 - Pure conversation / answering questions
 - Reading files to understand context (no modifications)
 
-If you catch yourself thinking "this is just a small fix" or "I'll just edit one file" — STOP. Invoke mint. Small fixes use quick mode. mint decides the workflow, not you.
-
-**NEVER use Claude Code's built-in plan mode (EnterPlanMode/ExitPlanMode).** mint has its own planning flow — Claude Code plan mode is redundant and conflicts with mint's orchestration. Always stay in normal mode and let mint handle planning via its plan/ship modes.
+**NEVER use Claude Code's built-in plan mode (EnterPlanMode/ExitPlanMode).** mint has its own planning flow.
 <!-- mint:end -->
 
-## What This Is
+## Commands
 
-A Claude Code skill (`SKILL.md`) + agent prompts (`agents/`) + CLI (`cli/`) + config (`.mint/`). The orchestrator auto-routes tasks to the right mode (quick/plan/ship/research/verify) and delegates to fresh subagents.
+- Test: `bun test`
+- Lint/Types: checked by mint gates via `.mint/config.json`
+- Version bump: `./scripts/bump.sh [major|minor|patch]` — updates all version locations, does not commit
 
-## Working Here
+## Code Style
 
-- **No superpowers.** This repo disables the superpowers plugin. Mint is the orchestration framework — don't layer another one on top.
-- **No AI attribution.** Never add `Co-Authored-By` or mention AI tools in commits.
-- **CLI deps only.** The CLI uses bun + @clack/prompts. Core orchestration is still markdown + JSON + XML.
-- **Tests:** `bun test` — run before committing.
-- **Commits:** `type(scope): description` — see `docs/conventions.md:66-72` for types.
-- **Branches:** `feat/<name>` or `fix/<name>` off main. Squash merge via PR. Delete after merge.
-- **Never push from agents.** Commit only. Human reviews and pushes.
-- **Version bumps:** `./scripts/bump.sh [major|minor|patch]` — updates version in plugin.json, marketplace.json, package.json, and README.md. Does not commit.
+- No AI attribution — never add `Co-Authored-By` or mention AI tools in commits
+- Commits: `type(scope): description` — see `docs/conventions.md:66-72` for types
+- Branches: `feat/<name>` or `fix/<name>` off main. Squash merge via PR
+- Never push from agents — commit only, human reviews and pushes
 
-## Key Files
+## Architecture
 
-| File | Purpose |
-|------|---------|
-| `SKILL.md` | Orchestrator brain — routing, execution flows, plugin loading |
-| `agents/*.md` | One prompt per agent — planner, reviewers, browser, researcher, etc. |
-| `cli/` | mint CLI — init, config, doctor, update, clean |
-| `cli/lib/parallel.js` | Parallel spec execution — spawns isolated `claude -p` sessions in worktrees |
-| `cli/lib/worktree.js` | Git worktree lifecycle — create, merge, cleanup |
-| `cli/lib/jsonl.js` | JSONL utilities — append, read, query, migrate from markdown |
-| `cli/lib/schema.js` | Config validation schema — types, defaults, allowed values |
-| `cli/lib/errors.js` | Structured error formatting with actionable guidance |
-| `cli/lib/detect.js` | Stack, PM, gate auto-detection |
-| `cli/commands/clean.js` | `mint clean` — remove stale worktrees from parallel execution |
-| `tests/` | Test suite — `bun test` |
-| `references/` | PinchTab API docs, token strategy, context-mode API, context-mode strategy |
-| `agents/context-setup.md` | Context Mode setup agent — detection, installation, configuration |
-| `standards/design/` | Design reference knowledge — typography, color, spatial, motion, interaction, responsive, ux-writing, RTL, i18n, anti-patterns |
-| `agents/design-*.md` | Design agents — context (pre-plan), reviewer (pre-review), profile builder, setup |
-| `~/.mint/config.json` | Global user defaults + project registry — reviewer models, autoCommit, TDD, isolation prefs, tracked projects |
-| `.mint/config.json` | Project config — gates, reviewers, browser, context, design, plugins |
-| `.mint/hard-blocks.md` | Immutable constraints agents can never violate |
-| `.mint/issues.jsonl` | Failure log (JSONL) — planner reads before writing specs |
-| `.mint/wins.jsonl` | Success log (JSONL) — planner reads for patterns that worked |
-| `.mint/instincts.jsonl` | Auto-learned conventions (JSONL) — committed, shared knowledge |
-| `.mint/sessions/<id>.json` | Per-session state — invocation, autocommit, active spec (gitignored) |
-| `cli/lib/session.js` | Session state management — read, write, list, cleanup per-session files |
-| `cli/lib/atomic.js` | Atomic file write utilities — write-to-tmp + rename for concurrent safety |
-| `cli/lib/gitignore.js` | Gitignore management — entry-by-entry handling, no string concat bugs |
-| `.mint/.freeze-list.json` | Frozen/guarded file paths — pre-edit hook enforces (gitignored) |
-| `.mint/.browser-sessions.json` | Browser cookie persistence across tasks (gitignored) |
-| `.mint/.gate-ledger.jsonl` | Gate run tracking — prevents redundant lint/test runs (gitignored) |
-| `.mint/doc-manifest.json` | Doc tracking manifest — maps doc sections to code dependencies |
-| `commands/doc-setup.md` | Command to build doc-manifest for existing projects |
-| `templates/doc-manifest.json` | Doc-manifest template for new projects |
-| `templates/spec.xml` | XML spec schema — every task gets one |
-| `hooks/scripts/pre-edit-mint-check.cjs` | PreToolUse hook — freeze/guard enforcement, scope enforcement, mint invocation check |
-| `hooks/scripts/pre-bash-git-push.cjs` | PreToolUse hook — blocks git push and bash interpolation in commits |
-| `scripts/bump.sh` | Version bump script — updates all version locations |
-| `docs/conventions.md` | File formats, naming, config schema, git strategy |
-| `docs/architecture.md` | System design, philosophy, isolation rules |
+- Core orchestration is markdown + JSON + XML — `SKILL.md` is the brain
+- One agent per job — agents don't know about each other. See `agents/*.md`
+- CLI uses bun + @clack/prompts. See `cli/` and `cli/lib/`
+- Reviewers use three severities: BLOCKING, WARNING, INFO
 
-## Agent Conventions
+## Key Docs
 
-- One agent, one job. Agents don't know about each other.
-- Structure: role statement → inputs → process → outputs → rules.
-- List required tools explicitly. Never assume availability.
-- Reviewers use three severities: BLOCKING, WARNING, INFO.
+- `docs/architecture.md` — system design, philosophy, isolation rules
+- `docs/conventions.md` — file formats, naming, config schema, git strategy
+- `templates/spec.xml` — XML spec schema every task gets
+- `.mint/config.json` — project config (gates, reviewers, browser, design, plugins)
+- `.mint/hard-blocks.md` — immutable constraints agents can never violate
 
-## Design Plans
+## Gotchas
 
-Design docs go in `docs/plans/` and are gitignored. They don't get committed.
+- Design plans go in `docs/plans/` (gitignored) — don't commit them
+- `.mint/sessions/` files are gitignored — per-session state, not shared
+- All learning logs (issues, wins, instincts) are JSONL — append-only, never read-parse-modify-write
+- No superpowers plugin — mint is the orchestration framework, don't layer another on top

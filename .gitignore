@@ -25,3 +25,4 @@ docs/plans/
 .mint/.freeze-list.json
 .mint/.browser-sessions.json
 .mint/.gate-ledger.jsonl
+.mint/.session-state.json

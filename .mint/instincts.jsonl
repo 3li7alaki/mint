@@ -1,0 +1,7 @@
+{"category":"naming","observation":"camelCase-functions","file":"clean.js","date":"2026-03-27"}
+{"category":"naming","observation":"camelCase-functions","file":"clean.js","date":"2026-03-27"}
+{"category":"naming","observation":"camelCase-functions","file":"clean.js","date":"2026-03-27"}
+{"category":"naming","observation":"camelCase-functions","file":"session.js","date":"2026-03-28"}
+{"category":"naming","observation":"camelCase-functions","file":"session.test.js","date":"2026-03-28"}
+{"category":"tests","observation":"describe-it-pattern","file":"session.test.js","date":"2026-03-28"}
+{"category":"tests","observation":"expect-assertions","file":"session.test.js","date":"2026-03-28"}

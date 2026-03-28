@@ -4,6 +4,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { spinner } from '../lib/spinner.js';
 import {
   detectStack,
   detectPackageManager,
@@ -51,7 +52,7 @@ export async function run(flags = {}) {
   // Always runs when Claude is available. Only --yes skips it (CI/scripts).
   if (detectTool('claude') && !flags.yes) {
     p.intro('\x1b[32m mint init --smart \x1b[0m');
-    const s = p.spinner();
+    const s = spinner();
     s.start('Analyzing project with Claude...');
     try {
       const { smartInit } = await import('../lib/smart-session.js');

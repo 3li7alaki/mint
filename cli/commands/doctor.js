@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
 import { readJsonSafe, fileExists, detectStack, detectTool, detectContextMode, getGlobalConfigPath, loadGlobalConfig, GLOBAL_KEYS, ensureReadmeSignature } from '../lib/detect.js';
+import { spinner } from '../lib/spinner.js';
 
 export async function run(flags = {}) {
   const cwd = process.cwd();
@@ -246,7 +247,7 @@ export async function run(flags = {}) {
 
   if (detectTool('claude') && autoFix && !quick) {
     console.log('');
-    const s = p.spinner();
+    const s = spinner();
     s.start('Running smart analysis (claude -p)...');
     try {
       const { smartDoctor } = await import('../lib/smart-session.js');

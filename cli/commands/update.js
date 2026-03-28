@@ -4,6 +4,7 @@ import fs from 'fs';
 import { execSync } from 'child_process';
 import { detectTool, detectContextMode, readJsonSafe, fileExists, ensureClaudeMd, getGlobalConfigPath, loadGlobalConfig, saveGlobalConfig, GLOBAL_KEYS, registerProject, getRegisteredProjects } from '../lib/detect.js';
 import { ensureGitignore } from '../lib/gitignore.js';
+import { spinner } from '../lib/spinner.js';
 
 // New core config keys added per version.
 const NEW_CONFIG_KEYS = [
@@ -122,7 +123,7 @@ export async function run(positional = [], flags = {}) {
 
   p.intro(`\x1b[32m mint update${depsOnly ? ' deps' : ''} \x1b[0m`);
 
-  const s = p.spinner();
+  const s = spinner();
 
   // ─── Single dep update ────────────────────────────────────────────────────
   if (target) {
@@ -347,7 +348,7 @@ export async function run(positional = [], flags = {}) {
 
       for (const project of projects) {
         const projName = path.basename(project.path);
-        const s = p.spinner();
+        const s = spinner();
         s.start(`Smart update: ${projName}...`);
         try {
           const { smartUpdate } = await import('../lib/smart-session.js');

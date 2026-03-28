@@ -2,7 +2,8 @@
  * Session state management — per-session isolation.
  *
  * Each Claude Code session gets its own state file at .mint/sessions/<session-id>.json.
- * Session ID comes from $CLAUDE_SESSION_ID (set by Claude Code) or a generated fallback.
+ * Session ID is generated once per process: a timestamp prefix (ms since epoch, hex)
+ * + random suffix — sortable by creation time, unique across concurrent sessions.
  *
  * This replaces the old single .mint/.session-state.json which caused concurrent
  * sessions to stomp on each other's state.
@@ -15,14 +16,38 @@ import { readJsonSafe } from './detect.js';
 
 const SESSIONS_DIR = '.mint/sessions';
 
+/** Cached session ID — stable for the lifetime of this process. */
+let _sessionId = null;
+
+/**
+ * Generate a session ID: hex timestamp (ms) + random suffix.
+ * Example: "0195e3a1b2c0-a1b2c3d4" — sortable, unique, no env var needed.
+ */
+function generateSessionId() {
+  const timestamp = Date.now().toString(16).padStart(12, '0');
+  const random = randomBytes(4).toString('hex');
+  return `${timestamp}-${random}`;
+}
+
 /**
  * Get the current session ID.
- * Uses CLAUDE_SESSION_ID env var if available, otherwise generates a random one.
+ * Generated once per process and cached — stable across all calls within the same session.
  *
  * @returns {string}
  */
 export function getSessionId() {
-  return process.env.CLAUDE_SESSION_ID || `local-${randomBytes(4).toString('hex')}`;
+  if (!_sessionId) {
+    _sessionId = generateSessionId();
+  }
+  return _sessionId;
+}
+
+/**
+ * Reset the cached session ID. Only used for testing.
+ * @param {string} [id] - Optional ID to force. If omitted, next getSessionId() generates fresh.
+ */
+export function _resetSessionId(id) {
+  _sessionId = id || null;
 }
 
 /**

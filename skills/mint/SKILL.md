@@ -64,9 +64,9 @@ Evaluate in this order:
 
 After routing (and before announcing), write session state to `.mint/sessions/<session-id>.json`:
 
-**Session ID resolution:** Use the `CLAUDE_SESSION_ID` environment variable (set automatically
-by Claude Code). If not available, generate a random ID (`local-<8 hex chars>`). The session ID
-is stable for the entire Claude Code session, so concurrent sessions each get their own file.
+**Session ID resolution:** Generated once per process — a hex timestamp prefix (ms since epoch)
+plus a random suffix (e.g., `0195e3a1b2c0-a1b2c3d4`). Cached at module level so it's stable
+for the entire session. Sortable by creation time, unique across concurrent sessions.
 
 ```json
 {
@@ -1560,16 +1560,15 @@ on each other.
 
 ### Session ID
 
-The session ID comes from the `CLAUDE_SESSION_ID` environment variable (set automatically by
-Claude Code). If unavailable, a random ID is generated (`local-<8 hex chars>`). This ensures
-each concurrent session has its own isolated state.
+The session ID is generated once per process: a hex timestamp prefix (ms since epoch, 12 chars)
+plus a random suffix (8 chars). Cached at module level so it's stable for the entire session.
+IDs are lexicographically sortable by creation time, making it easy to find the most recent session.
 
 **File layout:**
 ```
 .mint/sessions/
-  abc123def456.json     ← Claude Code session 1
-  789ghi012jkl.json     ← Claude Code session 2
-  local-a1b2c3d4.json   ← fallback (no CLAUDE_SESSION_ID)
+  0195e3a1b2c0-a1b2c3d4.json   ← session started at timestamp 0195e3a1b2c0
+  0195e3a1c400-f9e8d7c6.json   ← concurrent session started slightly later
 ```
 
 ### Schema
@@ -1611,8 +1610,8 @@ each concurrent session has its own isolated state.
 4. **On task abandonment or escalation:** Also delete session state — stale state from a failed
    task must not leak into the next task.
 5. **Hooks read session files** to check invocation status and autocommit preference. The
-   pre-edit hook resolves session by `CLAUDE_SESSION_ID` first, then scans all session files
-   as fallback.
+   pre-edit hook scans session files sorted by name (most recent first, since IDs are
+   timestamp-prefixed) and uses the first active session found.
 6. **Stale session cleanup:** Sessions older than 24h are cleaned up by `cleanStaleSessions()`.
    The `mint clean` command also removes stale sessions.
 

@@ -118,6 +118,173 @@ export function migrateMarkdownTableToJsonl(mdPath, jsonlPath) {
 }
 
 /**
+ * Upsert an instinct — deduplicate by category + observation match.
+ * If a matching instinct exists, increment confidence and occurrences.
+ * If not, append a new entry with confidence 1.
+ *
+ * @param {string} filePath - path to instincts.jsonl
+ * @param {object} instinct - { category, observation, source?, examples? }
+ * @returns {{ action: 'created'|'updated', confidence: number }}
+ */
+export function upsertInstinct(filePath, instinct) {
+  const entries = readJsonl(filePath);
+  const now = new Date().toISOString();
+
+  // Normalize for matching: lowercase, trim whitespace
+  const normalize = (s) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  const matchCat = normalize(instinct.category);
+  const matchObs = normalize(instinct.observation);
+
+  // Find existing match (same category + similar observation)
+  const existingIdx = entries.findIndex(e =>
+    normalize(e.category) === matchCat &&
+    normalize(e.observation) === matchObs
+  );
+
+  if (existingIdx >= 0) {
+    // Update existing — rewrite the file with updated entry
+    const existing = entries[existingIdx];
+    existing.confidence = (existing.confidence || 1) + 1;
+    existing.occurrences = (existing.occurrences || 1) + 1;
+    existing.lastSeen = now;
+    if (instinct.source && !existing.sources?.includes(instinct.source)) {
+      existing.sources = [...(existing.sources || []), instinct.source];
+    }
+    if (instinct.examples) {
+      existing.examples = [...new Set([...(existing.examples || []), ...instinct.examples])].slice(0, 5);
+    }
+
+    // Rewrite file (atomic enough for our use case — single-writer per session)
+    const content = entries.map(e => JSON.stringify(e)).join('\n') + '\n';
+    fs.writeFileSync(filePath, content);
+
+    return { action: 'updated', confidence: existing.confidence };
+  }
+
+  // New instinct
+  const entry = {
+    category: instinct.category,
+    observation: instinct.observation,
+    confidence: 1,
+    occurrences: 1,
+    firstSeen: now,
+    lastSeen: now,
+    sources: instinct.source ? [instinct.source] : [],
+    examples: (instinct.examples || []).slice(0, 5),
+  };
+  appendJsonl(filePath, entry);
+
+  return { action: 'created', confidence: 1 };
+}
+
+/**
+ * Decay instincts not reinforced within a given period.
+ * Reduces confidence by 1 for stale instincts. Removes those at confidence 0.
+ *
+ * @param {string} filePath
+ * @param {number} [maxAgeDays=30] - days without reinforcement before decay
+ * @returns {{ decayed: number, removed: number }}
+ */
+export function decayInstincts(filePath, maxAgeDays = 30) {
+  const entries = readJsonl(filePath);
+  if (entries.length === 0) return { decayed: 0, removed: 0 };
+
+  const cutoff = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
+  let decayed = 0;
+  let removed = 0;
+
+  const surviving = entries.filter(e => {
+    const lastSeen = new Date(e.lastSeen || e.firstSeen || 0).getTime();
+    if (lastSeen < cutoff) {
+      const newConf = (e.confidence || 1) - 1;
+      if (newConf <= 0) { removed++; return false; }
+      e.confidence = newConf;
+      decayed++;
+    }
+    return true;
+  });
+
+  if (decayed > 0 || removed > 0) {
+    const content = surviving.map(e => JSON.stringify(e)).join('\n') + '\n';
+    fs.writeFileSync(filePath, content);
+  }
+
+  return { decayed, removed };
+}
+
+/**
+ * Get top instincts by confidence, capped at a maximum count.
+ *
+ * @param {string} filePath
+ * @param {number} [maxCount=20]
+ * @param {number} [minConfidence=3]
+ * @returns {object[]}
+ */
+export function topInstincts(filePath, maxCount = 20, minConfidence = 3) {
+  return readJsonl(filePath)
+    .filter(e => (e.confidence || 0) >= minConfidence)
+    .sort((a, b) => (b.confidence || 0) - (a.confidence || 0))
+    .slice(0, maxCount);
+}
+
+/**
+ * Log execution metrics for a completed spec.
+ * Correlates instincts/patterns applied with outcomes for evidence-based evolution.
+ *
+ * @param {string} filePath - path to metrics.jsonl
+ * @param {object} metric
+ * @param {string} metric.date - ISO date
+ * @param {string} metric.task - task slug
+ * @param {string} metric.spec - spec ID
+ * @param {string[]} metric.instinctsApplied - instinct observations used
+ * @param {string} metric.reviewResult - 'passed' | 'failed' | 'skipped'
+ * @param {object} metric.gateResults - { lint, types, tests }
+ * @param {number} metric.attempts - number of attempts
+ * @param {number} [metric.tokenCount] - tokens used (if available)
+ */
+export function logMetric(filePath, metric) {
+  appendJsonl(filePath, {
+    date: metric.date || new Date().toISOString(),
+    task: metric.task,
+    spec: metric.spec,
+    instinctsApplied: metric.instinctsApplied || [],
+    reviewResult: metric.reviewResult || 'skipped',
+    gateResults: metric.gateResults || {},
+    attempts: metric.attempts || 1,
+    tokenCount: metric.tokenCount || null,
+  });
+}
+
+/**
+ * Analyze instinct effectiveness from metrics.
+ * Returns instincts sorted by success rate (specs that applied them and passed review).
+ *
+ * @param {string} metricsPath
+ * @param {number} [minSamples=3] - minimum uses before reporting
+ * @returns {Array<{ observation: string, uses: number, passRate: number }>}
+ */
+export function analyzeInstinctEffectiveness(metricsPath) {
+  const metrics = readJsonl(metricsPath);
+  const stats = {};
+
+  for (const m of metrics) {
+    for (const inst of (m.instinctsApplied || [])) {
+      if (!stats[inst]) stats[inst] = { uses: 0, passes: 0 };
+      stats[inst].uses++;
+      if (m.reviewResult === 'passed') stats[inst].passes++;
+    }
+  }
+
+  return Object.entries(stats)
+    .map(([observation, s]) => ({
+      observation,
+      uses: s.uses,
+      passRate: s.uses > 0 ? Math.round((s.passes / s.uses) * 100) : 0,
+    }))
+    .sort((a, b) => b.passRate - a.passRate || b.uses - a.uses);
+}
+
+/**
  * Format JSONL entries as a pretty table for CLI display.
  * @param {object[]} entries
  * @param {string[]} columns - keys to display

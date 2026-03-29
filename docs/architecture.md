@@ -22,19 +22,28 @@
 User
   │
   ▼
-Orchestrator (SKILL.md)
+Router (SKILL.md — 155 lines)
   │
-  ├─ classify task
-  │   ├─ quick → main context (no subagent)
-  │   ├─ plan → decompose + execute
-  │   ├─ ship → interview + batch execute
-  │   ├─ research → investigate + report
-  │   └─ verify → audit + report
+  ├─ classify task → load mode file
+  │   ├─ modes/quick.md → main context (no subagent)
+  │   ├─ modes/plan.md → state machine pipeline
+  │   ├─ modes/ship.md → interview + batch execute
+  │   ├─ modes/research.md → investigate + report
+  │   ├─ modes/verify.md → audit + report
+  │   ├─ modes/ssh.md → remote commands
+  │   ├─ modes/browse.md → browser automation
+  │   └─ modes/design.md → design intelligence
+  │
+  ├─ (plan mode) load phase file per pipeline step
+  │   ├─ phases/decompose.md → phases/implement.md → phases/desloppify.md
+  │   └─ phases/review-stage1.md → phases/review-stage2.md → phases/docs.md → phases/dod.md
   │
   ▼
 Subagent Pool (fresh context per dispatch)
   │
-  ├─ Planner ────────────── decomposes, implements, commits
+  ├─ Decomposer ─────────── breaks features into XML specs (decompose only)
+  ├─ Planner ────────────── implements a single spec, runs gates, commits
+  ├─ Pipeline Checker ───── verifies pipeline steps were executed
   ├─ Researcher ─────────── investigates, writes reports
   ├─ Shipper ────────────── batch executes ship plans
   ├─ Verifier ───────────── runs all gates and audits
@@ -51,6 +60,28 @@ Subagent Pool (fresh context per dispatch)
   ├─ Refactor Cleaner ───── dead code detection and removal
   └─ Plugin Agents ──────── stack/PM/design/memory extensions
 ```
+
+### Skill Decomposition
+
+The orchestrator is split into focused, loadable pieces — not one monolithic file:
+
+```
+skills/mint/
+  SKILL.md            ← Router only (~155 lines). Routes, manages state, dispatches.
+  modes/              ← One file per execution mode. Loaded on route.
+  phases/             ← One file per pipeline step. Loaded per-step.
+  reference/          ← Detailed docs. Loaded on demand only.
+```
+
+**Why:** LLM instruction compliance degrades linearly with prompt length. A 1900-line skill
+gets ~40% compliance. The 155-line router gets ~85%. Phase files load one at a time — the
+agent never holds the full pipeline in memory.
+
+### Pipeline State Machine
+
+Plan mode uses a state file (`pipeline-state.json`) to track which step the orchestrator is on.
+The router reads state → loads the phase file → dispatches → updates state → loops. No reliance
+on LLM memory for sequencing.
 
 ## Configuration Layers
 
@@ -155,20 +186,24 @@ concurrent-safe (two agents appending simultaneously just add two lines), `grep`
 No read-parse-modify-write cycle.
 
 **Instincts** (`.mint/instincts.jsonl`) — auto-extracted by hooks observing every Edit/Write.
-Tracks import styles, naming conventions, test patterns, framework usage. Confidence increases
-with repetition. High-confidence (>= 3) are treated as project conventions.
+Tracks import styles, naming conventions, test patterns, framework usage. Each instinct has
+confidence scoring, deduplication (via `upsertInstinct()`), and decay. Confidence increases
+with repetition, decreases when not reinforced for 30 days. High-confidence (≥ 3) are treated
+as project conventions. Top 20 by confidence are injected into the decomposer. Sources track
+where the instinct came from (observer hook, reviewer feedback, etc.).
 
-**Issue log** (`.mint/issues.jsonl`) — tracks failures with root cause categories (`bad-spec`,
-`missing-context`, `scope-leak`, `environment`, `hard-block`, `unknown-pattern`). Relevant
-issues become `<pitfalls>` in new specs.
+**Execution metrics** (`.mint/metrics.jsonl`) — per-spec performance data: which instincts were
+applied, review outcomes, gate results, attempt counts. Enables evidence-based evolution —
+`analyzeInstinctEffectiveness()` correlates instinct usage with review pass rates.
 
-**Wins log** (`.mint/wins.jsonl`) — tracks successes and what patterns worked. Informs
-decomposition strategy.
+**Issue log** (`.mint/issues.jsonl`) — failures with root cause categories. Become `<pitfalls>`.
+
+**Wins log** (`.mint/wins.jsonl`) — successes and what patterns worked. Inform decomposition.
 
 **Patterns** (`.mint/patterns.jsonl`) — graduated from issues/wins when a pattern repeats 3+ times.
 
-The planner reads all four before creating new specs. Past mistakes become prevention.
-Past wins become guidance. JSONL utilities: `cli/lib/jsonl.js` (append, read, query, migrate).
+The decomposer reads all four before creating specs. Past mistakes become prevention.
+Past wins become guidance. JSONL utilities: `cli/lib/jsonl.js`.
 
 ## Documentation Intelligence
 
@@ -245,7 +280,7 @@ Real-time Claude Code hooks provide instant feedback and enforcement:
 - **PreToolUse (Bash)** — git push blocker, bash interpolation in commit messages blocker
 - **PostToolUse (Edit)** — auto-format, typecheck, console.log warning
 - **PostToolUse (Edit|Write)** — quality gate (lint check), instinct observation
-- **Stop** — cost tracking per session
+- **Stop** — pipeline completion check (blocks stop if reviews not run), cost tracking
 
 Pre-edit hooks return `decision: "block"` to prevent operations — not warnings. git push,
 frozen file writes, and out-of-scope writes are hard-blocked. Agents see the block reason

@@ -59,6 +59,11 @@
     "Stop": [
       {
         "matcher": "*",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pipeline-complete-check.cjs\"", "async": false, "timeout": 5 }],
+        "description": "Block stop if mint pipeline has incomplete steps (exit 2 = block)"
+      },
+      {
+        "matcher": "*",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/cost-tracker.cjs\"", "async": true, "timeout": 10 }],
         "description": "Track token and cost metrics per session"
       }

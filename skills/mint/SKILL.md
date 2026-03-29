@@ -65,10 +65,15 @@ agent, the orchestrator:
 
 1. Reads `pipeline-state.json` to know what step to execute next
 2. Reads the phase file for that step from `skills/mint/phases/`
-3. Dispatches the agent per the phase instructions
-4. Updates `pipeline-state.json` with the result
-5. **Outputs status text** (MANDATORY — user is locked out without this)
-6. Loops to step 1
+3. **Outputs status text FIRST** — what you're about to dispatch and why
+4. Dispatches the agent with `run_in_background: true` — user can talk while it runs
+5. When agent completes (you'll be notified), read the result
+6. Updates `pipeline-state.json` with the result
+7. Loops to step 1
+
+**Background agents are mandatory.** NEVER dispatch foreground agents for pipeline steps.
+The user must be able to send messages, corrections, or stop signals at any time.
+The only exception is quick mode, where you implement directly in main context.
 
 NEVER hold the full pipeline in memory. Each phase file is self-contained.
 
@@ -90,13 +95,34 @@ These apply in ALL modes. Non-negotiable.
 - NEVER accumulate raw tool output — subagents return summaries only
 
 ### User Message Awareness
-**Output text BEFORE every Agent dispatch.** Not after — before. One sentence is enough.
-Claude Code only polls for queued messages when you produce text. No text = user locked out.
+**All pipeline agents run in background** (`run_in_background: true`). This lets the user
+send messages, corrections, or stop signals while agents work. The orchestrator is notified
+when each agent completes — do NOT poll or sleep.
+
+**Output status BEFORE every dispatch and AFTER every completion.** Use the standard format
+below. After a background agent completes and before dispatching the next, check if the user
+sent messages and respond first.
+
+**Status format (always use this):**
 
 ```
-✅ "Spec 001 passed. Dispatching 002..."  → [Agent]
-❌ [Agent] → [Agent] → [Agent]            ← user locked out
+[mint] <mode> · <spec> · <step> — <result>
 ```
+
+Examples:
+```
+[mint] plan · 001-auth-handler · implement — dispatching planner...
+[mint] plan · 001-auth-handler · implement — gates: lint ✅ types ✅ tests ✅
+[mint] plan · 001-auth-handler · review-s1 — dispatching spec reviewer...
+[mint] plan · 001-auth-handler · review-s1 — PASSED
+[mint] plan · 001-auth-handler · review-s2 — dispatching quality, security, conventions...
+[mint] plan · 001-auth-handler · review-s2 — quality ✅ security ✅ conventions ⚠️ (2 warnings)
+[mint] plan · 001-auth-handler · dod — all criteria met ✅
+[mint] quick · implement — 3 files modified, gates passing
+[mint] quick · commit — abc1234
+```
+
+Never use freeform status text. Always `[mint] mode · spec · step — result`.
 
 ### Asking the User
 - Re-ground context (task + what's done + what decision needed)

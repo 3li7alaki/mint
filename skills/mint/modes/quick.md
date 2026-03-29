@@ -20,11 +20,15 @@ Step 5: Doc-manifest      → documenter agent (if needed)
 Step 6: Session cleanup   → orchestrator
 ```
 
+## Status Format
+
+Always use: `[mint] quick · <step> — <result>`
+
 ## Step 1: Inline Spec
 
 Write an inline spec (not saved to disk):
 - Goal, files to modify, steps, acceptance criteria
-- Output: "Quick mode: implementing [task]. Files: [list]."
+- Output: `[mint] quick · spec — <goal>. Files: <list>`
 
 ## Step 2: Implement
 

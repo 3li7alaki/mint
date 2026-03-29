@@ -122,9 +122,15 @@ If a spec fails gates or review:
 4. Rewrite spec based on root cause
 5. Re-dispatch with rewritten spec + failure details
 
-### User Messages Between Steps
+### Status Format
 
-After each agent returns and BEFORE dispatching next:
+Always use: `[mint] plan · <spec> · <step> — <result>`
+
+### Background Dispatch
+
+All pipeline agents MUST use `run_in_background: true`. The user can talk while they run.
+When the agent completes, you'll be notified. Check for user messages before continuing.
+
 - **Correction** → adjust remaining specs
 - **Addition** → incorporate or queue as follow-up
 - **Stop** → pause, await direction

@@ -1,6 +1,9 @@
 {
   "stack": "bun",
   "packageManager": "bun",
+  "mintVersion": "0.8.0",
+  "lastUpdated": "2026-03-29T00:00:00.000Z",
+  "appliedMigrations": ["0.7.6-to-0.8.0"],
   "gates": {
     "lint": false,
     "types": false,
@@ -22,7 +25,9 @@
       "docs/architecture.md",
       "docs/plugin-guide.md",
       "CONTRIBUTING.md",
-      "CLAUDE.md"
+      "CLAUDE.md",
+      "standards/claude-md.md",
+      "standards/agent-prompts.md"
     ]
   },
   "business": {
@@ -40,8 +45,7 @@
     "enabled": true
   },
   "modelRouting": {
-    "enabled": true,
-    "override": {}
+    "enabled": true
   },
   "autoCommit": true,
   "hooks": {
@@ -57,10 +61,10 @@
     "specReviewPassed": true,
     "stage2ReviewsPassed": true,
     "docCheckPassed": true,
-    "screenshotReminder": "ui-changes"
+    "screenshotReminder": false
   },
   "browser": {
-    "enabled": true
+    "enabled": false
   },
   "context": {
     "enabled": true,

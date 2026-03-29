@@ -3,27 +3,27 @@
   "docs": [
     {
       "path": "README.md",
-      "description": "Public-facing project documentation — install, pipeline, agents, config, commands, ecosystem integrations",
+      "description": "Public-facing project documentation — install, pipeline, features, config",
       "trigger": "on-task-complete",
       "sections": [
         {
           "id": "how-it-works",
           "heading": "## How It Works",
-          "tracks": ["skills/mint/SKILL.md"],
+          "tracks": ["skills/mint/SKILL.md", "skills/mint/modes/*.md"],
           "staleness": "git-diff",
           "description": "Routing table must match SKILL.md auto-routing decision logic"
         },
         {
           "id": "pipeline",
           "heading": "## The Pipeline",
-          "tracks": ["skills/mint/SKILL.md", "agents/*.md"],
+          "tracks": ["skills/mint/SKILL.md", "skills/mint/phases/*.md", "agents/*.md"],
           "staleness": "git-diff",
-          "description": "Pipeline diagram must list all review stages and agent names"
+          "description": "Pipeline diagram must list all pipeline steps and agent names"
         },
         {
           "id": "core-features",
           "heading": "## Core Features",
-          "tracks": ["skills/mint/SKILL.md", ".mint/config.json"],
+          "tracks": ["skills/mint/modes/*.md", ".mint/config.json"],
           "staleness": "git-diff",
           "description": "Must document every core feature (browser, context, design, doc-manifest)"
         },
@@ -35,11 +35,11 @@
           "description": "Config table must list all top-level config keys with defaults"
         },
         {
-          "id": "ecosystem",
-          "heading": "## Ecosystem & Integrations",
-          "tracks": ["skills/mint/SKILL.md"],
+          "id": "learning",
+          "heading": "## Learning",
+          "tracks": ["cli/lib/jsonl.js", "hooks/scripts/instinct-observer.cjs"],
           "staleness": "git-diff",
-          "description": "Must list all external tool integrations"
+          "description": "Must describe instincts (scored), metrics, issues, wins, patterns"
         },
         {
           "id": "cli",
@@ -47,160 +47,76 @@
           "tracks": ["cli/commands/*.js", "cli/mint.js"],
           "staleness": "git-diff",
           "description": "CLI command list must match actual commands available"
-        },
-        {
-          "id": "documentation-table",
-          "heading": "## Documentation",
-          "tracks": ["docs/*.md", "commands/*.md"],
-          "staleness": "glob-count",
-          "description": "Documentation table must list all doc files and command references"
         }
       ]
     },
     {
       "path": "CONTRIBUTING.md",
-      "description": "Project structure tree, agent conventions, command conventions, plugin conventions",
+      "description": "Project structure tree, agent conventions, command conventions",
       "trigger": "on-architectural-change",
       "sections": [
         {
           "id": "project-structure",
           "heading": "## Project Structure",
-          "tracks": ["agents/*.md", "commands/*.md", "cli/commands/*.js", "standards/**/*", "templates/*", "hooks/**/*"],
+          "tracks": ["agents/*.md", "skills/mint/modes/*.md", "skills/mint/phases/*.md", "cli/commands/*.js", "standards/**/*", "hooks/**/*"],
           "staleness": "glob-count",
-          "description": "Directory tree must list all agent files, command files, CLI commands, hooks, and key directories"
+          "description": "Directory tree must list all agents, modes, phases, CLI commands, hooks"
         },
         {
           "id": "writing-agents",
           "heading": "## Writing Agents",
-          "tracks": ["agents/*.md"],
+          "tracks": ["agents/*.md", "standards/agent-prompts.md"],
           "staleness": "glob-count",
-          "description": "Agent conventions must reflect current agent patterns"
-        },
-        {
-          "id": "writing-commands",
-          "heading": "## Writing Commands",
-          "tracks": ["commands/*.md"],
-          "staleness": "glob-count",
-          "description": "Command conventions must reflect current command patterns"
-        },
-        {
-          "id": "writing-plugins",
-          "heading": "## Writing Plugins",
-          "tracks": ["templates/plugin-manifest.json", "docs/plugin-guide.md"],
-          "staleness": "git-diff",
-          "description": "Plugin conventions must match plugin template and guide"
+          "description": "Agent conventions must reference standards/agent-prompts.md"
         }
       ]
     },
     {
       "path": "docs/architecture.md",
-      "description": "System design — agent roles, pipeline stages, core features, plugin system, hooks, isolation",
+      "description": "System design — skill decomposition, pipeline, agents, learning loop, hooks",
       "trigger": "on-architectural-change",
       "sections": [
         {
           "id": "system-design",
           "heading": "## System Design",
-          "tracks": ["agents/*.md"],
+          "tracks": ["agents/*.md", "skills/mint/SKILL.md", "skills/mint/modes/*.md", "skills/mint/phases/*.md"],
           "staleness": "glob-count",
-          "description": "Subagent pool diagram must list every agent"
-        },
-        {
-          "id": "review-pipeline",
-          "heading": "## Review Pipeline",
-          "tracks": ["agents/*-reviewer.md", "agents/*-auditor.md", "agents/*-enforcer.md"],
-          "staleness": "glob-count",
-          "description": "Must describe all review stages"
+          "description": "Diagram must list router + modes + phases + all agents"
         },
         {
           "id": "learning-loop",
           "heading": "## Learning Loop",
-          "tracks": ["skills/mint/SKILL.md", ".mint/instincts.md", ".mint/issues.md", ".mint/wins.md"],
+          "tracks": ["cli/lib/jsonl.js", "hooks/scripts/instinct-observer.cjs", ".mint/instincts.jsonl"],
           "staleness": "git-diff",
-          "description": "Must describe all learning mechanisms including instincts, issues, wins, and doc-manifest"
-        },
-        {
-          "id": "documentation-intelligence",
-          "heading": "## Documentation Intelligence",
-          "tracks": [".mint/doc-manifest.json", "agents/documenter.md", "commands/doc-setup.md", "commands/optimize.md"],
-          "staleness": "git-diff",
-          "description": "Must describe doc-manifest system, staleness strategies, and documenter workflow"
+          "description": "Must describe scored instincts, metrics, issues, wins, decay, promotion"
         },
         {
           "id": "hooks-system",
           "heading": "## Hooks System",
           "tracks": ["hooks/**/*"],
           "staleness": "glob-count",
-          "description": "Must list all hook scripts and their triggers"
+          "description": "Must list all hook scripts including pipeline-complete-check"
         }
       ]
     },
     {
       "path": "docs/conventions.md",
-      "description": "Internal conventions — config schema, git strategy, file formats, core feature checklist, PR rules",
+      "description": "Internal conventions — config schema, file formats, git strategy",
       "trigger": "on-architectural-change",
       "sections": [
+        {
+          "id": "file-format",
+          "heading": "## File Format",
+          "tracks": ["skills/mint/modes/*.md", "skills/mint/phases/*.md", "cli/migrations/*.js"],
+          "staleness": "glob-count",
+          "description": "File format table must include modes, phases, migrations, metrics"
+        },
         {
           "id": "config-schema",
           "heading": "## Config Schema",
-          "tracks": [".mint/config.json", "cli/commands/init.js"],
+          "tracks": [".mint/config.json", "cli/commands/init.js", "cli/lib/schema.js"],
           "staleness": "git-diff",
-          "description": "Config table must document every key in .mint/config.json"
-        },
-        {
-          "id": "documentation-section",
-          "heading": "## Documentation",
-          "tracks": ["agents/documenter.md", ".mint/doc-manifest.json", "skills/mint/SKILL.md"],
-          "staleness": "git-diff",
-          "description": "Must describe doc-manifest system, when-to-update triggers, and documenter workflow"
-        },
-        {
-          "id": "adding-core-feature",
-          "heading": "### Adding a Core Feature",
-          "tracks": ["cli/commands/*.js", "skills/mint/SKILL.md"],
-          "staleness": "git-diff",
-          "description": "Core feature checklist must list all touchpoints for new features"
-        }
-      ]
-    },
-    {
-      "path": "CLAUDE.md",
-      "description": "Key files table, working rules, project overview",
-      "trigger": "on-architectural-change",
-      "sections": [
-        {
-          "id": "key-files",
-          "heading": "| File | Purpose |",
-          "tracks": ["agents/*.md", "cli/commands/*.js", "templates/*", ".mint/*", "commands/*.md"],
-          "staleness": "glob-count",
-          "description": "Key files table must list all important files and their purposes"
-        }
-      ]
-    },
-    {
-      "path": "docs/plugin-guide.md",
-      "description": "Plugin development guide — manifest schema, hook points, agent conventions, testing",
-      "trigger": "on-architectural-change",
-      "sections": [
-        {
-          "id": "plugin-hooks",
-          "heading": "## Hook Points",
-          "tracks": ["skills/mint/SKILL.md"],
-          "staleness": "git-diff",
-          "description": "Must list all available plugin hook points matching SKILL.md"
-        }
-      ]
-    },
-    {
-      "path": "docs/autonomous-loops.md",
-      "description": "CI/CD and scripted workflow patterns for running mint non-interactively",
-      "trigger": "on-architectural-change",
-      "sections": [
-        {
-          "id": "cli-commands",
-          "heading": "## CLI",
-          "tracks": ["cli/commands/*.js", "cli/mint.js"],
-          "staleness": "git-diff",
-          "description": "Must reference current CLI commands and flags"
+          "description": "Config table must document every key including mintVersion"
         }
       ]
     }

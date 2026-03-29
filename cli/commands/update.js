@@ -339,13 +339,48 @@ export async function run(positional = [], flags = {}) {
     registerProject(process.cwd());
   }
 
-  // ─── Smart update — all registered projects ───────────────────────────────
-  // Claude reads each project and applies context-aware config changes.
-  if (detectTool('claude') && !depsOnly) {
+  // ─── Run migrations on all registered projects ──────────────────────────
+  if (!depsOnly) {
     const projects = getRegisteredProjects();
     if (projects.length > 0) {
       p.log.info(`${projects.length} registered project${projects.length > 1 ? 's' : ''} found`);
 
+      const { runMigrations } = await import('../migrations/runner.js');
+      let migrated = 0;
+      let failed = 0;
+
+      for (const project of projects) {
+        const projName = path.basename(project.path);
+        const s = spinner();
+        s.start(`Migrating: ${projName}...`);
+        try {
+          const result = await runMigrations(project.path, version, {
+            onStep: (name, status) => {
+              if (status === 'running') s.start?.(`${projName}: ${name}...`);
+            },
+          });
+          if (result.success && result.applied.length > 0) {
+            s.stop(`${projName}: ${result.applied.length} migration(s) applied`);
+            migrated++;
+          } else if (result.success) {
+            s.stop(`${projName}: up to date`);
+          } else {
+            s.stop(`${projName}: migration failed — ${result.failed.step}: ${result.failed.error}`);
+            failed++;
+          }
+        } catch (err) {
+          s.stop(`${projName}: migration error — ${err.message}`);
+          failed++;
+        }
+      }
+
+      if (migrated > 0) p.log.success(`${migrated} project(s) migrated`);
+      if (failed > 0) p.log.warn(`${failed} project(s) failed — check configs manually`);
+    }
+
+    // Smart update (opt-in, --smart flag only) for edge cases migrations can't handle
+    if (flags.smart && detectTool('claude')) {
+      const projects = getRegisteredProjects();
       for (const project of projects) {
         const projName = path.basename(project.path);
         const s = spinner();
@@ -354,12 +389,7 @@ export async function run(positional = [], flags = {}) {
           const { smartUpdate } = await import('../lib/smart-session.js');
           const analysis = await smartUpdate(project.path, '0.6.x', version);
           if (analysis.success && analysis.result) {
-            s.stop(`${projName}: updated`);
-            // Show brief summary — first 3 lines of result
-            const lines = analysis.result.split('\n').filter(l => l.trim()).slice(0, 3);
-            for (const line of lines) {
-              console.log(`    \x1b[2m${line}\x1b[0m`);
-            }
+            s.stop(`${projName}: optimized`);
           } else {
             s.stop(`${projName}: already optimal`);
           }

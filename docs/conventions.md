@@ -4,16 +4,23 @@
 
 | Content type | Format | Why |
 |---|---|---|
-| Agent prompts | Markdown (.md) | What Claude expects as input |
+| Agent prompts | Markdown (.md) | What Claude expects as input. Max 150 lines. |
+| Skill router | Markdown (.md) | Thin router (~155 lines). Loads modes/phases on demand. |
+| Mode/phase files | Markdown (.md) | One per mode/pipeline step. Loaded individually. |
 | Task specs | XML (.xml) | Structured, parseable, validated |
 | Execution state | JSON (.json) | Per-spec tracking, machine-readable, resumable |
-| Config | JSON (.json) | Zero ambiguity, schema-validated |
-| Learning logs | JSONL (.jsonl) | Append-only, concurrent-safe, grep-able — one JSON object per line |
-| Session state | JSON (.json) | Single-writer, read by hooks |
+| Pipeline state | JSON (.json) | Per-spec pipeline step tracker (plan mode) |
+| Config | JSON (.json) | Zero ambiguity, schema-validated. Has `mintVersion` field. |
+| Learning logs | JSONL (.jsonl) | Append-only, concurrent-safe, grep-able |
+| Instincts | JSONL (.jsonl) | Scored format: confidence, occurrences, sources, decay |
+| Execution metrics | JSONL (.jsonl) | Per-spec performance data for evidence-based evolution |
+| Session state | JSON (.json) | Single-writer, read by hooks. Timestamp-prefixed IDs. |
 | Freeze/guard list | JSON (.json) | Read-heavy by hooks on every Edit/Write |
 | Gate ledger | JSONL (.jsonl) | Concurrent append by parallel agents |
 | Documentation | Markdown (.md) | Standard, renderable everywhere |
 | Hard blocks | Markdown (.md) | Human-authored constraints |
+| Standards | Markdown (.md) | Reference docs for writing CLAUDE.md and agent prompts |
+| Migrations | JavaScript (.js) | Versioned migration steps in `cli/migrations/` |
 
 ### JSONL Format
 
@@ -24,23 +31,29 @@ Learning logs (issues, wins, patterns, instincts) and the gate ledger use JSONL:
 {"date":"2025-03-25","task":"auth","pattern":"Split API + UI specs","why":"Kept context focused"}
 ```
 
-- **Append:** `fs.appendFileSync(file, JSON.stringify(entry) + '\n')`
-- **Read:** `readJsonl(path)` from `cli/lib/jsonl.js`
+- **Append:** `appendJsonl(file, entry)` from `cli/lib/jsonl.js`
+- **Read:** `readJsonl(path)` — skips blank lines and invalid JSON
 - **Query:** `queryJsonl(path, predicate)` for filtered reads
-- **Migrate:** `migrateMarkdownTableToJsonl(mdPath, jsonlPath)` for old `.md` files
+- **Instincts:** `upsertInstinct(path, { category, observation, source, examples })` — deduplicates by category+observation, increments confidence
+- **Decay:** `decayInstincts(path, maxAgeDays)` — reduces confidence on stale instincts, removes at 0
+- **Top-N:** `topInstincts(path, maxCount, minConfidence)` — for planner injection
+- **Metrics:** `logMetric(path, { task, spec, instinctsApplied, reviewResult, gateResults, attempts })`
+- **Analyze:** `analyzeInstinctEffectiveness(path)` — correlates instinct usage with pass rates
 - **Atomic:** Lines under 4KB are atomic on POSIX — safe for concurrent append
 
 ## Agent Prompts
+
+See `standards/agent-prompts.md` for the full reference on writing effective agent prompts.
 
 ### Structure
 
 Every agent file follows this order:
 
-1. **Role statement** — "You are the mint X agent."
-2. **What you receive** — inputs the orchestrator provides
-3. **What you do** — step-by-step process
-4. **What you return** — exact output format
-5. **Rules** — constraints and non-negotiables
+1. **Role** — one-line role statement
+2. **Inputs** — what the orchestrator provides
+3. **Process** — numbered steps (max 10)
+4. **Output** — exact return format
+5. **Rules** — constraints (max 10, most important first)
 
 ### Naming
 
@@ -205,6 +218,9 @@ Project-specific keys (`stack`, `packageManager`, `gates`, `browser`, `context`,
 | `design.review.brand` | boolean | Brand guide compliance checks. Default: `false` |
 | `definitionOfDone.docCheckPassed` | boolean | Whether doc-manifest check is required after each spec. Default: `true` |
 | `signature` | boolean | Add "Minted with mint" signature to README.md when asked. Default: `false` |
+| `mintVersion` | string | Current mint version for migration tracking. Set by `mint init` or `mint update`. |
+| `lastUpdated` | string | ISO-8601 timestamp of last migration run. |
+| `appliedMigrations` | string[] | List of applied migration IDs (e.g., `["0.7.6-to-0.8.0"]`). |
 
 ### Workspace Registry (`workspace.repos`)
 
@@ -239,7 +255,7 @@ Core features are toggleable capabilities with their own config, agents, and CLI
 | 1 | `agents/<feature>-*.md` | Create core agents (context, reviewer, setup, etc.) |
 | 2 | `commands/<feature>*.md` | Create user-facing commands |
 | 3 | `standards/<feature>/` | Add reference docs, standards if applicable |
-| 4 | `skills/mint/SKILL.md` | Add routing decision, execution flow section, startup detection, stage 2 reviewer if applicable |
+| 4 | `skills/mint/SKILL.md` | Add routing decision. Create `modes/<feature>.md` for execution flow. Add stage 2 reviewer dispatch in `phases/review-stage2.md` if applicable. |
 | 5 | `cli/commands/init.js` | Add confirm prompt, install hook (if external dep), add to `buildConfig()`, add to headless mode |
 | 6 | `cli/commands/doctor.js` | Add health checks (enabled status, deps installed, assets present) |
 | 7 | `cli/commands/config.js` | Add status display line, remove from plugins list if migrated |

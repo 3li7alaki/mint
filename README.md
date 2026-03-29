@@ -7,9 +7,13 @@
  ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝   ╚═╝
 ```
 
+![Version](https://img.shields.io/github/v/release/3li7alaki/mint)
+![Stars](https://img.shields.io/github/stars/3li7alaki/mint)
+![License](https://img.shields.io/github/license/3li7alaki/mint)
+
 ### Disciplined agentic development for Claude Code
 
-> v0.7.6 — Parallel execution. File freezing. Smart browser. Zero slop.
+> v0.8.0 — Self-evolving skill architecture. Pipeline enforcement. Scored instincts. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 
@@ -55,17 +59,18 @@ Run `mint init` in your project (seeds from global defaults if set):
 
 ```
 .mint/
-├── config.json             — gates, reviewers, browser, design, plugins
+├── config.json             — gates, reviewers, browser, design, plugins + mintVersion
 ├── hard-blocks.md          — what agents can never do
-├── issues.jsonl            — failure log (JSONL — concurrent-safe, grep-able)
-├── wins.jsonl              — success log (JSONL)
-├── patterns.jsonl          — graduated recurring patterns (JSONL)
-├── instincts.jsonl         — auto-learned conventions (JSONL)
-├── sessions/               — per-session state files (gitignored)
-│   └── <session-id>.json  — one file per concurrent Claude Code session
-├── .freeze-list.json       — frozen/guarded file paths (gitignored)
-├── .browser-sessions.json  — browser cookie persistence (gitignored)
-└── .gate-ledger.jsonl      — gate run tracking for dedup (gitignored)
+├── issues.jsonl            — failure log with root cause categories
+├── wins.jsonl              — success patterns
+├── patterns.jsonl          — graduated recurring patterns
+├── instincts.jsonl         — scored conventions (confidence, dedup, decay)
+├── metrics.jsonl           — per-spec execution metrics for evidence-based evolution
+├── sessions/               — per-session state (gitignored, timestamp-prefixed IDs)
+├── tasks/<slug>/           — spec XMLs + execution.json + pipeline-state.json per spec
+├── .freeze-list.json       — frozen/guarded paths (gitignored)
+├── .browser-sessions.json  — browser cookies (gitignored)
+└── .gate-ledger.jsonl      — gate run dedup (gitignored)
 ```
 
 ## How It Works
@@ -94,25 +99,24 @@ No commands to memorize. Just describe what you want to build.
 ```
 You describe a feature
         │
+  Router (SKILL.md, 155 lines) → loads mode file
+        │
   Challenge (optional) — is this the right thing to build?
         │
-  Decompose into XML specs with dependency graph
+  Decomposer agent → XML specs with dependency graph
         │
-  Build wave plan from <depends-on>:
-    Wave 1: [001, 002]     ← independent, run in parallel
-    Wave 2: [003, 004]     ← depend on wave 1, parallel
-    Wave 3: [005]          ← depends on 003 + 004
+  Build wave plan from <depends-on>
         │
-  Per wave: dispatch specs (parallel Agent calls or parallel worktree sessions)
+  Per spec — state-machine pipeline (each step loads its own phase file):
+    ┌─ implement  → Planner agent (gates + commit)
+    ├─ desloppify → De-sloppifier (conditional)
+    ├─ review-s1  → Spec reviewer (mandatory gate)
+    ├─ review-s2  → Parallel auditors (scaled by diff size)
+    ├─ fix        → Fix BLOCKINGs (if any)
+    ├─ docs       → Documenter (if manifest matches)
+    └─ dod        → Definition of Done verification
         │
-  Per spec:
-    Fresh subagent executes (reads existing code, matches patterns)
-    → Gates: lint → types → tests
-    → Stage 1: Spec reviewer (gate)
-    → Stage 2 (parallel, scaled by diff size):
-        Quality + Security + Conventions + Tests + Business + Performance + Design
-    → Atomic commit
-    → Doc-manifest check: update stale documentation
+  Pipeline-complete hook blocks stop if steps were skipped
         │
   You review the final result
 ```
@@ -383,15 +387,17 @@ Issues are categorized: BLOCKING (must fix), WARNING (should fix), INFO (logged)
 
 mint learns your project's conventions automatically. All learning logs use **JSONL** (one JSON object per line) — append-only, concurrent-safe, `grep`-able. No read-parse-modify-write cycle.
 
-- **Instincts** (`.mint/instincts.jsonl`) — a PostToolUse hook observes every file edit and extracts patterns: import style, naming conventions, test framework, component patterns. Confidence grows as the same pattern appears. High-confidence (>= 3) are treated as conventions.
+- **Instincts** (`.mint/instincts.jsonl`) — a PostToolUse hook observes every edit and extracts patterns. Each instinct has **confidence scoring** (increments on repeat observations), **deduplication** (same pattern never logged twice), and **decay** (unused instincts lose confidence over 30 days). Top 20 by confidence are injected into the decomposer. Sources track where the instinct came from (observer hook, reviewer feedback).
 
-- **Issues** (`.mint/issues.jsonl`) — every blocker, root cause, and resolution. The planner reads this to avoid repeating mistakes.
+- **Execution metrics** (`.mint/metrics.jsonl`) — per-spec performance data: which instincts were applied, review outcomes, gate results. Enables evidence-based evolution — instincts that correlate with review passes get boosted.
 
-- **Wins** (`.mint/wins.jsonl`) — successful patterns and why they worked. The planner reads this to replicate what works.
+- **Issues** (`.mint/issues.jsonl`) — every failure with root cause category. Become `<pitfalls>` in new specs.
+
+- **Wins** (`.mint/wins.jsonl`) — successful patterns and why they worked.
 
 - **Patterns** (`.mint/patterns.jsonl`) — graduated from issues/wins when a pattern repeats 3+ times.
 
-Patterns graduate automatically: instincts → patterns → permanent conventions. All are committed to git — shared team knowledge.
+The system is self-evolving: observe → score → correlate → boost/decay → promote. All committed to git — shared team knowledge.
 
 ## Plugins
 

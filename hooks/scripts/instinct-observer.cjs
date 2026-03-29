@@ -2,11 +2,11 @@
 /**
  * mint hook: Instinct observer
  * Trigger: PostToolUse (Edit|Write)
- * Observes patterns in agent behavior and records instincts to .mint/instincts.md
+ * Observes patterns in edited files and upserts instincts to .mint/instincts.jsonl
  *
- * Watches for recurring code patterns, naming conventions, import styles, and test
- * patterns. Confidence grows as the same pattern is seen across different files.
- * Patterns with confidence >= 3 are high-confidence conventions.
+ * Watches for naming conventions, import styles, test patterns, and framework usage.
+ * Deduplicates by category+observation — confidence grows with each new observation.
+ * Patterns with confidence >= 3 are treated as project conventions by the planner.
  */
 'use strict';
 
@@ -72,29 +72,55 @@ function extractPatterns(filePath, content) {
 }
 
 /**
- * Record an instinct observation as a JSONL append.
- *
- * Instead of read-modify-write on a markdown table (which races under concurrent
- * sessions), we append one JSON line per observation. Confidence is computed at
- * read time by counting distinct files per (category, observation) pair.
- *
- * Entry format: { category, observation, file, date }
- * To compute confidence: group by (category, observation), count distinct files.
+ * Upsert an instinct — deduplicate by category + observation.
+ * If a matching entry exists, increment confidence. Otherwise create new.
  */
 function recordInstinct(mintDir, pattern) {
   const instinctsPath = path.join(mintDir, 'instincts.jsonl');
   const fileName = path.basename(pattern.file);
-  const today = new Date().toISOString().split('T')[0];
 
-  const entry = JSON.stringify({
-    category: pattern.category,
-    observation: pattern.observation,
-    file: fileName,
-    date: today,
-  });
+  // Read existing entries
+  let entries = [];
+  try {
+    entries = fs.readFileSync(instinctsPath, 'utf8')
+      .split('\n').filter(l => l.trim())
+      .map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean);
+  } catch { /* file doesn't exist yet */ }
 
-  // appendFileSync is atomic for writes under 4KB on POSIX
-  fs.appendFileSync(instinctsPath, entry + '\n');
+  const normalize = s => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  const matchCat = normalize(pattern.category);
+  const matchObs = normalize(pattern.observation);
+  const now = new Date().toISOString();
+
+  const idx = entries.findIndex(e =>
+    normalize(e.category) === matchCat && normalize(e.observation) === matchObs
+  );
+
+  if (idx >= 0) {
+    // Update existing
+    entries[idx].confidence = (entries[idx].confidence || 1) + 1;
+    entries[idx].occurrences = (entries[idx].occurrences || 1) + 1;
+    entries[idx].lastSeen = now;
+    const examples = entries[idx].examples || [];
+    if (!examples.includes(fileName)) {
+      entries[idx].examples = [...examples, fileName].slice(0, 5);
+    }
+    fs.writeFileSync(instinctsPath, entries.map(e => JSON.stringify(e)).join('\n') + '\n');
+  } else {
+    // Append new
+    const entry = {
+      category: pattern.category,
+      observation: pattern.observation,
+      confidence: 1,
+      occurrences: 1,
+      firstSeen: now,
+      lastSeen: now,
+      sources: ['observer'],
+      examples: [fileName],
+    };
+    fs.appendFileSync(instinctsPath, JSON.stringify(entry) + '\n');
+  }
 }
 
 process.stdin.on('end', () => {

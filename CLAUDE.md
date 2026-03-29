@@ -34,10 +34,15 @@ The only exceptions:
 
 ## Architecture
 
-- Core orchestration is markdown + JSON + XML — `SKILL.md` is the brain
-- One agent per job — agents don't know about each other. See `agents/*.md`
+- `skills/mint/SKILL.md` — thin router (~150 lines), loads mode/phase files on demand
+- `skills/mint/modes/` — one file per execution mode (quick, plan, ship, etc.)
+- `skills/mint/phases/` — one file per pipeline step (implement, review, docs, etc.)
+- `skills/mint/reference/` — detailed docs loaded only when needed
+- `agents/*.md` — one agent per job, max 200 lines each
 - CLI uses bun + @clack/prompts. See `cli/` and `cli/lib/`
 - Reviewers use three severities: BLOCKING, WARNING, INFO
+- See `standards/agent-prompts.md` for how to write agent prompts
+- See `standards/claude-md.md` for how to write CLAUDE.md files
 
 ## Key Docs
 
@@ -51,5 +56,6 @@ The only exceptions:
 
 - Design plans go in `docs/plans/` (gitignored) — don't commit them
 - `.mint/sessions/` files are gitignored — per-session state, not shared
-- All learning logs (issues, wins, instincts) are JSONL — append-only, never read-parse-modify-write
+- All learning logs (issues, wins, instincts) are JSONL with confidence scoring — use `upsertInstinct()`, never raw append
+- The old 1900-line SKILL.md is gone — router + modes + phases + references
 - No superpowers plugin — mint is the orchestration framework, don't layer another on top

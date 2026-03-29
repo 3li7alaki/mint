@@ -129,10 +129,15 @@ case ":$PATH:" in
     fi
 
     if [ -n "$SHELL_RC" ] && [ -f "$SHELL_RC" ]; then
-      echo "  Adding to $SHELL_RC..."
-      echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
-      export PATH="$HOME/.local/bin:$PATH"
-      ok "Added to $SHELL_RC — restart your shell or run: source $SHELL_RC"
+      # Duplicate guard — don't append if already there
+      if grep -qF '.local/bin' "$SHELL_RC" 2>/dev/null; then
+        ok "$SHELL_RC already has .local/bin in PATH"
+      else
+        echo "  Adding to $SHELL_RC..."
+        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
+        export PATH="$HOME/.local/bin:$PATH"
+        ok "Added to $SHELL_RC — restart your shell or run: source $SHELL_RC"
+      fi
     else
       echo "  Add to your shell profile:"
       echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""

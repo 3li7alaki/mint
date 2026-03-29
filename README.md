@@ -7,9 +7,10 @@
  ╚═╝     ╚═╝╚═╝╚═╝  ╚═══╝   ╚═╝
 ```
 
-![Version](https://img.shields.io/github/v/release/3li7alaki/mint)
-![Stars](https://img.shields.io/github/stars/3li7alaki/mint)
+![Version](https://img.shields.io/github/v/release/3li7alaki/mint?label=version)
+![Stars](https://img.shields.io/github/stars/3li7alaki/mint?style=flat)
 ![License](https://img.shields.io/github/license/3li7alaki/mint)
+![CI](https://github.com/3li7alaki/mint/actions/workflows/ci.yml/badge.svg)
 
 ### Disciplined agentic development for Claude Code
 

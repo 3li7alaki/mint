@@ -54,4 +54,5 @@ if [ -f "$README" ]; then
 fi
 
 echo ""
-echo "Version bumped to $NEW. Run 'git add . && git commit' when ready."
+echo "Version bumped to $NEW."
+echo "Commit and merge to main — GitHub Actions will auto-tag and create the release."

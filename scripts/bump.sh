@@ -46,13 +46,6 @@ for file in "$PLUGIN_JSON" "$MARKETPLACE_JSON" "$PACKAGE_JSON"; do
   fi
 done
 
-# Update README version tagline
-README="README.md"
-if [ -f "$README" ]; then
-  sed -i "s/> v${CURRENT}/> v${NEW}/g" "$README"
-  echo "  Updated $README"
-fi
-
 echo ""
 echo "Version bumped to $NEW."
 echo "Commit and merge to main — GitHub Actions will auto-tag and create the release."

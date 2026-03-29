@@ -14,7 +14,7 @@
 
 ### Disciplined agentic development for Claude Code
 
-> v0.8.0 — Self-evolving skill architecture. Pipeline enforcement. Scored instincts. Zero slop.
+> Self-evolving skill architecture. Pipeline enforcement. Scored instincts. Zero slop.
 
 **Core philosophy:** Slop is an engineering problem, not an LLM problem. If an agent produces bad code, fix the environment — never patch the output.
 

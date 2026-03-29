@@ -6,7 +6,8 @@
  */
 import * as p from '@clack/prompts';
 
-const isTTY = process.stdout.isTTY;
+// Suppress spinners when running inside Claude Code (CLAUDECODE env) or non-TTY
+const isTTY = process.stdout.isTTY && !process.env.CLAUDECODE;
 
 /**
  * Create a spinner that degrades gracefully in non-TTY environments.

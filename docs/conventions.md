@@ -4,7 +4,8 @@
 
 | Content type | Format | Why |
 |---|---|---|
-| Agent prompts | Markdown (.md) | What Claude expects as input. Max 150 lines. |
+| Agent prompts | Markdown (.md) | Static system prompt per agent. Max 150 lines. Cached by API. |
+| Context templates | Markdown (.md) | Dynamic prompt schemas in `templates/agent-context.md`. Per-dispatch inputs only. |
 | Skill router | Markdown (.md) | Thin router (~125 lines). Loads modes/phases on demand. |
 | Mode/phase files | Markdown (.md) | One per mode/pipeline step. Loaded individually. |
 | Task specs | XML (.xml) | Structured, parseable, validated |

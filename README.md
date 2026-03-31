@@ -126,6 +126,14 @@ You describe a feature
 within one session, or as separate `claude -p` processes in isolated git worktrees. Concurrency
 is configurable (default: 3). Scope enforcement prevents parallel specs from modifying the same files.
 
+**Prompt caching:** Agent prompts are split into static (`.md` file = system prompt, cached
+by API) and dynamic (per-dispatch context from `templates/agent-context.md`). In a 4-spec wave,
+the planner's system prompt is cached after the first dispatch — remaining specs pay ~75% less.
+
+**Tiered dispatch:** Fast agents (spec reviewer, documenter) run foreground for immediate
+results. Slow agents (planner, decomposer, reviewers) run background so you stay free to
+send corrections or stop signals.
+
 ## Ecosystem & Integrations
 
 mint integrates with best-in-class external tools. Each is optional and toggleable — mint works without any of them, but they make it significantly more capable.

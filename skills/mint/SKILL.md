@@ -111,16 +111,27 @@ them for the current step — not at startup.
 
 ---
 
-## What Agents Receive
+## What Agents Receive (Prompt Caching)
 
-| Agent | Context |
-|-------|---------|
+Each agent has two layers — **static** (cached) and **dynamic** (per-dispatch):
+
+- **Static:** The agent `.md` file in `agents/` — identity, rules, checklist. Cached by
+  Anthropic's API across identical requests. Multiple specs in a wave share this cache.
+- **Dynamic:** The `prompt` parameter built from `templates/agent-context.md`. Contains
+  only the per-dispatch inputs (spec XML, diff, config values). Keep this minimal.
+
+**Rule: Never duplicate agent instructions in the dynamic prompt.** The agent already has
+its `.md` file as system prompt.
+
+| Agent | Dynamic context (from `templates/agent-context.md`) |
+|-------|------------------------------------------------------|
 | Decomposer | Feature desc + config + hard blocks + learning context |
-| Planner | Spec XML + resolved autocommit + resolved TDD + retry context |
-| Reviewer | Spec XML + git diff |
-| Researcher | Question + config |
-| Documenter | File path + description + change summary + manifest sections |
-| Shipper | Confirmed ship plan + config + hard blocks |
-| Verifier | Config only |
+| Planner | Spec XML + autocommit + TDD + retry/correction context |
+| Spec Reviewer | Spec XML + git diff |
+| Stage 2 Reviewers | Git diff + file list (+ conventions/business docs if applicable) |
+| Documenter | Doc path + description + change summary + manifest sections |
 | De-sloppifier | Git diff + spec XML + gate commands |
+| Researcher | Question + config |
+| Shipper | Ship plan + config + hard blocks |
+| Verifier | Failing gate output + config |
 | Build Resolver | Error output + config + in-scope files |

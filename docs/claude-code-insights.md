@@ -30,19 +30,22 @@ Mint has 27 agents (decomposer, planner, 6 reviewers, documenter, researcher, et
 
 ### Gaps to Fill
 
-**1. Auto-Background Threshold**
+**1. ~~Auto-Background Threshold~~ → Tiered Foreground/Background Dispatch (DONE)**
 
-Claude Code agents run in foreground for 2 seconds, then auto-background if still running. The user can keep working while the agent finishes.
-
-Mint runs agents via `run_in_background: true` explicitly. Adding an auto-background threshold would let quick agents (lint check, small edit) stay foreground while long agents (full implementation, research) background automatically.
+Claude Code agents run in foreground for 2 seconds, then auto-background if still running.
+Since Claude Code's Agent tool doesn't support auto-switching at runtime, mint uses a
+**static tiered dispatch model** instead — each phase file declares its dispatch tier upfront.
 
 ```
-# Current mint behavior
-Agent spawned → always background → user polls status
+# Old behavior
+Agent spawned → always background → user waits for notification
 
-# Proposed behavior
-Agent spawned → foreground 3s → still running? → auto-background → notify on complete
+# Implemented behavior
+Fast agents (spec reviewer S1, documenter, verifier) → foreground → immediate result
+Slow agents (planner, decomposer, S2 reviewers, shipper, etc.) → background → user free
 ```
+
+Tier table in `reference/orchestrator-laws.md`. Each phase file annotates its dispatch tier.
 
 **2. Adversarial Verification Agent**
 
@@ -133,28 +136,29 @@ Sections use a registry pattern:
 
 Mint agent prompts (27 agents in `/agents/`) are loaded as full markdown files. Each agent gets the same static instructions every time, plus dynamic context (spec XML, learning JSONL, config).
 
-**Proposal: Split agent prompts into static + dynamic**
+**Implemented: Static/dynamic prompt split**
+
+Agent `.md` files are already the static system prompt (cached by API). Dynamic context is
+passed via the `prompt` parameter. To formalize this and prevent instruction duplication:
 
 ```
-agents/
-  planner.md          → static instructions (cached by API)
-  planner.context.md  → template for dynamic context injection
+agents/planner.md              → static system prompt (cached by API)
+templates/agent-context.md     → structured templates for ALL agents' dynamic prompts
 
 # At dispatch time:
-prompt = cache(read('agents/planner.md')) + render('agents/planner.context.md', {
-  spec: currentSpec,
-  issues: recentIssues,
-  instincts: topInstincts,
-  config: projectConfig,
-})
+Agent tool:
+  subagent_type: "mint:mint-planner"       ← loads static agents/planner.md
+  prompt: "<spec>...</spec><config>..."    ← dynamic from templates/agent-context.md
 ```
 
-Benefits:
-- Static part (agent identity, rules, patterns) gets Anthropic's prompt caching discount
-- Dynamic part (spec, learning context) changes per dispatch but is small
-- Multiple specs in the same wave share the cached static prefix
+What was added:
+- `templates/agent-context.md` — structured XML templates for every agent's dynamic prompt
+- Phase files reference the template: "Build prompt from templates/agent-context.md → section"
+- SKILL.md documents the static/dynamic split with the "never duplicate" rule
+- Architecture docs describe the caching model and savings math
 
-**Estimated savings**: If 4 specs run in a wave, the static agent prompt (~2000 tokens) is cached 4x instead of sent 4x. With Anthropic's cache pricing, this reduces input token cost by ~75% for the static portion.
+Estimated savings: 4-spec wave × 2000 token static prompt = 8000 tokens. With caching,
+pay full price once + cache read 3× (~500). Net saving: ~5500 tokens per wave.
 
 ---
 
@@ -376,8 +380,8 @@ Instinct Health
 | Priority | Feature | Effort | Impact for Mint |
 |----------|---------|--------|----------------|
 | 1 | Dream consolidation (`mint dream`) | Medium | Keeps learning data useful, prevents JSONL bloat |
-| 2 | Auto-background threshold for agents | Small | Better UX — quick agents stay foreground |
-| 3 | Prompt caching (static/dynamic split) | Small | Cost reduction, faster agent startup |
+| 2 | ~~Auto-background threshold for agents~~ | ~~Small~~ | **DONE** — Tiered dispatch: fast agents foreground, slow agents background |
+| 3 | ~~Prompt caching (static/dynamic split)~~ | ~~Small~~ | **DONE** — `templates/agent-context.md` + phase files reference templates + architecture docs |
 | 4 | Adversarial verification agent | Medium | Catches bugs that reviewers miss |
 | 5 | Visual wave execution (`--visual`) | Large | Team visibility, debugging aid |
 | 6 | Confidence-based gate skipping | Medium | Faster pipeline for safe edits |

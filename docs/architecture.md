@@ -113,6 +113,42 @@ This prevents context pollution. An agent that builds up too much context makes 
 
 When workspace is configured, agents receive scoped workspace context relevant to their task — not the full workspace. The orchestrator decides what each agent needs to see.
 
+## Prompt Caching (Static / Dynamic Split)
+
+Agent prompts have two layers:
+
+- **Static layer** — the agent `.md` file (`agents/planner.md`, etc.). Contains identity,
+  rules, checklist, report format. This is the agent's system prompt, cached by Anthropic's
+  API across identical requests. Multiple specs in a wave sharing the same agent type hit
+  the cache.
+- **Dynamic layer** — the `prompt` parameter passed to the Agent tool. Contains per-dispatch
+  inputs: spec XML, git diff, config values, retry context. Built from the structured
+  templates in `templates/agent-context.md`.
+
+**Rule:** The orchestrator never duplicates agent instructions in the dynamic prompt. The
+agent already has its `.md` file. The prompt contains ONLY the inputs listed in the context
+template.
+
+**Why this matters:** In a wave of 4 specs, each spawns a `mint-planner` agent. The planner's
+static prompt (~2000 tokens) is cached after the first dispatch. The remaining 3 specs pay
+only the cache read cost (~75% cheaper). Stage 2 reviewers benefit similarly — 5 parallel
+reviewers of the same type share one cached system prompt.
+
+## Tiered Agent Dispatch
+
+Not all agents run in background. The orchestrator uses a tiered dispatch model:
+
+- **Foreground** (fast agents, <15s): spec reviewer, documenter, verifier. Result arrives
+  immediately; user is briefly blocked. Used when the result is needed for the next pipeline
+  step and the agent is fast enough that blocking is barely noticeable.
+- **Background** (slow agents, 30s+): planner, decomposer, de-sloppifier, fix-blockings,
+  shipper, researcher. User gets their prompt back and can send corrections or stop signals.
+- **Parallel background**: stage 2 reviewers. Multiple agents dispatched simultaneously,
+  all backgrounded.
+
+Each phase file (`skills/mint/phases/*.md`) declares its dispatch tier. The full tier table
+is in `skills/mint/reference/orchestrator-laws.md`.
+
 ## Wave-Based Parallel Execution
 
 Specs don't execute sequentially. The orchestrator builds a dependency graph from `<depends-on>`

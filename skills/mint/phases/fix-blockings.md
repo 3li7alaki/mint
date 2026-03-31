@@ -10,8 +10,11 @@ Only runs if spec review (stage 1) or audit (stage 2) found BLOCKING issues.
 
 ## Process
 
+**Dispatch tier: background** (`run_in_background: true`) — re-planning is slow.
+
 1. Collect all BLOCKING + WARNING issues from review reports
-2. Re-dispatch `mint-planner` with: spec XML + specific issues to fix
+2. Re-dispatch `mint-planner` — build prompt from `templates/agent-context.md` →
+   "Planner (fix-blockings)" section: spec XML + structured blocking issues
 3. Re-run gates after fixes
 4. Re-run ONLY the reviewers that returned FAIL (not all)
 5. Track round count — max 3 rounds total

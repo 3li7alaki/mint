@@ -6,9 +6,12 @@ Mandatory review of implementation against spec intent. NOT optional.
 
 ## Dispatch
 
-`mint-spec-reviewer` subagent with:
-- Spec XML (the intended task)
-- Git diff (what was actually implemented)
+`mint-spec-reviewer` subagent.
+**Dispatch tier: foreground** (omit `run_in_background`) — fast (<10s), result needed
+immediately to decide stage 2 vs fix-blockings.
+
+Build prompt from `templates/agent-context.md` → "Spec Reviewer (Stage 1)" section:
+- Spec XML + git diff. Nothing else — don't repeat reviewer instructions in the prompt.
 
 ## Read Result
 

@@ -20,7 +20,10 @@ Dispatch planner to implement a single spec. Gates + commit only — no reviews.
 
 ## Dispatch
 
-`mint-planner` subagent with: spec XML, resolved autocommit, resolved TDD value.
+`mint-planner` subagent. **Dispatch tier: background** (`run_in_background: true`).
+
+Build prompt from `templates/agent-context.md` → "Planner (implement)" section.
+Pass ONLY dynamic context — the planner's `.md` file is its system prompt (cached).
 
 The planner implements, runs gates, commits (or stages). **That's all it does.**
 

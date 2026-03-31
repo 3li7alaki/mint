@@ -34,8 +34,14 @@ For deep diffs: override model to `"opus"` for security and quality.
 
 ## 4. Dispatch and Collect
 
+**Dispatch tier: parallel background** (`run_in_background: true` for each).
+
 Output status FIRST: "Dispatching stage 2 reviewers: quality, security, conventions..."
-Then dispatch ALL simultaneously (parallel Agent calls).
+Then dispatch ALL simultaneously (parallel Agent calls with `run_in_background: true`).
+
+Build each prompt from `templates/agent-context.md` → "Stage 2 Reviewers" section.
+All reviewers get the same base context (diff + files). Conventions and business
+reviewers get additional context per the template. Don't repeat reviewer instructions.
 
 Wait for ALL to return. Parse severity counts:
 - Count BLOCKING, WARNING, INFO across all reports

@@ -19,6 +19,7 @@ When context-mode is enabled, can use `ctx_execute` for cleaner output.
 Only dispatched when Layer 1 finds problems:
 
 1. Delegate to `mint-verifier` subagent with failing gate output
+   **Dispatch tier: foreground** — verifier analysis is fast, user is waiting for results
 2. Verifier runs deeper analysis + mock audit + hard block scan + open issues count
 3. Returns detailed report with root cause analysis and suggested fixes
 4. Delete session state on completion

@@ -16,21 +16,38 @@ Load this file when your routed mode involves code modification or agent dispatc
 
 ---
 
-## User Message Awareness
+## Agent Dispatch — Tiered Foreground / Background
 
-**All pipeline agents run in background** (`run_in_background: true`). This lets the user
-send messages, corrections, or stop signals while agents work. The orchestrator is notified
-when each agent completes — do NOT poll or sleep.
+Not all agents need background dispatch. Fast agents run foreground for tighter feedback
+loops. Slow agents run background so the user stays free.
 
-**Output status BEFORE every dispatch and AFTER every completion.** Use the standard format
-below. After a background agent completes and before dispatching the next, check if the user
-sent messages and respond first.
+### Dispatch Tiers
 
-When a user message arrives mid-pipeline:
-- **Correction** → adjust remaining specs
+| Tier | `run_in_background` | When to use | Agents |
+|------|---------------------|-------------|--------|
+| **Foreground** | `false` (or omit) | Agent finishes in <15s, result needed immediately for next pipeline step | spec-reviewer (S1), documenter, verifier (layer 2) |
+| **Background** | `true` | Agent takes 30s+, user should be free to talk/correct/stop | planner, decomposer, de-sloppifier, fix-blockings, shipper, researcher |
+| **Parallel background** | `true` (multiple) | Multiple agents dispatched simultaneously | stage 2 reviewers (quality, security, conventions, etc.) |
+
+### Foreground Rules
+- Output status BEFORE dispatch: `[mint] plan · 001 · review-s1 — dispatching spec reviewer...`
+- Result arrives immediately — proceed to next step without delay
+- User is blocked during foreground dispatch — keep these **fast agents only**
+- If a foreground agent takes unexpectedly long, that's acceptable — don't retry
+
+### Background Rules
+- Output status BEFORE dispatch: `[mint] plan · 001 · implement — dispatching planner...`
+- User gets their prompt back — can send messages, corrections, stop signals
+- You'll be notified automatically when the agent completes — do NOT poll or sleep
+- After completion notification, check for user messages before continuing
+
+### User Message Awareness (background agents)
+
+When a user message arrives while a background agent is running:
+- **Correction** → adjust remaining specs when agent completes
 - **Addition** → incorporate or queue as follow-up
-- **Stop** → pause, await direction
-- **Unrelated** → acknowledge, continue
+- **Stop** → pause pipeline, await direction
+- **Unrelated** → acknowledge, continue pipeline when agent completes
 
 ---
 

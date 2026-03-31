@@ -126,11 +126,18 @@ If a spec fails gates or review:
 
 Always use: `[mint] plan · <spec> · <step> — <result>`
 
-### Background Dispatch
+### Tiered Dispatch
 
-All pipeline agents MUST use `run_in_background: true`. The user can talk while they run.
-When the agent completes, you'll be notified. Check for user messages before continuing.
+Each phase file specifies its dispatch tier (foreground or background).
+See `reference/orchestrator-laws.md` for the full tier table and rules.
 
+**Quick reference:**
+- **Foreground** (fast agents — spec reviewer S1, documenter, verifier): result arrives
+  immediately, proceed to next step without delay. User is briefly blocked.
+- **Background** (slow agents — planner, decomposer, de-sloppifier, fix-blockings, S2
+  reviewers): user gets prompt back, can send corrections or stop signals.
+
+After any background agent completes, check for user messages before continuing:
 - **Correction** → adjust remaining specs
 - **Addition** → incorporate or queue as follow-up
 - **Stop** → pause, await direction

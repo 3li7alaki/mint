@@ -22,7 +22,7 @@
 User
   │
   ▼
-Router (SKILL.md — 155 lines)
+Router (SKILL.md — ~125 lines)
   │
   ├─ classify task → load mode file
   │   ├─ modes/quick.md → main context (no subagent)
@@ -67,14 +67,14 @@ The orchestrator is split into focused, loadable pieces — not one monolithic f
 
 ```
 skills/mint/
-  SKILL.md            ← Router only (~155 lines). Routes, manages state, dispatches.
+  SKILL.md            ← Router only (~125 lines). Routes, manages state, dispatches.
   modes/              ← One file per execution mode. Loaded on route.
   phases/             ← One file per pipeline step. Loaded per-step.
   reference/          ← Detailed docs. Loaded on demand only.
 ```
 
 **Why:** LLM instruction compliance degrades linearly with prompt length. A 1900-line skill
-gets ~40% compliance. The 155-line router gets ~85%. Phase files load one at a time — the
+gets ~40% compliance. The ~125-line router gets ~85%. Phase files load one at a time — the
 agent never holds the full pipeline in memory.
 
 ### Pipeline State Machine

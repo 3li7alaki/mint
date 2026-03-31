@@ -100,7 +100,7 @@ No commands to memorize. Just describe what you want to build.
 ```
 You describe a feature
         │
-  Router (SKILL.md, 155 lines) → loads mode file
+  Router (SKILL.md, ~125 lines) → loads mode file
         │
   Challenge (optional) — is this the right thing to build?
         │

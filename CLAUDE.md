@@ -34,7 +34,7 @@ The only exceptions:
 
 ## Architecture
 
-- `skills/mint/SKILL.md` — thin router (~150 lines), loads mode/phase files on demand
+- `skills/mint/SKILL.md` — thin router (~125 lines), loads mode/phase files on demand
 - `skills/mint/modes/` — one file per execution mode (quick, plan, ship, etc.)
 - `skills/mint/phases/` — one file per pipeline step (implement, review, docs, etc.)
 - `skills/mint/reference/` — detailed docs loaded only when needed

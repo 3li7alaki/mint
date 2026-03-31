@@ -5,7 +5,7 @@
 | Content type | Format | Why |
 |---|---|---|
 | Agent prompts | Markdown (.md) | What Claude expects as input. Max 150 lines. |
-| Skill router | Markdown (.md) | Thin router (~155 lines). Loads modes/phases on demand. |
+| Skill router | Markdown (.md) | Thin router (~125 lines). Loads modes/phases on demand. |
 | Mode/phase files | Markdown (.md) | One per mode/pipeline step. Loaded individually. |
 | Task specs | XML (.xml) | Structured, parseable, validated |
 | Execution state | JSON (.json) | Per-spec tracking, machine-readable, resumable |

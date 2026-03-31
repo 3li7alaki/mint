@@ -1,7 +1,7 @@
 # Orchestrator Rules — Detailed Reference
 
 Load this when you need detailed enforcement rules, risk scoring, or DoD criteria.
-The router's "Orchestrator Laws" section has the essentials — this file has the full details.
+`reference/orchestrator-laws.md` has the operational laws — this file has the detailed rules.
 
 ---
 

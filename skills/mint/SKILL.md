@@ -130,6 +130,7 @@ its `.md` file as system prompt.
 | Planner | Spec XML + autocommit + TDD + retry/correction context |
 | Spec Reviewer | Spec XML + git diff |
 | Stage 2 Reviewers | Git diff + file list (+ conventions/business docs if applicable) |
+| Adversarial Tester | Spec XML + git diff + test framework + file paths (worktree isolation) |
 | Documenter | Doc path + description + change summary + manifest sections |
 | De-sloppifier | Git diff + spec XML + gate commands |
 | Researcher | Question + config |

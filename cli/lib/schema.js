@@ -269,6 +269,12 @@ export const CONFIG_SCHEMA = {
     description: 'Performance reviewer (stage 2)',
     scope: 'global',
   },
+  'reviewers.adversarial': {
+    type: 'reviewer',
+    default: false,
+    description: 'Adversarial tester — red team probing in isolated worktree (stage 2)',
+    scope: 'global',
+  },
 
   // ─── Model Routing ─────────────────────────────────────────────────────────
   'modelRouting.enabled': {

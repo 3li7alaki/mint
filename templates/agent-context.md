@@ -110,6 +110,9 @@ All stage 2 reviewers receive the same context structure:
 {list of modified file paths with brief descriptions}
 </files>
 
+<!-- Only for adversarial-tester -->
+<test-framework>{test runner command from config.gates.tests}</test-framework>
+
 <!-- Only for conventions-enforcer, if convention docs exist -->
 <conventions>
 {contents of docs/conventions.md or relevant convention files}

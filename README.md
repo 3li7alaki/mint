@@ -388,9 +388,11 @@ Every spec goes through multi-stage review, **scaled by diff size:**
 - **Tests** — mock audit, assertion quality, edge cases
 - **Business** — requirements alignment, domain logic
 - **Performance** — re-renders, N+1, bundle impact (opt-in)
+- **Adversarial** — red team probing: writes edge-case tests designed to break the
+  implementation, runs in isolated worktree. A passing test = the attack succeeded (opt-in)
 - **Design** — AI slop, RTL, i18n, accessibility (if `design.enabled`)
 
-Issues are categorized: BLOCKING (must fix), WARNING (should fix), INFO (logged). Each reviewer can use a different Claude model. Disable scaling with `config.reviewScaling: false`.
+Issues are categorized: BLOCKING (must fix), WARNING (should fix), INFO (logged). Each reviewer can use a different Claude model. The adversarial tester is special — it writes and executes code in a worktree, unlike read-only reviewers. Disable scaling with `config.reviewScaling: false`.
 
 ## Learning
 

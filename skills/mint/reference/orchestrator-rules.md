@@ -55,6 +55,7 @@ The orchestrator verifies each stage. If it skips verification, the feature is d
 | De-sloppify | Triggered when conditions met | Dispatch if conditions met |
 | Spec review | `reviews.spec` passed | Fix + re-review (max 2 rounds) |
 | Stage 2 audit | All enabled reviewers dispatched | Fix BLOCKINGs + re-run (max 3) |
+| Adversarial test | If enabled: dispatched in worktree, report recorded | Fix BLOCKINGs + re-run |
 | Doc-manifest | Tracked files checked | Dispatch documenter for missed |
 | Win logging | Entry added on final success | Append win entry |
 | Session cleanup | Session file deleted | Delete file |

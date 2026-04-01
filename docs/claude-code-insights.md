@@ -51,13 +51,22 @@ Tier table in `reference/orchestrator-laws.md`. Each phase file annotates its di
 
 Claude Code has a `VERIFICATION_AGENT_TYPE` that independently verifies implementations — not just reviewing code, but trying to break it. This runs in a separate worktree so it can't modify the implementation.
 
-Mint has spec-reviewer (stage 1) and parallel auditors (stage 2), but they're review-focused, not adversarial. Adding a "red team" agent that:
-- Reads the spec and implementation
-- Tries to construct inputs that violate acceptance criteria
-- Runs edge-case tests against the implementation
-- Reports failures as BLOCKING findings
+**Implemented: `mint-adversarial-tester` — red team agent**
 
-This slots in as an optional stage 2 auditor: `mint-adversarial-tester`.
+Unlike read-only reviewers, the adversarial tester actively attacks the implementation:
+
+- Writes throwaway tests in 5 categories: boundary violations, state attacks,
+  acceptance criteria negation, error cascading, security probes
+- Runs in **isolated worktree** — adversarial tests never pollute the codebase
+- A **passing test is a finding** — it means the attack succeeded
+- Max 20 targeted probes per spec
+- Slots into stage 2 as optional parallel reviewer (`config.reviewers.adversarial`)
+
+What was built:
+- `agents/adversarial-tester.md` — full agent with attack categories and probe methodology
+- `skills/mint/phases/adversarial.md` — phase file with trigger conditions and worktree dispatch
+- Updated: stage 2 phase, plan mode pipeline, config schema, context templates, orchestrator rules
+- Integrated into review scaling: skipped for diffs < 30 lines
 
 **3. Fork Agent (Speculative Execution)**
 
@@ -383,7 +392,7 @@ Instinct Health
 | 1 | ~~Dream consolidation (`mint dream`)~~ | ~~Medium~~ | **DONE** — Agent + CLI + mode + tests. Complementary to Claude autoDream. |
 | 2 | ~~Auto-background threshold for agents~~ | ~~Small~~ | **DONE** — Tiered dispatch: fast agents foreground, slow agents background |
 | 3 | ~~Prompt caching (static/dynamic split)~~ | ~~Small~~ | **DONE** — `templates/agent-context.md` + phase files reference templates + architecture docs |
-| 4 | Adversarial verification agent | Medium | Catches bugs that reviewers miss |
+| 4 | ~~Adversarial verification agent~~ | ~~Medium~~ | **DONE** — Red team agent in isolated worktree, writes attack tests, stage 2 reviewer |
 | 5 | Visual wave execution (`--visual`) | Large | Team visibility, debugging aid |
 | 6 | ~~Confidence-based gate skipping~~ | ~~Medium~~ | **DONE** — Gate tier classification (skip/quick/full) across all pipeline touchpoints |
 | 7 | Owl Post notifications | Small | Team awareness of mint activity |

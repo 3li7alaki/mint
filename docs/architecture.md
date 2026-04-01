@@ -228,7 +228,13 @@ spec review only. Large diffs (300+ lines) get full review with model escalation
 
 **Stage 1 (sequential gate):** Spec reviewer. Must pass before anything else. Checks: does the implementation match what was asked? No extra code, no missing requirements, scope respected.
 
-**Stage 2 (parallel audit):** Up to 6 reviewers run simultaneously. Each checks one dimension. Each is independently enabled/disabled in config. Each returns a severity-tagged report.
+**Stage 2 (parallel audit):** Up to 7 reviewers run simultaneously. Each checks one dimension. Each is independently enabled/disabled in config. Each returns a severity-tagged report.
+
+**Adversarial tester** (optional, stage 2): Unlike other reviewers, the adversarial tester is
+not read-only — it writes throwaway tests designed to break the implementation. It constructs
+malicious inputs, probes boundary conditions, and negates acceptance criteria. Runs in an
+isolated worktree so adversarial tests never pollute the codebase. A passing test means the
+attack succeeded (the implementation didn't defend). Enabled via `config.reviewers.adversarial`.
 
 Why two stages? Because there's no point auditing code quality on an implementation that doesn't match its spec. Fix spec compliance first, then check everything else.
 

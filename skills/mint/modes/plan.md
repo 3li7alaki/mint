@@ -86,6 +86,7 @@ Before starting a spec, create `.mint/tasks/<slug>/<spec-id>/pipeline-state.json
 | desloppify | `phases/desloppify.md` | mint-de-sloppifier | If TDD or config.tdd.desloppify |
 | review-stage1 | `phases/review-stage1.md` | mint-spec-reviewer | Always |
 | review-stage2 | `phases/review-stage2.md` | reviewer agents | If diff ≥ 30 lines |
+| adversarial | `phases/adversarial.md` | mint-adversarial-tester | If enabled + diff ≥ 30 lines (worktree) |
 | fix-blockings | `phases/fix-blockings.md` | mint-planner | If BLOCKINGs found |
 | docs | `phases/docs.md` | mint-documenter | If doc-manifest matches |
 | dod | `phases/dod.md` | orchestrator | Always (final gate) |

@@ -28,7 +28,12 @@ Read `config.reviewers` — for each enabled key:
 - `tests` → `mint-test-auditor`
 - `performance` → `mint-performance-reviewer`
 - `business` → `mint-business-reviewer`
+- `adversarial` → `mint-adversarial-tester` (**special**: requires `isolation: "worktree"`)
 - If `config.design.enabled` → `mint-design-reviewer`
+
+**Adversarial tester is special:** Unlike other reviewers, it writes and runs code. It MUST
+be dispatched with `isolation: "worktree"` so its throwaway tests don't pollute the codebase.
+It runs in parallel with other reviewers but in its own worktree.
 
 For deep diffs: override model to `"opus"` for security and quality.
 

@@ -241,6 +241,24 @@ applied, review outcomes, gate results, attempt counts. Enables evidence-based e
 The decomposer reads all four before creating specs. Past mistakes become prevention.
 Past wins become guidance. JSONL utilities: `cli/lib/jsonl.js`.
 
+### Dream Consolidation
+
+Learning data grows stale over time. `mint dream` consolidates it:
+
+- **Issue triage** — resolve fixed issues, merge duplicates, escalate recurring (3+) to hard-blocks
+- **Instinct decay** — reduce confidence for unreinforced instincts (30d), remove at 0
+- **Pattern promotion** — flag high-confidence instincts (≥7, 10+ occurrences) as candidates
+- **Win archival** — keep 50 active, archive rest
+- **Health report** — gate pass rate, first-try success, reviewer value, trends
+
+Consolidation runs via the `mint-dream-consolidator` agent (background dispatch). The CLI
+provides lightweight subcommands (`mint dream status`, `mint dream decay`, `mint dream instincts`)
+for quick inspection without a full consolidation pass.
+
+**Complementary to Claude Code's autoDream:** Claude's dream handles generic conversation
+memory consolidation. Mint's dream handles project-specific learning data (issues, instincts,
+wins, metrics) that Claude's dream wouldn't know about. No overlap — they enhance each other.
+
 ## Documentation Intelligence
 
 The doc-manifest (`.mint/doc-manifest.json`) tracks which documentation sections depend on which code artifacts. This closes the feedback loop between code changes and documentation:

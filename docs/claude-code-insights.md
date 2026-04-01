@@ -177,41 +177,36 @@ pay full price once + cache read 3× (~500). Net saving: ~5500 tokens per wave.
 
 Mint accumulates learning data in JSONL files (issues, wins, instincts, patterns, metrics). Over time these grow stale — old issues get fixed, instincts drift, patterns become conventions.
 
-**Proposal: `mint dream` — learning consolidation**
+**Implemented: `mint dream` — learning consolidation**
 
-Runs between milestones or on schedule:
+Built as agent + CLI + skill mode. Complementary to Claude Code's autoDream — handles
+project-specific learning data, not generic memory.
 
-```
-mint dream
-```
+**What was built:**
 
-What it does:
+- `agents/dream-consolidator.md` — full agent (lock, triage, decay, promote, archive, report)
+- `cli/commands/dream.js` — CLI subcommands (status, decay, instincts)
+- `skills/mint/modes/dream.md` — mode file with auto-trigger detection
+- `templates/agent-context.md` — context template for dream consolidator
+- `tests/dream.test.js` — tests for issue triage, instinct lifecycle, win archival, metrics, locking
 
-1. **Issue triage**: Scan `issues.jsonl` — mark resolved issues (fix is in git history), merge duplicates, escalate recurring issues to `hard-blocks.md`
-2. **Instinct pruning**: Remove instincts with confidence < threshold that haven't been reinforced in 30 days
-3. **Pattern promotion**: Instincts with confidence > 0.9 get promoted to `conventions.md` (documented patterns)
-4. **Win archival**: Move old wins to `wins-archive.jsonl`, keep recent 50 active
-5. **Metrics summary**: Generate `.mint/health-report.md` with trends (gate pass rate, avg fix cycles, spec accuracy)
-6. **Config suggestions**: If metrics show patterns (e.g., security reviewer catches things 80% of the time), suggest enabling it by default
+**What it does:**
 
-**Trigger conditions** (same pattern as autoDream):
-- Time: 7 days since last dream (or manual invoke)
-- Volume: 10+ new JSONL entries since last dream
-- Lock: `.mint/.dream-lock` file prevents concurrent runs
-- Auto-trigger: After `mint complete-milestone` or on `mint resume-work` if stale
+1. **Issue triage** — resolve, deduplicate, escalate recurring (3+) to hard-blocks
+2. **Instinct decay** — reduce confidence for stale (30d), remove at 0
+3. **Pattern promotion** — flag candidates (confidence ≥7, occurrences ≥10), human reviews
+4. **Win archival** — keep 50 active, archive rest
+5. **Health report** — `.mint/dream-report.md` with pipeline health, trends, suggestions
 
-**Agent prompt sketch**:
-```markdown
-You are the mint dream consolidator. Your job is to review accumulated
-learning data and produce a cleaner, more useful knowledge base.
+**Trigger conditions:**
+- Manual: `mint dream` CLI or tell Claude `"dream"` / `"consolidate learning"`
+- Auto-suggest: 7+ days since last dream AND 10+ new entries → suggested on resume/plan
+- Lock: `.mint/.dream-lock` prevents concurrent runs (1h stale timeout)
 
-Rules:
-- Never delete information — archive or merge
-- Promote high-confidence instincts to documented conventions
-- Escalate recurring issues (3+ occurrences) to hard-blocks
-- Keep the active working set small (50 wins, 100 instincts, 200 issues max)
-- Generate a health report summarizing trends
-```
+**Why complementary to autoDream:**
+Claude's dream → generic conversation memory consolidation (when released).
+Mint's dream → project-specific JSONL learning data. Different data, different location,
+different purpose. When autoDream ships, it can trigger `mint dream` as part of its cycle.
 
 ---
 
@@ -379,7 +374,7 @@ Instinct Health
 
 | Priority | Feature | Effort | Impact for Mint |
 |----------|---------|--------|----------------|
-| 1 | Dream consolidation (`mint dream`) | Medium | Keeps learning data useful, prevents JSONL bloat |
+| 1 | ~~Dream consolidation (`mint dream`)~~ | ~~Medium~~ | **DONE** — Agent + CLI + mode + tests. Complementary to Claude autoDream. |
 | 2 | ~~Auto-background threshold for agents~~ | ~~Small~~ | **DONE** — Tiered dispatch: fast agents foreground, slow agents background |
 | 3 | ~~Prompt caching (static/dynamic split)~~ | ~~Small~~ | **DONE** — `templates/agent-context.md` + phase files reference templates + architecture docs |
 | 4 | Adversarial verification agent | Medium | Catches bugs that reviewers miss |

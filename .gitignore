@@ -26,3 +26,7 @@ docs/plans/
 .mint/.browser-sessions.json
 .mint/.gate-ledger.jsonl
 .mint/.session-state.json
+.mint/.dream-lock
+.mint/dream-report.md
+.mint/issues-archive.jsonl
+.mint/wins-archive.jsonl

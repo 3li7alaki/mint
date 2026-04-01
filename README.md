@@ -406,7 +406,25 @@ mint learns your project's conventions automatically. All learning logs use **JS
 
 - **Patterns** (`.mint/patterns.jsonl`) — graduated from issues/wins when a pattern repeats 3+ times.
 
-The system is self-evolving: observe → score → correlate → boost/decay → promote. All committed to git — shared team knowledge.
+### Dream Consolidation
+
+Learning data grows stale. `mint dream` consolidates it — issue triage, instinct decay,
+pattern promotion candidates, win archival, health report. Runs automatically when learning
+data is stale (7+ days since last dream, 10+ new entries) — suggested on `resume-work` or
+first plan invocation. Also available via CLI:
+
+```bash
+mint dream              # status overview
+mint dream decay        # run instinct decay
+mint dream instincts    # list all with scores
+```
+
+Full consolidation (issue triage, promotion, report) runs via Claude: just say `"dream"`.
+
+**Complementary to Claude Code's autoDream** — Claude's dream handles generic memory. Mint's
+dream handles project-specific learning data. No overlap, they enhance each other.
+
+The system is self-evolving: observe → score → correlate → boost/decay → dream → promote. All committed to git — shared team knowledge.
 
 ## Plugins
 

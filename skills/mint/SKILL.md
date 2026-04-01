@@ -22,6 +22,7 @@ Evaluate in order — first match wins:
 | Signal | Mode | Action |
 |--------|------|--------|
 | "verify", "check gates", "audit" | verify | Read `modes/verify.md`, execute |
+| "dream", "consolidate learning" | dream | Read `modes/dream.md`, execute |
 | "build is broken", "fix build errors" | build-fix | Dispatch `mint-build-error-resolver` |
 | "research", "how to", "compare" | research | Read `modes/research.md`, execute |
 | "clean up", "dead code", "unused" | refactor | Dispatch `mint-refactor-cleaner` |
@@ -65,8 +66,8 @@ Read the mode file for your routed mode from `skills/mint/modes/`. Follow its in
 status format, background dispatch rules, quality gates, and autocommit resolution.
 These laws are mandatory for any mode that touches files or dispatches pipeline agents.
 
-**Lightweight modes** (research, verify, browse, ssh, build-fix, refactor) do NOT need
-orchestrator-laws.md. Their mode files are self-contained.
+**Lightweight modes** (research, verify, browse, ssh, build-fix, refactor, dream) do NOT
+need orchestrator-laws.md. Their mode files are self-contained.
 
 NEVER hold the full pipeline in memory. Each phase file is self-contained.
 
@@ -135,3 +136,4 @@ its `.md` file as system prompt.
 | Shipper | Ship plan + config + hard blocks |
 | Verifier | Failing gate output + config |
 | Build Resolver | Error output + config + in-scope files |
+| Dream Consolidator | Learning file paths + counts + config + previous report |

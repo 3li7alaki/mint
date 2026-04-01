@@ -218,6 +218,27 @@ All stage 2 reviewers receive the same context structure:
 </scope>
 ```
 
+## Dream Consolidator
+
+```xml
+<learning-files>
+  <issues path=".mint/issues.jsonl">{entry count}</issues>
+  <wins path=".mint/wins.jsonl">{entry count}</wins>
+  <instincts path=".mint/instincts.jsonl">{entry count}</instincts>
+  <metrics path=".mint/metrics.jsonl">{entry count}</metrics>
+  <patterns path=".mint/patterns.jsonl">{entry count}</patterns>
+</learning-files>
+
+<config>
+{.mint/config.json — relevant subset}
+</config>
+
+<!-- Previous dream report if exists -->
+<previous-dream>
+{.mint/dream-report.md contents, or "none"}
+</previous-dream>
+```
+
 ---
 
 ## Cache Efficiency Notes

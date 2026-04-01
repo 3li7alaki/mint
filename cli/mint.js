@@ -35,6 +35,10 @@ function showHelp() {
   console.log('    \x1b[36mmint update <dep>\x1b[0m        Update one dep (pinchtab, context-mode)');
   console.log('    \x1b[36mmint clean\x1b[0m               Remove stale worktrees from parallel execution');
   console.log('    \x1b[36mmint status\x1b[0m              Quick health check (instant, no gate runs)');
+  console.log('    \x1b[36mmint dream\x1b[0m               Learning consolidation — status overview');
+  console.log('    \x1b[36mmint dream status\x1b[0m        Dream status and entry counts');
+  console.log('    \x1b[36mmint dream decay\x1b[0m         Run instinct decay (stale → confidence -1)');
+  console.log('    \x1b[36mmint dream instincts\x1b[0m     List all instincts with scores');
   console.log('    \x1b[36mmint plugin list\x1b[0m         Browse available plugins');
   console.log('    \x1b[36mmint plugin add <name>\x1b[0m   Install a plugin');
   console.log('    \x1b[36mmint plugin info <name>\x1b[0m  Plugin details');
@@ -101,6 +105,11 @@ try {
     }
     case 'status': {
       const { run } = await import('./commands/status.js');
+      await run(positional.slice(1), flags);
+      break;
+    }
+    case 'dream': {
+      const { run } = await import('./commands/dream.js');
       await run(positional.slice(1), flags);
       break;
     }

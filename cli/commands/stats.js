@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-import { readJsonSafe, detectCodeGraph, getCodeGraphStatus } from '../lib/detect.js';
+import { readJsonSafe, detectCodeGraph, getCodeGraphStatus, queryCodeGraph } from '../lib/detect.js';
 import { readJsonl, topInstincts, analyzeInstinctEffectiveness } from '../lib/jsonl.js';
 
 export async function run(args = [], flags = {}) {
@@ -267,33 +267,38 @@ function showGraphHealth(cwd, config, { c, g, y, r, d }) {
   }
 
   const status = getCodeGraphStatus(cwd);
-  if (!status) {
+  if (!status || (!status.nodes && status.status !== 'indexed' && status.status !== 'ready')) {
     console.log(`  ${c('Code Graph')} ${y('not indexed')}`);
     console.log(`    ${d('Run: codebase-memory-mcp cli index_repository \'{"repo_path": "."}\'')}\n`);
     return;
   }
 
   console.log(`  ${c('Code Graph')} ${d(`(${config.graph?.provider || 'codebase-memory-mcp'})`)}`);
+  console.log(`    Nodes:     ${c(status.nodes || 0)}`);
+  console.log(`    Edges:     ${c(status.edges || 0)}`);
 
-  // Try to get schema for node/edge counts
-  try {
-    const projectName = path.basename(cwd);
-    const schema = execSync(
-      `codebase-memory-mcp cli get_graph_schema '{"project": "${projectName}"}'`,
-      { encoding: 'utf8', stdio: 'pipe', timeout: 5000 }
-    );
-    const data = JSON.parse(schema);
-    if (data.node_count !== undefined) {
-      console.log(`    Nodes:    ${c(data.node_count)}`);
+  // Get schema for breakdown
+  const schema = queryCodeGraph(cwd, 'get_graph_schema', {});
+  if (schema?.node_labels) {
+    const funcs = schema.node_labels.find(l => l.label === 'Function');
+    const classes = schema.node_labels.find(l => l.label === 'Class');
+    const files = schema.node_labels.find(l => l.label === 'File');
+    const parts = [];
+    if (funcs) parts.push(`${funcs.count} functions`);
+    if (classes) parts.push(`${classes.count} classes`);
+    if (files) parts.push(`${files.count} files`);
+    if (parts.length) console.log(`    Breakdown: ${d(parts.join(', '))}`);
+  }
+
+  // Hotspots — most-called functions
+  const hotspots = queryCodeGraph(cwd, 'query_graph', {
+    query: 'MATCH (f:Function)<-[:CALLS]-(caller) RETURN f.name, f.file_path, COUNT(caller) AS callers ORDER BY callers DESC LIMIT 5',
+  });
+  if (hotspots?.rows?.length > 0) {
+    console.log(`    ${d('Hotspots:')}`);
+    for (const row of hotspots.rows) {
+      console.log(`      ${g(String(row[2]).padStart(3))} callers  ${row[0]} ${d(`(${row[1]})`)}`);
     }
-    if (data.edge_count !== undefined) {
-      console.log(`    Edges:    ${c(data.edge_count)}`);
-    }
-    if (data.languages) {
-      console.log(`    Languages: ${d(data.languages.join(', '))}`);
-    }
-  } catch {
-    console.log(`    ${g('indexed')} ${d('(run get_graph_schema for details)')}`);
   }
 
   console.log('');

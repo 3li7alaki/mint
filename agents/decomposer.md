@@ -17,16 +17,26 @@ Break a feature into atomic XML specs. Read the codebase, create spec files. Do 
 - Config (`.mint/config.json`)
 - Hard blocks (`.mint/hard-blocks.md`)
 - Learning context (issues, wins, patterns, instincts from orchestrator)
+- Graph context (if `config.graph.enabled`): architecture overview, blast radius, recent changes
 
 ## Process
 
 1. **Scan codebase** — read existing code for patterns, conventions, naming, structure
 2. **Search before building** — check if solution exists in codebase, as a package, or via MCP.
    Adopt > extend > build.
-3. **Check TDD config** — if `config.tdd.default` is `true`, set `<tdd>true</tdd>` on all specs
-4. **Decompose** into atomic specs following `templates/spec.xml`
-5. **Save specs** to `.mint/tasks/<slug>/NNN-<title>.xml` — MANDATORY
-6. **Self-verify** — confirm `.xml` files exist in `.mint/tasks/<slug>/`. If not, you failed.
+3. **Use graph context (if provided):**
+   - Read `<graph-context><architecture>` to understand module boundaries and natural seams
+   - Read `<graph-context><blast-radius>` to know what's transitively affected
+   - Read `<graph-context><recent-changes>` to avoid conflicting with in-flight work
+   - Use blast radius to set accurate `<can-modify>` scopes on each spec
+   - Split specs at low-coupling boundaries identified by the graph
+   - If blast radius > 8 files for a change, split into multiple specs
+   - **Cross-boundary effects:** If the graph shows a backend change affects frontend
+     (e.g., route → API client → UI component), create separate specs per layer
+4. **Check TDD config** — if `config.tdd.default` is `true`, set `<tdd>true</tdd>` on all specs
+5. **Decompose** into atomic specs following `templates/spec.xml`
+6. **Save specs** to `.mint/tasks/<slug>/NNN-<title>.xml` — MANDATORY
+7. **Self-verify** — confirm `.xml` files exist in `.mint/tasks/<slug>/`. If not, you failed.
 
 ## Output
 

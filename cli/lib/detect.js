@@ -349,14 +349,55 @@ export function indexCodeGraph(projectRoot) {
   }
 }
 
+export function getCodeGraphProjectName(projectRoot) {
+  // codebase-memory-mcp uses the full path with hyphens as project name
+  // Try listing projects to find the one matching this path
+  try {
+    const raw = execSync(
+      `codebase-memory-mcp cli list_projects '{}' 2>/dev/null`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 }
+    );
+    // Output is MCP JSON-RPC: { content: [{ text: "{...}" }] }
+    const data = JSON.parse(raw);
+    const text = JSON.parse(data.content[0].text);
+    const projects = text.projects || [];
+    // Match by root_path (exact)
+    const absRoot = path.resolve(projectRoot);
+    const match = projects.find(p => p.root_path === absRoot);
+    if (match) return match.name;
+    // Fallback: match by basename suffix
+    const basename = path.basename(absRoot);
+    const fallback = projects.find(p => p.name.endsWith(basename));
+    if (fallback) return fallback.name;
+  } catch { /* ignore */ }
+  // Last resort: mimic their naming convention (path with hyphens)
+  return projectRoot.replace(/^\//, '').replace(/\//g, '-');
+}
+
 export function getCodeGraphStatus(projectRoot) {
   try {
-    const projectName = path.basename(projectRoot);
+    const projectName = getCodeGraphProjectName(projectRoot);
     const result = execSync(
-      `codebase-memory-mcp cli index_status '{"project": "${projectName}"}'`,
-      { encoding: 'utf8', stdio: 'pipe', timeout: 5000 }
+      `codebase-memory-mcp cli index_status '{"project": "${projectName}"}' 2>/dev/null`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 5000 }
     );
-    return JSON.parse(result);
+    const data = JSON.parse(result);
+    return JSON.parse(data.content[0].text);
+  } catch {
+    return null;
+  }
+}
+
+export function queryCodeGraph(projectRoot, tool, params = {}) {
+  try {
+    const projectName = getCodeGraphProjectName(projectRoot);
+    const fullParams = { project: projectName, ...params };
+    const result = execSync(
+      `codebase-memory-mcp cli ${tool} '${JSON.stringify(fullParams)}' 2>/dev/null`,
+      { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 15000 }
+    );
+    const data = JSON.parse(result);
+    return JSON.parse(data.content[0].text);
   } catch {
     return null;
   }

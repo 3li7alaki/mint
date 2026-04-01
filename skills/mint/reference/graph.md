@@ -121,6 +121,25 @@ Before decomposing, estimate blast radius:
 - Blast radius 4-8 files → consider splitting into 2 specs
 - Blast radius > 8 files → definitely split, check for architectural boundaries
 
+## Context Mode Integration
+
+When `config.context.enabled` is `true`, prefer running graph queries through context-mode
+tools to keep verbose JSON output out of the main context window:
+
+- **`ctx_execute`** for graph CLI queries — the raw JSON stays sandboxed, only the summary
+  enters context. Especially important for `trace_call_path` (can return 50+ nodes) and
+  `query_graph` (arbitrary result size).
+- **`ctx_index`** the graph results — architecture overview, hotspot lists, and blast radius
+  data can be indexed into FTS5 for fast retrieval across multiple agent dispatches.
+- **`ctx_search`** for cached graph data — if architecture was queried during decompose,
+  the planner can search for it instead of re-querying.
+
+Graph data is highly cacheable — the codebase doesn't change between pipeline steps.
+Index once during plan setup, search from subagents.
+
+If context-mode is unavailable, graph queries run via normal Bash with raw output.
+This works but uses more tokens.
+
 ## Graceful Degradation
 
 When `config.graph.enabled` is `true` but the graph is unavailable (not installed, not

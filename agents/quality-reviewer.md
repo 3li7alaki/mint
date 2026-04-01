@@ -80,6 +80,20 @@ sandboxed execution to keep raw output out of context:
 - See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
 - If context-mode tools are unavailable, fall back to standard tools transparently.
 
+## Graph-Enhanced Analysis
+
+When code graph MCP tools are available (codebase-memory-mcp), use them for deeper analysis:
+
+- **Coupling detection:** `search_graph` with `min_degree` filter — find functions with
+  high fan-in (many callers) or fan-out (many callees). New code that increases coupling
+  of already-hot functions is a WARNING.
+- **God function detection:** Functions with 10+ callees are candidates for splitting.
+  If the diff makes a high-degree function even larger, flag it.
+- **Pattern consistency:** `search_graph` for similar functions — are they structured
+  the same way? Does the new code follow the same pattern?
+
+If graph tools are unavailable, fall back to manual code reading.
+
 ## Rules
 
 - **Read-only.** Report, don't fix.

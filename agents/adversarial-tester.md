@@ -28,7 +28,14 @@ Only your findings report matters.
 
 ### 1. Analyze Attack Surface
 
-Read the spec and diff. Identify:
+**If graph MCP tools are available (codebase-memory-mcp):**
+- `search_graph` for modified functions with `min_degree` filter — target high-fanout
+  functions first (many callers = high blast radius if broken)
+- `trace_call_path` inbound on modified functions — every caller is an attack vector
+- `search_graph` for Route nodes near the diff — API endpoints are prime targets
+- Prioritize probes on functions the graph shows have the most dependents
+
+**Then from the spec and diff, identify:**
 - **Input boundaries** — what inputs does the code accept? What are the limits?
 - **State transitions** — what states can the system be in? Can you force invalid states?
 - **Error paths** — what happens when things go wrong? Are errors handled or swallowed?

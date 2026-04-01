@@ -16,6 +16,8 @@ const COMMANDS = [
 
 const CONFIG_SUBCOMMANDS = ['show', 'set', 'list', 'plugins'];
 const PLUGIN_SUBCOMMANDS = ['list', 'add', 'remove', 'info'];
+const UPDATE_SUBCOMMANDS = ['pinchtab', 'context-mode', 'code-graph', 'impeccable'];
+const DREAM_SUBCOMMANDS = ['status', 'decay', 'instincts'];
 
 const CONFIG_KEYS = listConfigKeys().map(k => k.key);
 

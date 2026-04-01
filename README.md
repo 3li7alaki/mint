@@ -148,6 +148,34 @@ mint integrates with best-in-class external tools. Each is optional and toggleab
 
 `mint init` offers to install each one. `mint update` keeps them current. `mint doctor` checks their health.
 
+### Code Knowledge Graph
+
+When enabled (`graph.enabled: true`), agents see through a code knowledge graph that indexes
+your entire codebase — 66 languages, cross-file call chains, module boundaries, coupling hotspots.
+
+**What it changes:**
+- **Decomposer** traces blast radius before splitting work — specs get accurate `<can-modify>` scopes and split at natural module seams instead of arbitrary file boundaries
+- **Planner** knows who calls the function you're changing — won't break a public interface with 17 callers without updating them all
+- **Security auditor** traces data flow from user input through function calls to output — finds injection paths that static review misses
+- **Adversarial tester** targets high-fanout functions first — the ones where a bug affects the most code
+- **Cross-boundary detection** — a backend route change traces through to the API spec, the generated client, and the frontend component that calls it
+
+```bash
+mint stats    # shows graph health: nodes, edges, hotspot functions with caller counts
+
+# Example output:
+#   Code Graph (codebase-memory-mcp)
+#     Nodes:     2320
+#     Edges:     2409
+#     Breakdown: 151 functions, 25 classes, 183 files
+#     Hotspots:
+#        17 callers  readJsonl (cli/lib/jsonl.js)
+#         8 callers  appendJsonl (cli/lib/jsonl.js)
+#         7 callers  fileExists (cli/lib/detect.js)
+```
+
+Graceful degradation — if the graph isn't installed, agents fall back to grep/read. Nothing breaks, you just get less precision.
+
 ## Core Features
 
 ### Parallel Execution

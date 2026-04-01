@@ -13,8 +13,9 @@ bun.lock
 # mint-ssh cache (contains fetched server IPs)
 .mint/ssh-cache.json
 
-# Local design docs (not published)
+# Local design docs and research (not published)
 docs/plans/
+docs/research/
 
 # mint config files are committed:
 # .mint/config.json — shared project settings

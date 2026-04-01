@@ -142,6 +142,7 @@ mint integrates with best-in-class external tools. Each is optional and toggleab
 |------|----------------------|---------|
 | [PinchTab](https://github.com/pinchtab/pinchtab) | Browser automation — navigate, scrape, debug, screenshot via lightweight Go binary + Chrome. Agents talk to it via HTTP API, get compact accessibility tree (~800 tokens vs 10k+ raw DOM). | `curl -fsSL https://pinchtab.com/install.sh \| sh` |
 | [context-mode](https://github.com/mksglu/context-mode) | Sandboxed execution + FTS5 search + session continuity. Keeps verbose tool output out of context window. ~97% token savings on test output, ~99% on URL fetching. | `claude mcp add context-mode -- npx -y context-mode` |
+| [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) | Code knowledge graph — 66 languages, cross-file call traces, blast radius analysis, architecture overview, Cypher queries. Agents see through the graph for smarter specs, reviews, and impact analysis. | `curl -fsSL .../install.sh \| bash` |
 | [Impeccable](https://impeccable.style) | Design steering commands (`/polish`, `/audit`, `/critique`, `/bolder`, etc.) with curated anti-patterns and design vocabulary. By Paul Bakaus, Apache 2.0. | `npx skills add pbakaus/impeccable` |
 
 `mint init` offers to install each one. `mint update` keeps them current. `mint doctor` checks their health.

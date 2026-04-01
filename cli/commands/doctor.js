@@ -2,7 +2,7 @@ import * as p from '@clack/prompts';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
-import { readJsonSafe, fileExists, detectStack, detectTool, detectContextMode, getGlobalConfigPath, loadGlobalConfig, GLOBAL_KEYS, ensureReadmeSignature } from '../lib/detect.js';
+import { readJsonSafe, fileExists, detectStack, detectTool, detectContextMode, detectCodeGraph, getGlobalConfigPath, loadGlobalConfig, GLOBAL_KEYS, ensureReadmeSignature } from '../lib/detect.js';
 import { spinner } from '../lib/spinner.js';
 
 export async function run(flags = {}) {
@@ -112,6 +112,13 @@ export async function run(flags = {}) {
   if (config.context?.enabled) {
     if (!detectContextMode()) {
       addWarn('Context Mode enabled but context-mode not installed\n    Fix: claude mcp add context-mode -- npx -y context-mode');
+    }
+  }
+
+  // Code Graph
+  if (config.graph?.enabled) {
+    if (!detectCodeGraph()) {
+      addWarn('Code graph enabled but codebase-memory-mcp not installed\n    Fix: curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash');
     }
   }
 

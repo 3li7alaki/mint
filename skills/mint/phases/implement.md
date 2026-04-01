@@ -9,6 +9,9 @@ Dispatch planner to implement a single spec. Gates + commit only — no reviews.
 1. Set `execution.json` status to `running`, record `startedAt`, add attempt entry
 2. **Set active spec** — update session state: `activeSpec` = spec file path.
    Pre-edit hook reads this to enforce `<can-modify>` scope.
+   **If graph enabled:** Run `trace_call_path` on target functions to verify
+   `<can-modify>` covers all transitively affected files. If blast radius exceeds
+   scope, warn: "Spec scope may be too narrow — graph shows N additional affected files."
 3. **Resolve autocommit:**
    - Session override (`autoCommitOverride`) → if set, use it
    - Spec `<autoCommit>` → if true/false (not "inherit"), use it

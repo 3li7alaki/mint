@@ -108,6 +108,7 @@ them for the current step — not at startup.
 | `reference/context-mode.md` | When context-mode MCP is enabled |
 | `reference/workspace.md` | When workspace.repos is configured |
 | `reference/design.md` | When design intelligence is enabled |
+| `reference/graph.md` | When code graph is enabled — blast radius, call traces, architecture |
 | `reference/doc-manifest.md` | During doc-manifest check (step 6 of plan pipeline) |
 
 ---

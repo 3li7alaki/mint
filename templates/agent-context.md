@@ -83,6 +83,13 @@ this from pipeline state and passes it as the `prompt` parameter to the Agent to
     {entries from .mint/instincts.jsonl with confidence >= 3}
   </instincts>
 </learning>
+
+<!-- Only when graph is enabled -->
+<graph-context>
+  <architecture>{output from get_architecture — modules, entry points, hotspots}</architecture>
+  <blast-radius>{output from trace_call_path on target files — affected functions/files}</blast-radius>
+  <recent-changes>{output from detect_changes — recently modified symbols}</recent-changes>
+</graph-context>
 ```
 
 ## Spec Reviewer (Stage 1)

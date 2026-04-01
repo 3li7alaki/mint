@@ -13,6 +13,9 @@ import {
   detectTool,
   detectContextMode,
   installContextMode,
+  detectCodeGraph,
+  installCodeGraph,
+  indexCodeGraph,
   fileExists,
   readJsonSafe,
   ensureClaudeMd,
@@ -96,6 +99,7 @@ export async function run(flags = {}) {
     const tdd = flags.tdd !== undefined ? flags.tdd === 'true' : (defaults.tdd?.default || false);
     const browser = flags.browser !== 'false';
     const context = flags.context === 'true' ? true : (flags.context === 'false' ? false : detectContextMode());
+    const graph = flags.graph === 'true' ? true : (flags.graph === 'false' ? false : detectCodeGraph());
     const design = flags.design !== 'false';
     const pluginList = flags.plugins
       ? flags.plugins.split(',').map(s => s.trim())
@@ -106,13 +110,23 @@ export async function run(flags = {}) {
       try { installContextMode(); } catch { /* graceful degradation */ }
     }
 
+    // Auto-install code graph in headless mode if not detected but enabled
+    if (graph && !detectCodeGraph()) {
+      try { installCodeGraph(); } catch { /* graceful degradation */ }
+    }
+
     const config = buildConfig({
       stack, packageManager, gates: detectedGates,
-      isolation: isoMode, autoCommit, tdd, browser, context, design,
+      isolation: isoMode, autoCommit, tdd, browser, context, graph, design,
       plugins: pluginList, defaults,
     });
 
     writeFiles(mintDir, configPath, config);
+
+    // Auto-index code graph on init
+    if (graph && detectCodeGraph()) {
+      try { indexCodeGraph(cwd); } catch { /* graceful degradation */ }
+    }
 
     console.log(`\n  \x1b[32m✓\x1b[0m mint configured (v${VERSION})`);
     console.log(`    Stack: ${stack} · PM: ${packageManager} · Isolation: ${isoMode}`);
@@ -129,12 +143,13 @@ export async function run(flags = {}) {
     const tdd = defaults.tdd?.default || false;
     const browser = true;
     const context = detectContextMode();
+    const graph = detectCodeGraph();
     const design = true;
     const pluginList = suggestedPlugins;
 
     const config = buildConfig({
       stack, packageManager, gates: detectedGates,
-      isolation: isoMode, autoCommit, tdd, browser, context, design,
+      isolation: isoMode, autoCommit, tdd, browser, context, graph, design,
       plugins: pluginList, defaults,
     });
 
@@ -150,7 +165,7 @@ export async function run(flags = {}) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function buildConfig({ stack, packageManager, gates, isolation, autoCommit, tdd, browser, context, design, plugins, defaults }) {
+function buildConfig({ stack, packageManager, gates, isolation, autoCommit, tdd, browser, context, graph, design, plugins, defaults }) {
   const reviewerModels = {
     spec: 'opus', quality: 'sonnet', security: 'sonnet',
     conventions: 'haiku', tests: 'sonnet', business: 'opus', performance: 'sonnet',
@@ -197,6 +212,11 @@ function buildConfig({ stack, packageManager, gates, isolation, autoCommit, tdd,
       autoRoute: defaults.context?.autoRoute ?? true,
       sandbox: defaults.context?.sandbox ?? { timeout: 30000 },
       session: defaults.context?.session ?? { enabled: true },
+    },
+    graph: {
+      enabled: graph,
+      autoIndex: defaults.graph?.autoIndex ?? true,
+      provider: defaults.graph?.provider ?? 'codebase-memory-mcp',
     },
     design: {
       enabled: design,

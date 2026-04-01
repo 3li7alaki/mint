@@ -355,6 +355,31 @@ Three capabilities:
 
 context-mode is an external dependency (ELv2 license). mint wraps it, never forks or embeds. Graceful degradation -- all agents fall back to standard tools if context-mode is unavailable.
 
+## Code Knowledge Graph
+
+When `config.graph.enabled` is `true`, agents see through a code knowledge graph powered by
+[codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp). The graph indexes the
+codebase via tree-sitter (66 languages) into a SQLite-backed graph with 13 node types and 20
+edge types. Agents query it via MCP tools for:
+
+- **Blast radius analysis** — before decomposing, trace which functions/files are transitively
+  affected by a change. Specs get accurate `<can-modify>` scopes.
+- **Cross-boundary effect detection** — a backend route change → OpenAPI spec → frontend client
+  → UI component. The graph traces through HTTP_CALLS, ASYNC_CALLS, and IMPORTS edges.
+- **Architecture awareness** — decomposer sees module boundaries, entry points, coupling
+  hotspots. Creates better specs at natural seams.
+- **Review intelligence** — security auditor traces data flow. Quality reviewer finds god
+  functions. Adversarial tester targets high-fanout functions.
+- **Dead code detection** — functions with 0 callers (excluding exports) are flagged.
+
+The graph auto-indexes on `mint init` and refreshes via background file watcher. Plan mode
+setup verifies freshness and reindexes if stale. Graceful degradation — all agents fall back
+to file-based analysis (grep, read) if the graph is unavailable.
+
+The graph provider is configurable (`config.graph.provider`). Currently wraps
+codebase-memory-mcp; can be swapped for a custom implementation without changing agent code.
+See `reference/graph.md` for the full query reference.
+
 ## Hooks System
 
 Real-time Claude Code hooks provide instant feedback and enforcement:

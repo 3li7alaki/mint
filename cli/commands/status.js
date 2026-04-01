@@ -55,6 +55,7 @@ export async function run(args = [], flags = {}) {
   // Features
   console.log(`  Browser:    ${config.browser?.enabled ? g('on') : d('off')}`);
   console.log(`  Context:    ${config.context?.enabled ? g('on') : d('off')}`);
+  console.log(`  Graph:      ${config.graph?.enabled ? g('on') : d('off')}`);
   console.log(`  Design:     ${config.design?.enabled ? g('on') : d('off')}`);
   console.log(`  Isolation:  ${c(config.isolation?.plan || 'none')}`);
   console.log(`  Repo mode:  ${c(config.repoMode || 'collaborative')}`);

@@ -293,6 +293,75 @@ export function installContextMode() {
   return detectContextMode();
 }
 
+// ─── Code Graph (codebase-memory-mcp) ───────────────────────────────────────
+
+export function detectCodeGraph() {
+  // Check if the binary exists
+  if (detectTool('codebase-memory-mcp')) return true;
+
+  // Check common install locations
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const commonPaths = [
+    path.join(home, '.local', 'bin', 'codebase-memory-mcp'),
+    path.join(home, '.cbm', 'codebase-memory-mcp'),
+    '/usr/local/bin/codebase-memory-mcp',
+  ];
+  for (const p of commonPaths) {
+    if (fileExists(p)) return true;
+  }
+
+  // Check MCP config for registered server
+  try {
+    const mcpPaths = [
+      path.join(home, '.claude', 'claude_desktop_config.json'),
+      path.join(home, '.claude.json'),
+    ];
+    for (const mcpPath of mcpPaths) {
+      if (fileExists(mcpPath)) {
+        const content = fs.readFileSync(mcpPath, 'utf8');
+        if (content.includes('codebase-memory') || content.includes('cbm')) return true;
+      }
+    }
+  } catch { /* ignore */ }
+
+  return false;
+}
+
+export function installCodeGraph() {
+  // Their official install script
+  execSync('curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash', {
+    stdio: 'pipe',
+    timeout: 120000,
+  });
+  return detectCodeGraph();
+}
+
+export function indexCodeGraph(projectRoot) {
+  try {
+    execSync(`codebase-memory-mcp cli index_repository '{"repo_path": "${projectRoot}"}'`, {
+      stdio: 'pipe',
+      timeout: 300000, // 5 min — large repos take time
+      cwd: projectRoot,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getCodeGraphStatus(projectRoot) {
+  try {
+    const projectName = path.basename(projectRoot);
+    const result = execSync(
+      `codebase-memory-mcp cli index_status '{"project": "${projectName}"}'`,
+      { encoding: 'utf8', stdio: 'pipe', timeout: 5000 }
+    );
+    return JSON.parse(result);
+  } catch {
+    return null;
+  }
+}
+
 export function detectPlugins(stack) {
   const map = { nuxt: 'mint-nuxt', vue: 'mint-nuxt' };
   return map[stack] ? [map[stack]] : [];

@@ -23,7 +23,8 @@ Add to dispatch list.
 ## 3. Dispatch Documenter(s)
 
 - If dispatch list non-empty: dispatch `mint-documenter` for each doc
-  - Pass: doc path, description, matching section IDs, change summary
+  - **Dispatch tier: foreground** (omit `run_in_background`) — documenter is fast (<15s)
+  - Build prompt from `templates/agent-context.md` → "Documenter" section
   - Verify: documenter reported which sections were updated
 - If no matches: "No tracked docs affected." (not a failure)
 

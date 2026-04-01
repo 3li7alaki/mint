@@ -103,6 +103,12 @@ export const CONFIG_SCHEMA = {
     description: 'Coverage command',
     scope: 'project',
   },
+  'gates.tiered': {
+    type: 'boolean',
+    default: true,
+    description: 'Enable gate tier classification (skip/quick/full based on changed files)',
+    scope: 'global',
+  },
 
   // ─── Browser ───────────────────────────────────────────────────────────────
   'browser.enabled': {
@@ -261,6 +267,12 @@ export const CONFIG_SCHEMA = {
     type: 'reviewer',
     default: false,
     description: 'Performance reviewer (stage 2)',
+    scope: 'global',
+  },
+  'reviewers.adversarial': {
+    type: 'reviewer',
+    default: false,
+    description: 'Adversarial tester — red team probing in isolated worktree (stage 2)',
     scope: 'global',
   },
 

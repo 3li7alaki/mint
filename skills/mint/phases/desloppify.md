@@ -13,10 +13,11 @@ Clean up AI-generated slop after implementation.
 
 ## Dispatch
 
-`mint-de-sloppifier` subagent with:
-- Git diff (current changes)
-- Spec XML
-- Gate commands from config
+**Dispatch tier: background** (`run_in_background: true`) — modifies files and runs gates.
+
+`mint-de-sloppifier` subagent.
+Build prompt from `templates/agent-context.md` → "De-sloppifier" section:
+- Git diff, spec XML, gate commands from config
 
 De-sloppifier cleans: framework tests, over-defensive code, console.log, commented-out code.
 Runs tests after cleanup to verify nothing broke.

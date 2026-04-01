@@ -22,6 +22,7 @@ Evaluate in order — first match wins:
 | Signal | Mode | Action |
 |--------|------|--------|
 | "verify", "check gates", "audit" | verify | Read `modes/verify.md`, execute |
+| "dream", "consolidate learning" | dream | Read `modes/dream.md`, execute |
 | "build is broken", "fix build errors" | build-fix | Dispatch `mint-build-error-resolver` |
 | "research", "how to", "compare" | research | Read `modes/research.md`, execute |
 | "clean up", "dead code", "unused" | refactor | Dispatch `mint-refactor-cleaner` |
@@ -60,20 +61,13 @@ Detect autocommit overrides: `--no-commit`, "no commits", "stop committing" → 
 
 Read the mode file for your routed mode from `skills/mint/modes/`. Follow its instructions.
 
-For **plan mode**, the mode file drives a state-machine pipeline. After dispatching each
-agent, the orchestrator:
+**For modes that modify code** (quick, plan, ship, design): also read
+`reference/orchestrator-laws.md` before executing. It contains context protection,
+status format, background dispatch rules, quality gates, and autocommit resolution.
+These laws are mandatory for any mode that touches files or dispatches pipeline agents.
 
-1. Reads `pipeline-state.json` to know what step to execute next
-2. Reads the phase file for that step from `skills/mint/phases/`
-3. **Outputs status text FIRST** — what you're about to dispatch and why
-4. Dispatches the agent with `run_in_background: true` — user can talk while it runs
-5. When agent completes (you'll be notified), read the result
-6. Updates `pipeline-state.json` with the result
-7. Loops to step 1
-
-**Background agents are mandatory.** NEVER dispatch foreground agents for pipeline steps.
-The user must be able to send messages, corrections, or stop signals at any time.
-The only exception is quick mode, where you implement directly in main context.
+**Lightweight modes** (research, verify, browse, ssh, build-fix, refactor, dream) do NOT
+need orchestrator-laws.md. Their mode files are self-contained.
 
 NEVER hold the full pipeline in memory. Each phase file is self-contained.
 
@@ -85,65 +79,16 @@ On task completion (success or failure):
 
 ---
 
-## Orchestrator Laws (always active)
+## Universal Rules (all modes)
 
-These apply in ALL modes. Non-negotiable.
+- **Asking the user:** Re-ground context (task + what's done + decision needed). One
+  decision per question — never batch. Present options with a recommendation. Take a position.
+- **Never push** — agents commit only, user reviews and pushes
+- **Fail twice → stop** — log to `.mint/issues.jsonl`, escalate to user
 
-### Context Protection
-- NEVER read large files in main context
-- NEVER run tests/linters in main context (except quick mode gates and verify mode layer 1)
-- NEVER accumulate raw tool output — subagents return summaries only
-
-### User Message Awareness
-**All pipeline agents run in background** (`run_in_background: true`). This lets the user
-send messages, corrections, or stop signals while agents work. The orchestrator is notified
-when each agent completes — do NOT poll or sleep.
-
-**Output status BEFORE every dispatch and AFTER every completion.** Use the standard format
-below. After a background agent completes and before dispatching the next, check if the user
-sent messages and respond first.
-
-**Status format (always use this):**
-
-```
-[mint] <mode> · <spec> · <step> — <result>
-```
-
-Examples:
-```
-[mint] plan · 001-auth-handler · implement — dispatching planner...
-[mint] plan · 001-auth-handler · implement — gates: lint ✅ types ✅ tests ✅
-[mint] plan · 001-auth-handler · review-s1 — dispatching spec reviewer...
-[mint] plan · 001-auth-handler · review-s1 — PASSED
-[mint] plan · 001-auth-handler · review-s2 — dispatching quality, security, conventions...
-[mint] plan · 001-auth-handler · review-s2 — quality ✅ security ✅ conventions ⚠️ (2 warnings)
-[mint] plan · 001-auth-handler · dod — all criteria met ✅
-[mint] quick · implement — 3 files modified, gates passing
-[mint] quick · commit — abc1234
-```
-
-Never use freeform status text. Always `[mint] mode · spec · step — result`.
-
-### Asking the User
-- Re-ground context (task + what's done + what decision needed)
-- One decision per question — never batch
-- Present options with a recommendation
-- Never be vague — take a position
-
-### Quality
-- Gates before commit — lint + types + tests must pass 100%
-- Never fix bad output — diagnose, fix spec, rerun fresh
-- Fail twice → stop — log to `.mint/issues.jsonl`, escalate to user
-- Never push — agents commit only, user reviews and pushes
-
-### Autocommit Resolution (priority order)
-1. Session override (`autoCommitOverride`) — if set, use it
-2. Per-spec `<autoCommit>` field — if present, use it
-3. `config.autoCommit` — project default (default: true)
-
-### Repo Mode
-- `"solo"` — fix out-of-scope issues proactively
-- `"collaborative"` — log out-of-scope issues, don't fix
+Full orchestrator laws (context protection, status format, background dispatch, quality
+gates, autocommit, repo mode) are in `reference/orchestrator-laws.md` — loaded by Step 3
+for code-modifying modes only.
 
 ---
 
@@ -154,6 +99,7 @@ them for the current step — not at startup.
 
 | File | When to read |
 |------|-------------|
+| `reference/orchestrator-laws.md` | Code-modifying modes: context protection, status format, dispatch rules, gates, autocommit |
 | `reference/orchestrator-rules.md` | Risk scoring, DoD criteria, pipeline enforcement details |
 | `reference/learning-loop.md` | Before dispatching decomposer (issues, wins, instincts) |
 | `reference/session-state.md` | Session lifecycle details, autocommit override handling |
@@ -166,16 +112,29 @@ them for the current step — not at startup.
 
 ---
 
-## What Agents Receive
+## What Agents Receive (Prompt Caching)
 
-| Agent | Context |
-|-------|---------|
+Each agent has two layers — **static** (cached) and **dynamic** (per-dispatch):
+
+- **Static:** The agent `.md` file in `agents/` — identity, rules, checklist. Cached by
+  Anthropic's API across identical requests. Multiple specs in a wave share this cache.
+- **Dynamic:** The `prompt` parameter built from `templates/agent-context.md`. Contains
+  only the per-dispatch inputs (spec XML, diff, config values). Keep this minimal.
+
+**Rule: Never duplicate agent instructions in the dynamic prompt.** The agent already has
+its `.md` file as system prompt.
+
+| Agent | Dynamic context (from `templates/agent-context.md`) |
+|-------|------------------------------------------------------|
 | Decomposer | Feature desc + config + hard blocks + learning context |
-| Planner | Spec XML + resolved autocommit + resolved TDD + retry context |
-| Reviewer | Spec XML + git diff |
-| Researcher | Question + config |
-| Documenter | File path + description + change summary + manifest sections |
-| Shipper | Confirmed ship plan + config + hard blocks |
-| Verifier | Config only |
+| Planner | Spec XML + autocommit + TDD + retry/correction context |
+| Spec Reviewer | Spec XML + git diff |
+| Stage 2 Reviewers | Git diff + file list (+ conventions/business docs if applicable) |
+| Adversarial Tester | Spec XML + git diff + test framework + file paths (worktree isolation) |
+| Documenter | Doc path + description + change summary + manifest sections |
 | De-sloppifier | Git diff + spec XML + gate commands |
+| Researcher | Question + config |
+| Shipper | Ship plan + config + hard blocks |
+| Verifier | Failing gate output + config |
 | Build Resolver | Error output + config + in-scope files |
+| Dream Consolidator | Learning file paths + counts + config + previous report |

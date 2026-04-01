@@ -31,6 +31,7 @@ Gates enforced after every task.
 
 1. Wait for user confirmation
 2. Delegate to `mint-shipper` subagent with confirmed plan
+   **Dispatch tier: background** (`run_in_background: true`) — shipping is long-running
 3. Shipper executes phase by phase using planner logic
 4. Returns consolidated summary
 5. Delete session state on completion

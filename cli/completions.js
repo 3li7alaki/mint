@@ -11,7 +11,7 @@ import path from 'path';
 import { listConfigKeys } from './lib/schema.js';
 
 const COMMANDS = [
-  'init', 'config', 'doctor', 'update', 'clean', 'status', 'plugin', 'help',
+  'init', 'config', 'doctor', 'update', 'clean', 'status', 'stats', 'dream', 'plugin', 'help',
 ];
 
 const CONFIG_SUBCOMMANDS = ['show', 'set', 'list', 'plugins'];

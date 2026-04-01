@@ -14,6 +14,10 @@ pipeline state after each step and loads the next phase file.
   - `"none"` — work on current branch
 - Read `reference/learning-loop.md` — load issues/wins/instincts for planner context
 - Check for resumable specs (scan `.mint/tasks/` for non-terminal execution.json)
+- **Dream auto-check:** If `.mint/dream-report.md` is >7 days old (or missing) AND total
+  JSONL entries across issues/wins/instincts/metrics > 10 since last dream → run dream
+  consolidation automatically in background before decomposing. Don't ask — just do it.
+  Output: `[mint] plan · setup · dream — auto-consolidating stale learning data...`
 
 ## 2. Challenge (optional)
 
@@ -82,6 +86,7 @@ Before starting a spec, create `.mint/tasks/<slug>/<spec-id>/pipeline-state.json
 | desloppify | `phases/desloppify.md` | mint-de-sloppifier | If TDD or config.tdd.desloppify |
 | review-stage1 | `phases/review-stage1.md` | mint-spec-reviewer | Always |
 | review-stage2 | `phases/review-stage2.md` | reviewer agents | If diff ≥ 30 lines |
+| adversarial | `phases/adversarial.md` | mint-adversarial-tester | If enabled + diff ≥ 30 lines (worktree) |
 | fix-blockings | `phases/fix-blockings.md` | mint-planner | If BLOCKINGs found |
 | docs | `phases/docs.md` | mint-documenter | If doc-manifest matches |
 | dod | `phases/dod.md` | orchestrator | Always (final gate) |
@@ -126,11 +131,18 @@ If a spec fails gates or review:
 
 Always use: `[mint] plan · <spec> · <step> — <result>`
 
-### Background Dispatch
+### Tiered Dispatch
 
-All pipeline agents MUST use `run_in_background: true`. The user can talk while they run.
-When the agent completes, you'll be notified. Check for user messages before continuing.
+Each phase file specifies its dispatch tier (foreground or background).
+See `reference/orchestrator-laws.md` for the full tier table and rules.
 
+**Quick reference:**
+- **Foreground** (fast agents — spec reviewer S1, documenter, verifier): result arrives
+  immediately, proceed to next step without delay. User is briefly blocked.
+- **Background** (slow agents — planner, decomposer, de-sloppifier, fix-blockings, S2
+  reviewers): user gets prompt back, can send corrections or stop signals.
+
+After any background agent completes, check for user messages before continuing:
 - **Correction** → adjust remaining specs
 - **Addition** → incorporate or queue as follow-up
 - **Stop** → pause, await direction

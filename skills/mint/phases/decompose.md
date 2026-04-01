@@ -13,11 +13,12 @@ Break a feature into atomic XML specs.
 
 ## Dispatch
 
-Dispatch `mint-decomposer` subagent with:
-- Feature description
-- Config (`.mint/config.json`)
-- Hard blocks (`.mint/hard-blocks.md`)
-- Learning context (issues, wins, instincts)
+**Dispatch tier: background** (`run_in_background: true`) — decomposition explores the
+codebase and may take 20-60s.
+
+Dispatch `mint-decomposer` subagent.
+Build prompt from `templates/agent-context.md` → "Decomposer" section:
+- Feature description, config, hard blocks, learning context (issues, wins, instincts)
 
 Planner reads existing code, breaks work into atomic specs saved to `.mint/tasks/<slug>/`.
 

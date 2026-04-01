@@ -100,7 +100,7 @@ No commands to memorize. Just describe what you want to build.
 ```
 You describe a feature
         │
-  Router (SKILL.md, 155 lines) → loads mode file
+  Router (SKILL.md, ~125 lines) → loads mode file
         │
   Challenge (optional) — is this the right thing to build?
         │
@@ -125,6 +125,14 @@ You describe a feature
 **Parallel execution:** Independent specs run simultaneously — either as parallel Agent calls
 within one session, or as separate `claude -p` processes in isolated git worktrees. Concurrency
 is configurable (default: 3). Scope enforcement prevents parallel specs from modifying the same files.
+
+**Prompt caching:** Agent prompts are split into static (`.md` file = system prompt, cached
+by API) and dynamic (per-dispatch context from `templates/agent-context.md`). In a 4-spec wave,
+the planner's system prompt is cached after the first dispatch — remaining specs pay ~75% less.
+
+**Tiered dispatch:** Fast agents (spec reviewer, documenter) run foreground for immediate
+results. Slow agents (planner, decomposer, reviewers) run background so you stay free to
+send corrections or stop signals.
 
 ## Ecosystem & Integrations
 
@@ -380,9 +388,11 @@ Every spec goes through multi-stage review, **scaled by diff size:**
 - **Tests** — mock audit, assertion quality, edge cases
 - **Business** — requirements alignment, domain logic
 - **Performance** — re-renders, N+1, bundle impact (opt-in)
+- **Adversarial** — red team probing: writes edge-case tests designed to break the
+  implementation, runs in isolated worktree. A passing test = the attack succeeded (opt-in)
 - **Design** — AI slop, RTL, i18n, accessibility (if `design.enabled`)
 
-Issues are categorized: BLOCKING (must fix), WARNING (should fix), INFO (logged). Each reviewer can use a different Claude model. Disable scaling with `config.reviewScaling: false`.
+Issues are categorized: BLOCKING (must fix), WARNING (should fix), INFO (logged). Each reviewer can use a different Claude model. The adversarial tester is special — it writes and executes code in a worktree, unlike read-only reviewers. Disable scaling with `config.reviewScaling: false`.
 
 ## Learning
 
@@ -398,7 +408,37 @@ mint learns your project's conventions automatically. All learning logs use **JS
 
 - **Patterns** (`.mint/patterns.jsonl`) — graduated from issues/wins when a pattern repeats 3+ times.
 
-The system is self-evolving: observe → score → correlate → boost/decay → promote. All committed to git — shared team knowledge.
+### Dream Consolidation
+
+Learning data grows stale. `mint dream` consolidates it — issue triage, instinct decay,
+pattern promotion candidates, win archival, health report. Runs automatically when learning
+data is stale (7+ days since last dream, 10+ new entries) — suggested on `resume-work` or
+first plan invocation. Also available via CLI:
+
+```bash
+mint dream              # status overview
+mint dream decay        # run instinct decay
+mint dream instincts    # list all with scores
+```
+
+Full consolidation (issue triage, promotion, report) runs via Claude: just say `"dream"`.
+
+**Complementary to Claude Code's autoDream** — Claude's dream handles generic memory. Mint's
+dream handles project-specific learning data. No overlap, they enhance each other.
+
+The system is self-evolving: observe → score → correlate → boost/decay → dream → promote. All committed to git — shared team knowledge.
+
+### Pipeline Analytics
+
+`mint stats` shows how the pipeline is performing:
+
+```bash
+mint stats
+# Gate pass rate, first-try success (with ↑/↓ trend), avg attempts,
+# review pass rate, top issues by root cause, reviewer value (which
+# reviewers catch the most BLOCKINGs), instinct health with promotion
+# candidates, win patterns, and git activity breakdown.
+```
 
 ## Plugins
 
@@ -434,6 +474,8 @@ Key config in `.mint/config.json`:
 | `stack` | auto-detected | Framework (nuxt, react, vue, etc.) |
 | `packageManager` | auto-detected | npm, pnpm, yarn, bun |
 | `gates` | `{}` | lint/types/tests/coverage commands |
+| `gates.tiered` | `true` | Gate tier classification — skip/quick/full based on changed files |
+| `gates.tiers` | defaults | Custom glob patterns for skip/quick/full classification |
 | `autoCommit` | `true` | Commit after passing gates (overridable per-session and per-spec) |
 | `tdd.default` | `false` | TDD-first by default |
 | `browser.enabled` | `true` | Browser automation via PinchTab |

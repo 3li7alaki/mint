@@ -48,7 +48,20 @@ To add: `fs.appendFileSync(file, JSON.stringify(entry) + '\n')`.
 
 1. **Log** — specific entry in issues/wins
 2. **Recur** — same pattern 2-3 times across tasks
-3. **Promote** — codify into hard-blocks, spec template, or agent prompt
-4. **Prune** — remove original entries (learning is now structural)
+3. **Dream** — `mint dream` consolidates: prunes stale, promotes high-confidence, archives old
+4. **Promote** — codify into hard-blocks, spec template, or agent prompt (human decides)
+5. **Prune** — remove original entries (learning is now structural)
 
-Flag promotion candidates: "This pattern appeared N times — promote?"
+Dream consolidation is the automated step between recurring patterns and promotion.
+It flags candidates but never auto-promotes — the human reviews and decides.
+
+## Dream Integration
+
+The `mint-dream-consolidator` agent handles batch consolidation:
+- Issue triage (resolve, merge duplicates, escalate recurring)
+- Instinct decay (reduce confidence for stale, remove at 0)
+- Pattern promotion candidates (confidence ≥ 7, occurrences ≥ 10)
+- Win archival (keep 50 active, archive rest)
+- Health report generation (`.mint/dream-report.md`)
+
+See `modes/dream.md` for trigger conditions and `agents/dream-consolidator.md` for details.

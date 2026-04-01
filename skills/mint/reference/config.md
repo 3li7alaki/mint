@@ -26,6 +26,11 @@ Project-specific (not inherited): stack, packageManager, gates, browser, context
 | `mint doctor --fix` | Health check + fix |
 | `mint update` | Update mint + migrate projects |
 | `mint status` | Quick health check |
+| `mint stats` | Pipeline analytics — pass rates, reviewer value, instinct health, trends |
+| `mint dream` | Learning consolidation — status overview |
+| `mint dream status` | Dream status and entry counts |
+| `mint dream decay` | Run instinct decay |
+| `mint dream instincts` | List all instincts with scores |
 | `mint clean` | Remove stale worktrees + sessions |
 
 ## Multi-Model Dispatch

@@ -22,7 +22,7 @@
 User
   │
   ▼
-Router (SKILL.md — 155 lines)
+Router (SKILL.md — ~125 lines)
   │
   ├─ classify task → load mode file
   │   ├─ modes/quick.md → main context (no subagent)
@@ -67,14 +67,14 @@ The orchestrator is split into focused, loadable pieces — not one monolithic f
 
 ```
 skills/mint/
-  SKILL.md            ← Router only (~155 lines). Routes, manages state, dispatches.
+  SKILL.md            ← Router only (~125 lines). Routes, manages state, dispatches.
   modes/              ← One file per execution mode. Loaded on route.
   phases/             ← One file per pipeline step. Loaded per-step.
   reference/          ← Detailed docs. Loaded on demand only.
 ```
 
 **Why:** LLM instruction compliance degrades linearly with prompt length. A 1900-line skill
-gets ~40% compliance. The 155-line router gets ~85%. Phase files load one at a time — the
+gets ~40% compliance. The ~125-line router gets ~85%. Phase files load one at a time — the
 agent never holds the full pipeline in memory.
 
 ### Pipeline State Machine
@@ -112,6 +112,42 @@ Each subagent:
 This prevents context pollution. An agent that builds up too much context makes worse decisions. Fresh agents make better decisions.
 
 When workspace is configured, agents receive scoped workspace context relevant to their task — not the full workspace. The orchestrator decides what each agent needs to see.
+
+## Prompt Caching (Static / Dynamic Split)
+
+Agent prompts have two layers:
+
+- **Static layer** — the agent `.md` file (`agents/planner.md`, etc.). Contains identity,
+  rules, checklist, report format. This is the agent's system prompt, cached by Anthropic's
+  API across identical requests. Multiple specs in a wave sharing the same agent type hit
+  the cache.
+- **Dynamic layer** — the `prompt` parameter passed to the Agent tool. Contains per-dispatch
+  inputs: spec XML, git diff, config values, retry context. Built from the structured
+  templates in `templates/agent-context.md`.
+
+**Rule:** The orchestrator never duplicates agent instructions in the dynamic prompt. The
+agent already has its `.md` file. The prompt contains ONLY the inputs listed in the context
+template.
+
+**Why this matters:** In a wave of 4 specs, each spawns a `mint-planner` agent. The planner's
+static prompt (~2000 tokens) is cached after the first dispatch. The remaining 3 specs pay
+only the cache read cost (~75% cheaper). Stage 2 reviewers benefit similarly — 5 parallel
+reviewers of the same type share one cached system prompt.
+
+## Tiered Agent Dispatch
+
+Not all agents run in background. The orchestrator uses a tiered dispatch model:
+
+- **Foreground** (fast agents, <15s): spec reviewer, documenter, verifier. Result arrives
+  immediately; user is briefly blocked. Used when the result is needed for the next pipeline
+  step and the agent is fast enough that blocking is barely noticeable.
+- **Background** (slow agents, 30s+): planner, decomposer, de-sloppifier, fix-blockings,
+  shipper, researcher. User gets their prompt back and can send corrections or stop signals.
+- **Parallel background**: stage 2 reviewers. Multiple agents dispatched simultaneously,
+  all backgrounded.
+
+Each phase file (`skills/mint/phases/*.md`) declares its dispatch tier. The full tier table
+is in `skills/mint/reference/orchestrator-laws.md`.
 
 ## Wave-Based Parallel Execution
 
@@ -166,6 +202,25 @@ At 25% the orchestrator warns; at 50% it stops. Hard cap: 30 fix attempts across
 This catches the pattern where nothing is working well but individual failures don't
 trigger the 2-attempt limit.
 
+## Gate Tier Classification
+
+Not all changes need full gate runs. Before running gates, the planner classifies changed
+files against configurable glob patterns:
+
+| Tier | Trigger | Gates | Example |
+|------|---------|-------|---------|
+| `skip` | Only docs, assets, `.mint/` files | None | Editing README.md only |
+| `quick` | New test files, CSS/styles | Types only | Adding a new test file |
+| `full` | Source code, configs, modified tests | All (lint + types + tests) | Editing src/auth.ts |
+
+**Highest tier wins** — if ANY file matches `full`, all gates run. Unmatched files default to
+`full` (safe fallback). Spec-level `<gates>` overrides take precedence over tier classification.
+
+Patterns are configurable via `config.gates.tiers` with sensible defaults in `cli/lib/gate-tiers.js`.
+Disable entirely with `config.gates.tiered: false` to always run full gates.
+
+**Exceptions:** De-sloppifier and verifier always run full gates regardless of tier.
+
 ## Review Pipeline
 
 Two stages, by design. **Review intensity scales by diff size** — small diffs (<30 lines) get
@@ -173,7 +228,13 @@ spec review only. Large diffs (300+ lines) get full review with model escalation
 
 **Stage 1 (sequential gate):** Spec reviewer. Must pass before anything else. Checks: does the implementation match what was asked? No extra code, no missing requirements, scope respected.
 
-**Stage 2 (parallel audit):** Up to 6 reviewers run simultaneously. Each checks one dimension. Each is independently enabled/disabled in config. Each returns a severity-tagged report.
+**Stage 2 (parallel audit):** Up to 7 reviewers run simultaneously. Each checks one dimension. Each is independently enabled/disabled in config. Each returns a severity-tagged report.
+
+**Adversarial tester** (optional, stage 2): Unlike other reviewers, the adversarial tester is
+not read-only — it writes throwaway tests designed to break the implementation. It constructs
+malicious inputs, probes boundary conditions, and negates acceptance criteria. Runs in an
+isolated worktree so adversarial tests never pollute the codebase. A passing test means the
+attack succeeded (the implementation didn't defend). Enabled via `config.reviewers.adversarial`.
 
 Why two stages? Because there's no point auditing code quality on an implementation that doesn't match its spec. Fix spec compliance first, then check everything else.
 
@@ -196,6 +257,10 @@ where the instinct came from (observer hook, reviewer feedback, etc.).
 applied, review outcomes, gate results, attempt counts. Enables evidence-based evolution —
 `analyzeInstinctEffectiveness()` correlates instinct usage with review pass rates.
 
+`mint stats` provides a pipeline analytics dashboard from this data: gate pass rates,
+first-try success rate with trend detection, reviewer value (which reviewers catch the most
+BLOCKINGs), instinct health with promotion candidates, win patterns, and git activity.
+
 **Issue log** (`.mint/issues.jsonl`) — failures with root cause categories. Become `<pitfalls>`.
 
 **Wins log** (`.mint/wins.jsonl`) — successes and what patterns worked. Inform decomposition.
@@ -204,6 +269,24 @@ applied, review outcomes, gate results, attempt counts. Enables evidence-based e
 
 The decomposer reads all four before creating specs. Past mistakes become prevention.
 Past wins become guidance. JSONL utilities: `cli/lib/jsonl.js`.
+
+### Dream Consolidation
+
+Learning data grows stale over time. `mint dream` consolidates it:
+
+- **Issue triage** — resolve fixed issues, merge duplicates, escalate recurring (3+) to hard-blocks
+- **Instinct decay** — reduce confidence for unreinforced instincts (30d), remove at 0
+- **Pattern promotion** — flag high-confidence instincts (≥7, 10+ occurrences) as candidates
+- **Win archival** — keep 50 active, archive rest
+- **Health report** — gate pass rate, first-try success, reviewer value, trends
+
+Consolidation runs via the `mint-dream-consolidator` agent (background dispatch). The CLI
+provides lightweight subcommands (`mint dream status`, `mint dream decay`, `mint dream instincts`)
+for quick inspection without a full consolidation pass.
+
+**Complementary to Claude Code's autoDream:** Claude's dream handles generic conversation
+memory consolidation. Mint's dream handles project-specific learning data (issues, instincts,
+wins, metrics) that Claude's dream wouldn't know about. No overlap — they enhance each other.
 
 ## Documentation Intelligence
 

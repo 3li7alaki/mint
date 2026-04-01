@@ -20,18 +20,23 @@ Dispatch planner to implement a single spec. Gates + commit only — no reviews.
 
 ## Dispatch
 
-`mint-planner` subagent with: spec XML, resolved autocommit, resolved TDD value.
+`mint-planner` subagent. **Dispatch tier: background** (`run_in_background: true`).
+
+Build prompt from `templates/agent-context.md` → "Planner (implement)" section.
+Pass ONLY dynamic context — the planner's `.md` file is its system prompt (cached).
 
 The planner implements, runs gates, commits (or stages). **That's all it does.**
 
 ## Post-Dispatch Verification
 
 1. Read `execution.json` → confirm `gates` field populated
-2. If autocommit true: verify commit exists (`git log -1`)
-3. If autocommit false: verify changes staged (`git diff --cached`)
-4. If failure: verify `.mint/issues.jsonl` updated
-5. Update `execution.json`: gate results, commit hash
-6. Clear `activeSpec` in session state (set to `null`)
+2. Verify gate tier is recorded — `gates.tier` should be `skip`, `quick`, or `full`
+3. If tier is `skip`, gates can be empty — that's valid for docs-only changes
+4. If autocommit true: verify commit exists (`git log -1`)
+5. If autocommit false: verify changes staged (`git diff --cached`)
+6. If failure: verify `.mint/issues.jsonl` updated
+7. Update `execution.json`: gate results, commit hash, tier
+8. Clear `activeSpec` in session state (set to `null`)
 
 ## Output
 

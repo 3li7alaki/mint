@@ -13,13 +13,14 @@ instincts, wins, metrics. No overlap — they enhance each other.
 Dream runs when ANY is true:
 - User explicitly invokes (`"dream"`, `"consolidate learning"`, `"clean up learning"`)
 - `mint dream` CLI command
-- Auto-trigger: 7+ days since last dream AND 10+ new JSONL entries
+- **Auto-trigger in plan mode setup:** 7+ days since last dream AND 10+ new JSONL entries
+  → runs automatically in background, no user prompt needed
 
-Auto-trigger check (orchestrator does this on `mint resume-work` or first plan mode invocation):
+Auto-trigger (built into `modes/plan.md` setup step):
 1. Read `.mint/dream-report.md` → parse date from header
 2. If >7 days old (or missing) → count total JSONL entries across all files
-3. If 10+ entries since last dream → suggest: "Learning data is stale. Run dream? (Y/n)"
-4. Don't force — suggest only
+3. If 10+ entries since last dream → dispatch dream consolidator in background automatically
+4. Don't ask — just do it. The user never needs to think about dream.
 
 ## Process
 

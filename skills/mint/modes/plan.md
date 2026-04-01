@@ -14,6 +14,10 @@ pipeline state after each step and loads the next phase file.
   - `"none"` — work on current branch
 - Read `reference/learning-loop.md` — load issues/wins/instincts for planner context
 - Check for resumable specs (scan `.mint/tasks/` for non-terminal execution.json)
+- **Dream auto-check:** If `.mint/dream-report.md` is >7 days old (or missing) AND total
+  JSONL entries across issues/wins/instincts/metrics > 10 since last dream → run dream
+  consolidation automatically in background before decomposing. Don't ask — just do it.
+  Output: `[mint] plan · setup · dream — auto-consolidating stale learning data...`
 
 ## 2. Challenge (optional)
 

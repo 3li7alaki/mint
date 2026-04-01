@@ -20,6 +20,10 @@ export const MINT_IGNORE_ENTRIES = [
   '.mint/.freeze-list.json',
   '.mint/.browser-sessions.json',
   '.mint/.gate-ledger.jsonl',
+  '.mint/.dream-lock',
+  '.mint/dream-report.md',
+  '.mint/issues-archive.jsonl',
+  '.mint/wins-archive.jsonl',
 ];
 
 /**

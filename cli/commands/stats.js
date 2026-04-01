@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { readJsonSafe } from '../lib/detect.js';
+import { execSync } from 'child_process';
+import { readJsonSafe, detectCodeGraph, getCodeGraphStatus, queryCodeGraph } from '../lib/detect.js';
 import { readJsonl, topInstincts, analyzeInstinctEffectiveness } from '../lib/jsonl.js';
 
 export async function run(args = [], flags = {}) {
@@ -53,6 +54,11 @@ export async function run(args = [], flags = {}) {
   // ─── Win Patterns ───────────────────────────────────────────────────────────
   if (wins.length > 0) {
     showWinPatterns(wins, { c, g, y, d });
+  }
+
+  // ─── Code Graph ─────────────────────────────────────────────────────────────
+  if (config.graph?.enabled) {
+    showGraphHealth(cwd, config, { c, g, y, r, d });
   }
 
   // ─── Git Activity ───────────────────────────────────────────────────────────
@@ -248,6 +254,51 @@ function showWinPatterns(wins, { c, g, y, d }) {
 
   for (const [pattern, count] of sorted) {
     console.log(`    ${g(String(count).padStart(3))} × ${pattern.slice(0, 60)}`);
+  }
+
+  console.log('');
+}
+
+function showGraphHealth(cwd, config, { c, g, y, r, d }) {
+  if (!detectCodeGraph()) {
+    console.log(`  ${c('Code Graph')} ${r('not installed')}`);
+    console.log(`    ${d('Install: curl -fsSL .../install.sh | bash')}\n`);
+    return;
+  }
+
+  const status = getCodeGraphStatus(cwd);
+  if (!status || (!status.nodes && status.status !== 'indexed' && status.status !== 'ready')) {
+    console.log(`  ${c('Code Graph')} ${y('not indexed')}`);
+    console.log(`    ${d('Run: codebase-memory-mcp cli index_repository \'{"repo_path": "."}\'')}\n`);
+    return;
+  }
+
+  console.log(`  ${c('Code Graph')} ${d(`(${config.graph?.provider || 'codebase-memory-mcp'})`)}`);
+  console.log(`    Nodes:     ${c(status.nodes || 0)}`);
+  console.log(`    Edges:     ${c(status.edges || 0)}`);
+
+  // Get schema for breakdown
+  const schema = queryCodeGraph(cwd, 'get_graph_schema', {});
+  if (schema?.node_labels) {
+    const funcs = schema.node_labels.find(l => l.label === 'Function');
+    const classes = schema.node_labels.find(l => l.label === 'Class');
+    const files = schema.node_labels.find(l => l.label === 'File');
+    const parts = [];
+    if (funcs) parts.push(`${funcs.count} functions`);
+    if (classes) parts.push(`${classes.count} classes`);
+    if (files) parts.push(`${files.count} files`);
+    if (parts.length) console.log(`    Breakdown: ${d(parts.join(', '))}`);
+  }
+
+  // Hotspots — most-called functions
+  const hotspots = queryCodeGraph(cwd, 'query_graph', {
+    query: 'MATCH (f:Function)<-[:CALLS]-(caller) RETURN f.name, f.file_path, COUNT(caller) AS callers ORDER BY callers DESC LIMIT 5',
+  });
+  if (hotspots?.rows?.length > 0) {
+    console.log(`    ${d('Hotspots:')}`);
+    for (const row of hotspots.rows) {
+      console.log(`      ${g(String(row[2]).padStart(3))} callers  ${row[0]} ${d(`(${row[1]})`)}`);
+    }
   }
 
   console.log('');

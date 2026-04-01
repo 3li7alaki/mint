@@ -8,6 +8,7 @@ import {
   detectPackageManager,
   detectGates,
   detectPlugins,
+  getCodeGraphProjectName,
 } from '../cli/lib/detect.js';
 
 const TMP = path.join(import.meta.dir, '.tmp-detect');
@@ -224,5 +225,19 @@ describe('detectPlugins', () => {
 
   test('returns empty for unknown stack', () => {
     expect(detectPlugins('react')).toEqual([]);
+  });
+});
+
+describe('getCodeGraphProjectName', () => {
+  test('generates hyphenated name from path', () => {
+    const name = getCodeGraphProjectName('/home/user/projects/my-app');
+    // Should produce something like "home-user-projects-my-app"
+    expect(name).toContain('my-app');
+    expect(name).not.toContain('/');
+  });
+
+  test('handles root-relative paths', () => {
+    const name = getCodeGraphProjectName('/tmp/test');
+    expect(name).toBe('tmp-test');
   });
 });

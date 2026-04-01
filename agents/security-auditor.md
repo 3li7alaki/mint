@@ -87,6 +87,21 @@ sandboxed execution to keep raw output out of context:
 - See `references/context-mode-api.md` for tool parameters and `references/context-mode-strategy.md` for decision tree.
 - If context-mode tools are unavailable, fall back to standard tools transparently.
 
+## Graph-Enhanced Analysis
+
+When code graph MCP tools are available (codebase-memory-mcp), use them for deeper analysis:
+
+- **Data flow tracing:** `trace_call_path` with `mode: "data_flow"` — trace user input from
+  API handler through processing to output. If untrusted data reaches a sink without
+  sanitization, that's BLOCKING.
+- **Attack surface mapping:** `search_graph` for Route nodes — identify all HTTP endpoints.
+  Check each for input validation.
+- **Dependency chains:** `trace_call_path` outbound from user input handlers — follow the
+  data through function calls to find where it's used unsafely.
+
+If graph tools are unavailable, fall back to manual code reading. The graph makes analysis
+deeper, not mandatory.
+
 ## Rules
 
 - **Read-only.** Report vulnerabilities, don't fix them.

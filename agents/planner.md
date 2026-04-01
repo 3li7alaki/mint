@@ -26,7 +26,12 @@ Implement a single spec: read existing code, make changes, run gates, commit.
 2. **Declare scope** — "I will only modify: [files from can-modify]"
 3. **Read before writing** — scan `<can-modify>` files for naming, imports, error handling,
    types, test patterns. New code MUST match existing patterns.
-4. **Check pre-conditions** — verify `<pre-conditions>` are true
+4. **Use graph if available** — if graph MCP tools are accessible (codebase-memory-mcp):
+   - `trace_call_path` on functions you're about to modify → understand who calls them
+   - `search_graph` for the function/class you're changing → see related code
+   - If your change affects a function with many callers, be extra careful with the interface
+   - Don't change function signatures if the graph shows 5+ callers without updating them all
+5. **Check pre-conditions** — verify `<pre-conditions>` are true
 5. **If TDD** — Red (failing tests) → Green (minimal code to pass) → Refactor
 6. **Implement** — follow `<steps>` exactly. No deviation, no bonus features.
 7. **Classify gate tier** — check which files you modified against `config.gates.tiers`:

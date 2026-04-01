@@ -226,6 +226,26 @@ export const CONFIG_SCHEMA = {
     scope: 'project',
   },
 
+  // ─── Code Graph ────────────────────────────────────────────────────────────
+  'graph.enabled': {
+    type: 'boolean',
+    default: false,
+    description: 'Enable code knowledge graph (codebase-memory-mcp)',
+    scope: 'project',
+  },
+  'graph.autoIndex': {
+    type: 'boolean',
+    default: true,
+    description: 'Auto-reindex when starting plan mode',
+    scope: 'project',
+  },
+  'graph.provider': {
+    type: 'string',
+    default: 'codebase-memory-mcp',
+    description: 'Code graph provider binary name',
+    scope: 'project',
+  },
+
   // ─── Reviewers ─────────────────────────────────────────────────────────────
   'reviewers.spec': {
     type: 'reviewer',

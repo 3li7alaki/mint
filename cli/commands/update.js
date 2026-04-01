@@ -2,7 +2,7 @@ import * as p from '@clack/prompts';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
-import { detectTool, detectContextMode, readJsonSafe, fileExists, ensureClaudeMd, getGlobalConfigPath, loadGlobalConfig, saveGlobalConfig, GLOBAL_KEYS, registerProject, getRegisteredProjects } from '../lib/detect.js';
+import { detectTool, detectContextMode, detectCodeGraph, readJsonSafe, fileExists, ensureClaudeMd, getGlobalConfigPath, loadGlobalConfig, saveGlobalConfig, GLOBAL_KEYS, registerProject, getRegisteredProjects } from '../lib/detect.js';
 import { ensureGitignore } from '../lib/gitignore.js';
 import { spinner } from '../lib/spinner.js';
 
@@ -24,6 +24,12 @@ const NEW_CONFIG_KEYS = [
     key: 'design',
     label: 'Design & UI/UX (design profiling, typography/color/motion expertise, anti-pattern detection, RTL, i18n, accessibility review)',
     default: { enabled: true, stack: 'auto', profile: '.mint/design-profile.json', notes: '.mint/design-notes.md', conventions: [], review: { accessibility: true, consistency: true, performance: true, rtl: false, i18n: false, brand: false } },
+    defaultOff: { enabled: false },
+  },
+  {
+    key: 'graph',
+    label: 'Code Knowledge Graph (codebase-memory-mcp — blast radius, call traces, architecture)',
+    default: { enabled: true, autoIndex: true, provider: 'codebase-memory-mcp' },
     defaultOff: { enabled: false },
   },
   {
@@ -107,9 +113,33 @@ function updateImpeccable(s) {
   }
 }
 
+function updateCodeGraph(s) {
+  const before = getVersion('codebase-memory-mcp --version 2>/dev/null');
+  if (!before && !detectCodeGraph()) {
+    p.log.warn('Code graph not installed — skipping. Install: curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash');
+    return;
+  }
+
+  s.start(`Updating code graph${before ? ` (current: ${before})` : ''}...`);
+  try {
+    execSync('curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash', { stdio: 'pipe', timeout: 120000 });
+    const after = getVersion('codebase-memory-mcp --version 2>/dev/null');
+    if (before && after && before !== after) {
+      s.stop(`Code graph updated: ${before} → ${after}`);
+    } else if (after) {
+      s.stop(`Code graph up to date (${after})`);
+    } else {
+      s.stop('Code graph updated');
+    }
+  } catch {
+    s.stop('Code graph update failed — try manually: curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash');
+  }
+}
+
 const DEPS = {
   pinchtab: updatePinchTab,
   'context-mode': updateContextMode,
+  'code-graph': updateCodeGraph,
   impeccable: updateImpeccable,
 };
 
@@ -316,6 +346,10 @@ export async function run(positional = [], flags = {}) {
 
     if (config?.context?.enabled || depsOnly) {
       updateContextMode(s);
+    }
+
+    if (config?.graph?.enabled || depsOnly) {
+      updateCodeGraph(s);
     }
 
     if (config?.design?.enabled || depsOnly) {

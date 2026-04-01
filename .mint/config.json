@@ -76,6 +76,11 @@
       "enabled": true
     }
   },
+  "graph": {
+    "enabled": true,
+    "autoIndex": true,
+    "provider": "codebase-memory-mcp"
+  },
   "design": {
     "enabled": false
   },

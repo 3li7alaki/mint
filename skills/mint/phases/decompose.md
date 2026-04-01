@@ -10,6 +10,11 @@ Break a feature into atomic XML specs.
 2. Read `.mint/issues.jsonl` — include relevant past failures
 3. Read `.mint/wins.jsonl` — include successful patterns
 4. Read `.mint/instincts.jsonl` — include high-confidence instincts (confidence ≥ 3)
+5. **If graph enabled:** Query graph for blast radius and architecture context:
+   - `get_architecture` → high-level module structure
+   - `trace_call_path` for target files → transitive dependencies
+   - `detect_changes` → what's recently changed (avoid conflicts)
+   - Pass graph context to decomposer as `<graph-context>` in prompt
 
 ## Dispatch
 
@@ -19,6 +24,7 @@ codebase and may take 20-60s.
 Dispatch `mint-decomposer` subagent.
 Build prompt from `templates/agent-context.md` → "Decomposer" section:
 - Feature description, config, hard blocks, learning context (issues, wins, instincts)
+- Graph context (if available): architecture overview, blast radius, affected modules
 
 Planner reads existing code, breaks work into atomic specs saved to `.mint/tasks/<slug>/`.
 

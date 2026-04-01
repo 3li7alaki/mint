@@ -257,6 +257,10 @@ where the instinct came from (observer hook, reviewer feedback, etc.).
 applied, review outcomes, gate results, attempt counts. Enables evidence-based evolution —
 `analyzeInstinctEffectiveness()` correlates instinct usage with review pass rates.
 
+`mint stats` provides a pipeline analytics dashboard from this data: gate pass rates,
+first-try success rate with trend detection, reviewer value (which reviewers catch the most
+BLOCKINGs), instinct health with promotion candidates, win patterns, and git activity.
+
 **Issue log** (`.mint/issues.jsonl`) — failures with root cause categories. Become `<pitfalls>`.
 
 **Wins log** (`.mint/wins.jsonl`) — successes and what patterns worked. Inform decomposition.

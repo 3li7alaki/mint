@@ -354,34 +354,49 @@ Extensive analytics system:
 
 Mint has `metrics.jsonl` but it's append-only with no visualization.
 
-**Proposal: `mint stats` enhancement**
+**Implemented: `mint stats` — pipeline analytics dashboard**
 
 ```bash
 mint stats
 
-# Output:
-Pipeline Health (last 30 days)
-  Specs executed:     47
-  Gate pass rate:     89% (↑ from 82% last month)
-  First-try success:  71%
-  Avg fix cycles:     1.3
-  
-Reviewer Value
-  spec-reviewer:      12 BLOCKING caught
-  security-auditor:   4 BLOCKING caught  
-  quality-reviewer:   8 WARNING (2 promoted to BLOCKING)
-  conventions:        3 WARNING
-  
-Top Issues (recurring)
-  1. Missing null checks in API handlers (5 occurrences)
-  2. Import order violations (4 occurrences)  
-  3. Test mocking instead of real DB (3 occurrences)
-  
-Instinct Health
-  Active instincts:   34
-  High confidence:    12 (candidates for conventions promotion)
-  Stale (30d+):       8 (candidates for pruning)
+# Actual output:
+Pipeline Stats
+
+  Pipeline Health
+    Specs executed:    47
+    Gate pass rate:    89%
+    First-try success: 71% ↑
+    Avg attempts:      1.3
+    Review pass rate:  85%
+
+  Top Issues (2 total)
+      1 × scope-leak               3 active
+      1 × missing-context          all resolved
+
+  Reviewer Value (12 BLOCKINGs caught)
+    security         4 ████
+    spec             3 ███
+    quality          3 ███
+    conventions      2 ██
+
+  Instinct Health (15 total)
+    High confidence (≥7):  2 (1 promotion candidates)
+    Active (3-6):          5
+    Low (<3):              8
+    Stale (30d+):          3 candidates for decay
+    Top:
+       18 naming/camelCase-functions
+
+  Git Activity (last 30 days)
+    Commits: 47
+    Types:   feat:23  fix:12  docs:7  chore:5
 ```
+
+What was built:
+- `cli/commands/stats.js` — full analytics: pipeline health, issue analysis, reviewer value,
+  instinct health, win patterns, git activity. Color-coded, trend detection (↑/↓/→).
+- `tests/stats.test.js` — 10 tests covering all metric calculations and edge cases
+- Integrated: CLI route, completions, config reference
 
 ---
 
@@ -396,7 +411,7 @@ Instinct Health
 | 5 | Visual wave execution (`--visual`) | Large | Team visibility, debugging aid |
 | 6 | ~~Confidence-based gate skipping~~ | ~~Medium~~ | **DONE** — Gate tier classification (skip/quick/full) across all pipeline touchpoints |
 | 7 | Owl Post notifications | Small | Team awareness of mint activity |
-| 8 | Enhanced `mint stats` | Medium | Data-driven pipeline improvement |
+| 8 | ~~Enhanced `mint stats`~~ | ~~Medium~~ | **DONE** — Full analytics dashboard: pass rates, trends, reviewer value, instinct health |
 | 9 | ~~Two-tier mode loading~~ | ~~Small~~ | **DONE** — SKILL.md 182→126 lines, orchestrator laws deferred to reference file |
 
 ---

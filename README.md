@@ -428,6 +428,18 @@ dream handles project-specific learning data. No overlap, they enhance each othe
 
 The system is self-evolving: observe → score → correlate → boost/decay → dream → promote. All committed to git — shared team knowledge.
 
+### Pipeline Analytics
+
+`mint stats` shows how the pipeline is performing:
+
+```bash
+mint stats
+# Gate pass rate, first-try success (with ↑/↓ trend), avg attempts,
+# review pass rate, top issues by root cause, reviewer value (which
+# reviewers catch the most BLOCKINGs), instinct health with promotion
+# candidates, win patterns, and git activity breakdown.
+```
+
 ## Plugins
 
 Plugins extend mint with stack-specific or integration capabilities.

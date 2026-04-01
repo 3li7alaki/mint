@@ -76,7 +76,29 @@ Examples:
 
 ## Quality Gates
 
-- Gates before commit — lint + types + tests must pass 100%
+### Gate Tier Classification
+
+Not all changes need full gate runs. Before running gates, classify changed files:
+
+| Tier | Trigger | Gates | Status output |
+|------|---------|-------|---------------|
+| `skip` | Only docs, assets, `.mint/` files | None | "Gates (skip): docs only" |
+| `quick` | New test files, CSS/styles | Types only | "Gates (quick): types ✅" |
+| `full` | Source code, configs, modified tests | All (lint + types + tests) | "Gates (full): lint ✅ types ✅ tests ✅" |
+
+**Highest tier wins:** If ANY changed file matches `full`, run full gates — even if other
+files are docs. Classification patterns are in `config.gates.tiers` (defaults in
+`cli/lib/gate-tiers.js`). Unmatched files always default to `full`.
+
+**Spec overrides:** If a spec has explicit `<gates>` overrides, those take precedence over
+tier classification. The spec author knows best.
+
+**Exceptions:** De-sloppifier and verifier ALWAYS run full gates regardless of tier —
+they need to verify complete integrity after code modification.
+
+### Gate Rules
+
+- Gates (at the classified tier) must pass before commit
 - Never fix bad output — diagnose, fix spec, rerun fresh
 - Fail twice → stop — log to `.mint/issues.jsonl`, escalate to user
 - Never push — agents commit only, user reviews and pushes

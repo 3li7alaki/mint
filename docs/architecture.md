@@ -202,6 +202,25 @@ At 25% the orchestrator warns; at 50% it stops. Hard cap: 30 fix attempts across
 This catches the pattern where nothing is working well but individual failures don't
 trigger the 2-attempt limit.
 
+## Gate Tier Classification
+
+Not all changes need full gate runs. Before running gates, the planner classifies changed
+files against configurable glob patterns:
+
+| Tier | Trigger | Gates | Example |
+|------|---------|-------|---------|
+| `skip` | Only docs, assets, `.mint/` files | None | Editing README.md only |
+| `quick` | New test files, CSS/styles | Types only | Adding a new test file |
+| `full` | Source code, configs, modified tests | All (lint + types + tests) | Editing src/auth.ts |
+
+**Highest tier wins** — if ANY file matches `full`, all gates run. Unmatched files default to
+`full` (safe fallback). Spec-level `<gates>` overrides take precedence over tier classification.
+
+Patterns are configurable via `config.gates.tiers` with sensible defaults in `cli/lib/gate-tiers.js`.
+Disable entirely with `config.gates.tiered: false` to always run full gates.
+
+**Exceptions:** De-sloppifier and verifier always run full gates regardless of tier.
+
 ## Review Pipeline
 
 Two stages, by design. **Review intensity scales by diff size** — small diffs (<30 lines) get

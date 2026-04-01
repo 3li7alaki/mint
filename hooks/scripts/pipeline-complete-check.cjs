@@ -88,7 +88,8 @@ function main() {
           // Check for missing reviews (the most common skipped step)
           const gates = exec.gates || {};
           const reviews = exec.reviews || {};
-          const hasGates = Object.keys(gates).length > 0;
+          const gateTier = gates.tier || 'full';
+          const hasGates = Object.keys(gates).length > 1 || gateTier === 'skip'; // tier field counts
           const hasReviews = Object.keys(reviews).length > 0;
 
           if (hasGates && !hasReviews && exec.status !== 'failed') {

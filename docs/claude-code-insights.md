@@ -231,33 +231,39 @@ Pattern matching supports globs: `Bash(git *)`, `FileEdit(*.ts)`, `Bash(npm test
 
 Mint's hooks (pre-edit, post-edit) are layer 3. Mint doesn't have layers 1-2 or 4.
 
-**Proposal: Confidence-based gate skipping**
+**Implemented: Gate tier classification**
 
-Not all edits need full gate runs. If the edit is:
-- Formatting-only (prettier/eslint autofix)
-- Comment/docstring changes
-- Test file additions (not modifications)
-- Import reordering
+Three tiers based on changed files — configurable via glob patterns:
 
-...then gates can run in "quick" mode (types only, skip full test suite).
+| Tier | Files | Gates |
+|------|-------|-------|
+| `skip` | docs, assets, `.mint/` | none |
+| `quick` | new test files, CSS | types only |
+| `full` | source code, configs | all (lint + types + tests) |
 
 Implementation:
 ```jsonc
 // .mint/config.json
 {
   "gates": {
-    "quickPatterns": [
-      "*.test.ts:new",       // new test files → quick gates
-      "*.md",                // docs → skip gates
+    "tiered": true,
+    "tiers": {
+      "skip": ["*.md", "docs/**", "*.png", ".mint/**"],
+      "quick": ["*.test.ts:new", "*.css", "*.scss"],
+      "full": ["src/**", "cli/**", "package.json"]
       "**/*.css",            // styles → lint only
-    ],
-    "fullPatterns": [
-      "src/core/**",         // core code → always full gates
-      "*.config.*",          // config files → always full gates
-    ]
+    }
   }
 }
 ```
+
+What was built:
+- `cli/lib/gate-tiers.js` — classification utility with glob matching, tier logic, defaults
+- `tests/gate-tiers.test.js` — 29 tests covering all tiers, mixed files, custom config
+- Integrated across: planner agent, quick mode, orchestrator laws, implement phase,
+  DoD phase, shipper agent, parallel.js, pipeline-complete-check hook, config schema
+- Highest tier wins, unmatched files default to full, spec overrides take precedence
+- De-sloppifier and verifier always run full gates (exceptions)
 
 ---
 
@@ -379,7 +385,7 @@ Instinct Health
 | 3 | ~~Prompt caching (static/dynamic split)~~ | ~~Small~~ | **DONE** — `templates/agent-context.md` + phase files reference templates + architecture docs |
 | 4 | Adversarial verification agent | Medium | Catches bugs that reviewers miss |
 | 5 | Visual wave execution (`--visual`) | Large | Team visibility, debugging aid |
-| 6 | Confidence-based gate skipping | Medium | Faster pipeline for safe edits |
+| 6 | ~~Confidence-based gate skipping~~ | ~~Medium~~ | **DONE** — Gate tier classification (skip/quick/full) across all pipeline touchpoints |
 | 7 | Owl Post notifications | Small | Team awareness of mint activity |
 | 8 | Enhanced `mint stats` | Medium | Data-driven pipeline improvement |
 | 9 | ~~Two-tier mode loading~~ | ~~Small~~ | **DONE** — SKILL.md 182→126 lines, orchestrator laws deferred to reference file |

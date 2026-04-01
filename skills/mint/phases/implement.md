@@ -30,11 +30,13 @@ The planner implements, runs gates, commits (or stages). **That's all it does.**
 ## Post-Dispatch Verification
 
 1. Read `execution.json` → confirm `gates` field populated
-2. If autocommit true: verify commit exists (`git log -1`)
-3. If autocommit false: verify changes staged (`git diff --cached`)
-4. If failure: verify `.mint/issues.jsonl` updated
-5. Update `execution.json`: gate results, commit hash
-6. Clear `activeSpec` in session state (set to `null`)
+2. Verify gate tier is recorded — `gates.tier` should be `skip`, `quick`, or `full`
+3. If tier is `skip`, gates can be empty — that's valid for docs-only changes
+4. If autocommit true: verify commit exists (`git log -1`)
+5. If autocommit false: verify changes staged (`git diff --cached`)
+6. If failure: verify `.mint/issues.jsonl` updated
+7. Update `execution.json`: gate results, commit hash, tier
+8. Clear `activeSpec` in session state (set to `null`)
 
 ## Output
 

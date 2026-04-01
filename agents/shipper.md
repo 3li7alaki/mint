@@ -46,7 +46,8 @@ For each phase, apply planner logic with wave-based execution:
    - Wave with 1 spec → execute sequentially
    - Wave with 2+ specs → dispatch in parallel (if scopes don't overlap)
    - Wait for entire wave to complete before starting next wave
-6. **After each spec:** verify `execution.json` was updated with gate results
+6. **After each spec:** verify `execution.json` was updated with gate results and tier.
+   Gate tier classification applies: docs-only specs skip gates, style-only get quick, etc.
 7. Commit atomically per spec (respect autocommit resolution from orchestrator)
 8. **Return spec results to orchestrator** — do NOT run reviews, docs, or DoD checks.
    The orchestrator drives the per-spec pipeline (spec review → stage 2 audit → docs → DoD).

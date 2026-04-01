@@ -253,7 +253,7 @@ ${specXml}
 2. Declare scope: only modify files listed in <can-modify>
 3. Implement according to <steps> — follow them exactly
 ${tdd ? '4. Follow TDD: write tests first (must fail), implement, refactor\n' : ''}
-5. Run gates: lint, types, tests (from .mint/config.json)
+5. Classify gate tier from changed files (skip/quick/full) and run appropriate gates
 6. ${autoCommit ? 'If gates pass, commit: git add <files> && git commit -m "<commit message from spec>"' : 'If gates pass, leave changes staged (autocommit is off)'}
 7. Report result
 

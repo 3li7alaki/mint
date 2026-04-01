@@ -24,6 +24,7 @@ this from pipeline state and passes it as the `prompt` parameter to the Agent to
 <config>
   <autocommit>{true|false}</autocommit>
   <tdd>{true|false}</tdd>
+  <gate-tiers>{true|false — from config.gates.tiered, default true}</gate-tiers>
 </config>
 
 <!-- Only on retry (attempt 2+) -->

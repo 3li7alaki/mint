@@ -460,6 +460,8 @@ Key config in `.mint/config.json`:
 | `stack` | auto-detected | Framework (nuxt, react, vue, etc.) |
 | `packageManager` | auto-detected | npm, pnpm, yarn, bun |
 | `gates` | `{}` | lint/types/tests/coverage commands |
+| `gates.tiered` | `true` | Gate tier classification — skip/quick/full based on changed files |
+| `gates.tiers` | defaults | Custom glob patterns for skip/quick/full classification |
 | `autoCommit` | `true` | Commit after passing gates (overridable per-session and per-spec) |
 | `tdd.default` | `false` | TDD-first by default |
 | `browser.enabled` | `true` | Browser automation via PinchTab |

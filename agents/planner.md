@@ -29,7 +29,12 @@ Implement a single spec: read existing code, make changes, run gates, commit.
 4. **Check pre-conditions** — verify `<pre-conditions>` are true
 5. **If TDD** — Red (failing tests) → Green (minimal code to pass) → Refactor
 6. **Implement** — follow `<steps>` exactly. No deviation, no bonus features.
-7. **Run gates** — lint, types, tests from `.mint/config.json`. If `<gates>` overrides, use those.
+7. **Classify gate tier** — check which files you modified against `config.gates.tiers`:
+   - `skip` (docs, assets, .mint/) → no gates needed
+   - `quick` (new test files, CSS) → types only
+   - `full` (source code, configs, modified tests) → all gates (lint + types + tests)
+   If `<gates>` overrides exist in the spec, use those instead of tier classification.
+   Report the tier in output: "Gates (quick — types only): types ✅"
 8. **Update execution.json** — record gate results in `gates` field (mandatory)
 9. **If gates pass + autocommit true** → `git commit -m "<commit message from spec>"`
 10. **If gates pass + autocommit false** → leave staged, do not commit

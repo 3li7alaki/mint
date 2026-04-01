@@ -10,7 +10,7 @@ Read `execution.json` and verify every criterion:
 
 | Criterion | Check | On failure |
 |-----------|-------|------------|
-| Gates passing | `gates.*` all show `pass` | Go back to implement phase |
+| Gates passing | `gates.*` all show `pass` for the classified tier (skip=none needed, quick=types, full=all) | Go back to implement phase |
 | Spec review passed | `reviews.spec === "passed"` | Go back to review-stage1 |
 | Stage 2 passed | No reviewer has unresolved BLOCKINGs | Go back to fix-blockings |
 | Doc check passed | Docs phase completed | Go back to docs phase |

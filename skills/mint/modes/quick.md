@@ -37,10 +37,20 @@ Implement in main context. You write the code directly.
 
 ## Step 3: Gates
 
-Run gate commands from `config.gates` (lint, types, tests).
-- Resolve autocommit: session override → config default
-- If red → one retry with fixed approach, then escalate
-- Output: "Gates: lint ✅ types ✅ tests ✅" (or failure details)
+Classify changed files into a gate tier using `config.gates.tiers` patterns:
+
+| Tier | Files | Gates to run |
+|------|-------|-------------|
+| `skip` | Docs, assets, `.mint/` | None — proceed to commit |
+| `quick` | New test files, CSS/styles | Types only |
+| `full` | Source code, configs, modified tests | All gates (lint + types + tests) |
+
+Run only the gates for the classified tier. If no tier config exists, use defaults
+from `cli/lib/gate-tiers.js`. Resolve autocommit: session override → config default.
+If red → one retry with fixed approach, then escalate.
+
+Output includes the tier: "Gates (quick — types only): types ✅" or
+"Gates (full): lint ✅ types ✅ tests ✅" or "Gates (skip): docs only, skipped."
 
 When context-mode is enabled, use `ctx_execute` for gate runs.
 

@@ -86,6 +86,7 @@ You describe what you want. mint auto-detects the right approach:
 | "Browse to", "scrape", "debug in browser" | **Browse** — PinchTab-powered browser automation |
 | "How should I...", "Compare..." | **Research** — investigates, saves structured report |
 | "Check quality", "Audit" | **Verify** — runs all gates and audits |
+| "Dream", "Consolidate learning" | **Dream** — prunes instincts, triages issues, promotes patterns, health report |
 | "Design review", "Design profile" | **Design** — design intelligence commands |
 | "Set up doc tracking" | **Doc Setup** — scans docs, maps sections to code, builds manifest |
 | "Optimize my setup", "Am I using mint fully?" | **Optimize** — full audit of config, docs, workspace, agents, features |

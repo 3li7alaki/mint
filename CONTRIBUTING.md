@@ -16,28 +16,15 @@
 ```
 mint/
 ├── SKILL.md                 # Orchestrator brain — auto-routing, execution flows
-├── agents/                  # Agent prompts (one per agent)
-│   ├── planner.md
-│   ├── researcher.md
-│   ├── shipper.md
-│   ├── verifier.md
-│   ├── documenter.md
-│   ├── spec-reviewer.md
-│   ├── quality-reviewer.md
-│   ├── security-auditor.md
-│   ├── conventions-enforcer.md
-│   ├── test-auditor.md
-│   ├── performance-reviewer.md
-│   ├── business-reviewer.md
-│   ├── browser-runner.md      # Core — PinchTab browser automation
-│   ├── browser-reviewer.md    # Core — UI verification
-│   ├── browser-context.md     # Core — pre-plan page state
-│   ├── browser-debugger.md    # Core — live app debugging
-│   ├── browser-setup.md       # Core — PinchTab install/config
-│   ├── design-context.md      # Core — pre-plan design intelligence
-│   ├── design-reviewer.md     # Core — design quality auditor
-│   ├── design-profile.md      # Core — project visual DNA builder
-│   └── design-setup.md        # Core — Impeccable install/config
+├── agents/                  # Agent prompts — one per agent, ~29 total
+│   │                          # Run `ls agents/` for current roster
+│   ├── planner.md             # Core — implements specs, runs gates, commits
+│   ├── decomposer.md          # Core — breaks features into XML specs
+│   ├── dream-consolidator.md  # Core — learning data consolidation
+│   ├── adversarial-tester.md  # Review — red team probing in worktree
+│   ├── *-reviewer.md          # Review — quality, security, conventions, tests, performance, business
+│   ├── browser-*.md           # Browser — runner, reviewer, context, debugger, setup
+│   └── design-*.md            # Design — context, reviewer, profile, setup
 ├── commands/                # User-invocable commands
 │   ├── init.md
 │   ├── verify.md
@@ -56,8 +43,8 @@ mint/
 │   └── optimize.md            # /mint:optimize — full setup audit and optimization
 ├── cli/                     # mint CLI (bun + @clack/prompts)
 │   ├── mint.js              # Entry point
-│   ├── commands/            # init, config, doctor, update
-│   └── lib/                 # detect.js — stack/PM/gates detection
+│   ├── commands/            # init, config, doctor, update, status, stats, dream, clean
+│   └── lib/                 # detect.js, jsonl.js, gate-tiers.js, gate-ledger.js, etc.
 ├── tests/                   # Test suite — bun test
 ├── standards/               # Core feature reference knowledge
 │   └── design/              # Design standards and reference docs
@@ -68,7 +55,8 @@ mint/
 │       └── design-direction.md # Aesthetic guidelines
 ├── references/              # PinchTab API docs, token strategy
 ├── templates/               # Templates and schemas
-│   ├── spec.xml
+│   ├── spec.xml             # XML spec schema every task gets
+│   ├── agent-context.md     # Dynamic prompt templates for all agents
 │   ├── doc-manifest.json
 │   └── plugin-manifest.json
 ├── hooks/                   # Claude Code hooks
@@ -83,9 +71,11 @@ mint/
     ├── config.json          # Committed — shared project settings
     ├── hard-blocks.md       # Committed — rules everyone follows
     ├── doc-manifest.json    — doc tracking manifest (committed)
-    ├── issues.md            # Committed — failure log
-    ├── wins.md              # Committed — success patterns
-    ├── instincts.md         # Committed — auto-learned conventions
+    ├── issues.jsonl         # Committed — failure log (append-only JSONL)
+    ├── wins.jsonl           # Committed — success patterns
+    ├── instincts.jsonl      # Committed — scored conventions (confidence, decay)
+    ├── metrics.jsonl        # Committed — execution metrics (gate results, attempts)
+    ├── patterns.jsonl       # Committed — promoted patterns
     ├── tasks/               # Gitignored — in-progress specs
     └── research/            # Gitignored — local research reports
 

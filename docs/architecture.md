@@ -30,35 +30,38 @@ Router (SKILL.md — ~125 lines)
   │   ├─ modes/ship.md → interview + batch execute
   │   ├─ modes/research.md → investigate + report
   │   ├─ modes/verify.md → audit + report
+  │   ├─ modes/dream.md → learning consolidation
   │   ├─ modes/ssh.md → remote commands
   │   ├─ modes/browse.md → browser automation
   │   └─ modes/design.md → design intelligence
   │
   ├─ (plan mode) load phase file per pipeline step
   │   ├─ phases/decompose.md → phases/implement.md → phases/desloppify.md
-  │   └─ phases/review-stage1.md → phases/review-stage2.md → phases/docs.md → phases/dod.md
+  │   └─ phases/review-stage1.md → phases/review-stage2.md → phases/adversarial.md → phases/docs.md → phases/dod.md
   │
   ▼
-Subagent Pool (fresh context per dispatch)
+Subagent Pool (~29 agents, fresh context per dispatch)
   │
-  ├─ Decomposer ─────────── breaks features into XML specs (decompose only)
+  ├─ Decomposer ─────────── breaks features into XML specs (graph-aware)
   ├─ Planner ────────────── implements a single spec, runs gates, commits
   ├─ Pipeline Checker ───── verifies pipeline steps were executed
   ├─ Researcher ─────────── investigates, writes reports
   ├─ Shipper ────────────── batch executes ship plans
   ├─ Verifier ───────────── runs all gates and audits
   ├─ Spec Reviewer ──────── stage 1 gate (spec compliance)
-  ├─ Quality Reviewer ───── stage 2 (code quality)
-  ├─ Security Auditor ───── stage 2 (vulnerabilities)
+  ├─ Quality Reviewer ───── stage 2 (code quality, coupling via graph)
+  ├─ Security Auditor ───── stage 2 (vulnerabilities, data flow via graph)
   ├─ Conventions Enforcer ─ stage 2 (project conventions)
   ├─ Test Auditor ────────── stage 2 (test quality)
   ├─ Business Reviewer ──── stage 2 (requirements alignment)
   ├─ Performance Reviewer ─ stage 2 (performance, opt-in)
+  ├─ Adversarial Tester ─── stage 2 (red team, isolated worktree, opt-in)
+  ├─ Dream Consolidator ─── learning data consolidation
   ├─ Documenter ─────────── updates project documentation (manifest-guided)
   ├─ De-sloppifier ──────── post-implementation cleanup
   ├─ Build Error Resolver ─ minimal build/type error fixes
   ├─ Refactor Cleaner ───── dead code detection and removal
-  └─ Plugin Agents ──────── stack/PM/design/memory extensions
+  └─ Plugin Agents ──────── browser, design, stack extensions
 ```
 
 ### Skill Decomposition

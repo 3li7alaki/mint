@@ -139,3 +139,12 @@ When `config.graph.autoIndex` is `true`, the graph is reindexed:
 
 Manual reindex: tell Claude `"reindex the code graph"` or use
 `codebase-memory-mcp cli index_repository '{"repo_path": "."}'`
+
+## Troubleshooting
+
+If `codebase-memory-mcp` binary fails to run:
+- **GLIBC version error** — the binary requires glibc 2.38+. Upgrade your system or
+  build from source: `git clone ... && make -f Makefile.cbm`
+- **Not found** — run `mint doctor` to check, or install manually
+- **Indexing slow** — first index is full; subsequent are incremental. Large repos (>50K files)
+  may take several minutes on first index.

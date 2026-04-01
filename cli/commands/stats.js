@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { readJsonSafe } from '../lib/detect.js';
+import { execSync } from 'child_process';
+import { readJsonSafe, detectCodeGraph, getCodeGraphStatus } from '../lib/detect.js';
 import { readJsonl, topInstincts, analyzeInstinctEffectiveness } from '../lib/jsonl.js';
 
 export async function run(args = [], flags = {}) {
@@ -53,6 +54,11 @@ export async function run(args = [], flags = {}) {
   // ─── Win Patterns ───────────────────────────────────────────────────────────
   if (wins.length > 0) {
     showWinPatterns(wins, { c, g, y, d });
+  }
+
+  // ─── Code Graph ─────────────────────────────────────────────────────────────
+  if (config.graph?.enabled) {
+    showGraphHealth(cwd, config, { c, g, y, r, d });
   }
 
   // ─── Git Activity ───────────────────────────────────────────────────────────
@@ -248,6 +254,46 @@ function showWinPatterns(wins, { c, g, y, d }) {
 
   for (const [pattern, count] of sorted) {
     console.log(`    ${g(String(count).padStart(3))} × ${pattern.slice(0, 60)}`);
+  }
+
+  console.log('');
+}
+
+function showGraphHealth(cwd, config, { c, g, y, r, d }) {
+  if (!detectCodeGraph()) {
+    console.log(`  ${c('Code Graph')} ${r('not installed')}`);
+    console.log(`    ${d('Install: curl -fsSL .../install.sh | bash')}\n`);
+    return;
+  }
+
+  const status = getCodeGraphStatus(cwd);
+  if (!status) {
+    console.log(`  ${c('Code Graph')} ${y('not indexed')}`);
+    console.log(`    ${d('Run: codebase-memory-mcp cli index_repository \'{"repo_path": "."}\'')}\n`);
+    return;
+  }
+
+  console.log(`  ${c('Code Graph')} ${d(`(${config.graph?.provider || 'codebase-memory-mcp'})`)}`);
+
+  // Try to get schema for node/edge counts
+  try {
+    const projectName = path.basename(cwd);
+    const schema = execSync(
+      `codebase-memory-mcp cli get_graph_schema '{"project": "${projectName}"}'`,
+      { encoding: 'utf8', stdio: 'pipe', timeout: 5000 }
+    );
+    const data = JSON.parse(schema);
+    if (data.node_count !== undefined) {
+      console.log(`    Nodes:    ${c(data.node_count)}`);
+    }
+    if (data.edge_count !== undefined) {
+      console.log(`    Edges:    ${c(data.edge_count)}`);
+    }
+    if (data.languages) {
+      console.log(`    Languages: ${d(data.languages.join(', '))}`);
+    }
+  } catch {
+    console.log(`    ${g('indexed')} ${d('(run get_graph_schema for details)')}`);
   }
 
   console.log('');

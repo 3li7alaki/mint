@@ -481,6 +481,8 @@ Key config in `.mint/config.json`:
 | `tdd.default` | `false` | TDD-first by default |
 | `browser.enabled` | `true` | Browser automation via PinchTab |
 | `context.enabled` | `false` | Context Mode via context-mode |
+| `graph.enabled` | `false` | Code knowledge graph — blast radius, call traces, architecture |
+| `graph.autoIndex` | `true` | Auto-reindex on plan mode start |
 | `definitionOfDone.docCheckPassed` | `true` | Check doc-manifest after each spec |
 | `design.enabled` | `true` | Design intelligence — profiling, anti-patterns, RTL/i18n |
 | `design.uiFilePatterns` | `["*.tsx","*.jsx",...]` | File patterns that auto-trigger design context |

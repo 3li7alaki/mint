@@ -43,6 +43,10 @@ function showHelp() {
   console.log('    \x1b[36mmint plugin list\x1b[0m         Browse available plugins');
   console.log('    \x1b[36mmint plugin add <name>\x1b[0m   Install a plugin');
   console.log('    \x1b[36mmint plugin info <name>\x1b[0m  Plugin details');
+  console.log('    \x1b[36mmint automate\x1b[0m            List detected workflow candidates');
+  console.log('    \x1b[36mmint automate skills\x1b[0m     List generated skills with trust levels');
+  console.log('    \x1b[36mmint automate promote <n>\x1b[0m Promote a skill to .claude/skills/');
+  console.log('    \x1b[36mmint automate record\x1b[0m     Flag session for workflow recording');
   console.log('');
   console.log('  \x1b[1mExamples:\x1b[0m\n');
   console.log('    \x1b[2m$ mint init\x1b[0m');
@@ -121,6 +125,11 @@ try {
     }
     case 'plugin': {
       const { run } = await import('./commands/plugin.js');
+      await run(positional.slice(1), flags);
+      break;
+    }
+    case 'automate': {
+      const { run } = await import('./commands/automate.js');
       await run(positional.slice(1), flags);
       break;
     }

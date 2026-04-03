@@ -318,3 +318,173 @@ export function formatTable(entries, columns, options = {}) {
 
   return `  ${header}\n  ${'─'.repeat(header.length)}\n${rows.map(r => `  ${r}`).join('\n')}`;
 }
+
+/**
+ * Compute a fingerprint from a workflow trace's operations array.
+ * Each operation becomes "type-action" (if action exists) or just "type".
+ * Segments are joined with colons: "git-fetch:edit:gate:commit"
+ *
+ * @param {Array<{type: string, action?: string}>} operations
+ * @returns {string}
+ */
+export function computeFingerprint(operations) {
+  if (!operations || operations.length === 0) return '';
+  return operations
+    .map(op => op.action ? `${op.type}-${op.action}` : op.type)
+    .join(':');
+}
+
+/**
+ * Levenshtein edit distance on colon-separated fingerprint segments.
+ * Operates on segments (not characters) — split by ":" first.
+ *
+ * @param {string} fp1
+ * @param {string} fp2
+ * @returns {number}
+ */
+export function fingerprintDistance(fp1, fp2) {
+  const a = fp1 ? fp1.split(':') : [];
+  const b = fp2 ? fp2.split(':') : [];
+
+  const m = a.length;
+  const n = b.length;
+
+  // Build distance matrix
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,       // deletion
+        dp[i][j - 1] + 1,       // insertion
+        dp[i - 1][j - 1] + cost  // substitution
+      );
+    }
+  }
+
+  return dp[m][n];
+}
+
+/**
+ * Cluster traces by fingerprint similarity.
+ * Groups traces where fingerprintDistance <= maxDistance.
+ * Uses simple single-linkage: a trace joins a cluster if it matches any member.
+ *
+ * @param {Array<{fingerprint: string}>} traces
+ * @param {number} [maxDistance=2]
+ * @returns {Array<Array<object>>} array of clusters
+ */
+export function clusterByFingerprint(traces, maxDistance = 2) {
+  const clusters = [];
+
+  for (const trace of traces) {
+    let merged = false;
+    for (const cluster of clusters) {
+      const matches = cluster.some(
+        member => fingerprintDistance(member.fingerprint, trace.fingerprint) <= maxDistance
+      );
+      if (matches) {
+        cluster.push(trace);
+        merged = true;
+        break;
+      }
+    }
+    if (!merged) {
+      clusters.push([trace]);
+    }
+  }
+
+  return clusters;
+}
+
+/**
+ * Upsert a workflow candidate — deduplicate by fingerprint similarity.
+ * If a candidate with fingerprintDistance <= 1 exists, increment confidence/occurrences
+ * and update lastSeen. Otherwise create a new entry.
+ *
+ * @param {string} filePath - path to workflow-candidates.jsonl
+ * @param {object} candidate - { fingerprint, variableSlots?, exampleTraces?, proposedName?, trustLevel? }
+ * @returns {{ action: 'created'|'updated', confidence: number }}
+ */
+export function upsertWorkflowCandidate(filePath, candidate) {
+  const entries = readJsonl(filePath);
+  const now = new Date().toISOString();
+
+  // Find existing match by fingerprint similarity
+  const existingIdx = entries.findIndex(
+    e => fingerprintDistance(e.fingerprint, candidate.fingerprint) <= 1
+  );
+
+  if (existingIdx >= 0) {
+    const existing = entries[existingIdx];
+    existing.confidence = (existing.confidence || 1) + 1;
+    existing.occurrences = (existing.occurrences || 1) + 1;
+    existing.lastSeen = now;
+
+    // Merge example traces (deduplicated, capped)
+    if (candidate.exampleTraces) {
+      existing.exampleTraces = [
+        ...new Set([...(existing.exampleTraces || []), ...candidate.exampleTraces])
+      ].slice(0, 10);
+    }
+
+    const content = entries.map(e => JSON.stringify(e)).join('\n') + '\n';
+    fs.writeFileSync(filePath, content);
+
+    return { action: 'updated', confidence: existing.confidence };
+  }
+
+  // New candidate
+  const entry = {
+    fingerprint: candidate.fingerprint,
+    occurrences: 1,
+    confidence: 1,
+    variableSlots: candidate.variableSlots || [],
+    exampleTraces: (candidate.exampleTraces || []).slice(0, 10),
+    proposedName: candidate.proposedName || '',
+    trustLevel: candidate.trustLevel || 0,
+    firstSeen: now,
+    lastSeen: now,
+  };
+  appendJsonl(filePath, entry);
+
+  return { action: 'created', confidence: 1 };
+}
+
+/**
+ * Decay workflow candidates not reinforced within a given period.
+ * Reduces confidence by 1 for stale candidates. Removes those at confidence 0.
+ *
+ * @param {string} filePath
+ * @param {number} [maxAgeDays=30]
+ * @returns {{ decayed: number, removed: number }}
+ */
+export function decayWorkflowCandidates(filePath, maxAgeDays = 30) {
+  const entries = readJsonl(filePath);
+  if (entries.length === 0) return { decayed: 0, removed: 0 };
+
+  const cutoff = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
+  let decayed = 0;
+  let removed = 0;
+
+  const surviving = entries.filter(e => {
+    const lastSeen = new Date(e.lastSeen || e.firstSeen || 0).getTime();
+    if (lastSeen < cutoff) {
+      const newConf = (e.confidence || 1) - 1;
+      if (newConf <= 0) { removed++; return false; }
+      e.confidence = newConf;
+      decayed++;
+    }
+    return true;
+  });
+
+  if (decayed > 0 || removed > 0) {
+    const content = surviving.map(e => JSON.stringify(e)).join('\n') + '\n';
+    fs.writeFileSync(filePath, content);
+  }
+
+  return { decayed, removed };
+}

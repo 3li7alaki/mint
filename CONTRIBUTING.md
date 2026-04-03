@@ -24,7 +24,9 @@ mint/
 │   ├── adversarial-tester.md  # Review — red team probing in worktree
 │   ├── *-reviewer.md          # Review — quality, security, conventions, tests, performance, business
 │   ├── browser-*.md           # Browser — runner, reviewer, context, debugger, setup
-│   └── design-*.md            # Design — context, reviewer, profile, setup
+│   ├── design-*.md            # Design — context, reviewer, profile, setup
+│   ├── workflow-miner.md      # Adaptive — detects repeated workflows from traces
+│   └── skill-generator.md     # Adaptive — generates skills from workflow candidates
 ├── commands/                # User-invocable commands
 │   ├── init.md
 │   ├── verify.md

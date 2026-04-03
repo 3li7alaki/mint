@@ -234,6 +234,11 @@ function buildConfig({ stack, packageManager, gates, isolation, autoCommit, tdd,
         brand: defaults.design?.review?.brand ?? false,
       },
     },
+    automation: {
+      enabled: defaults.automation?.enabled ?? true,
+      minOccurrences: defaults.automation?.minOccurrences ?? 3,
+      minConfidence: defaults.automation?.minConfidence ?? 5,
+    },
     signature: defaults.signature ?? false,
     documenters: defaults.documenters || [],
     plugins: plugins.map(name => `plugins/${name}`),
@@ -272,6 +277,13 @@ function writeFiles(mintDir, configPath, config) {
 
   // Add .mint state files to .gitignore
   ensureGitignore(path.dirname(mintDir));
+
+  // Add automation-related entries to .gitignore
+  ensureGitignore(path.dirname(mintDir), [
+    '.mint/skills/',
+    '.mint/workflows.jsonl',
+    '.mint/workflow-candidates.jsonl',
+  ]);
 
   // Generate doc-manifest from template or scan existing docs
   const manifestPath = path.join(mintDir, 'doc-manifest.json');

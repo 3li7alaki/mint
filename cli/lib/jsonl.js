@@ -6,6 +6,7 @@
  * No read-parse-modify-write cycle. Two agents appending simultaneously just add two lines.
  */
 import fs from 'fs';
+import path from 'path';
 
 /**
  * Append a single entry to a JSONL file.
@@ -487,4 +488,123 @@ export function decayWorkflowCandidates(filePath, maxAgeDays = 30) {
   }
 
   return { decayed, removed };
+}
+
+/**
+ * Evaluate trust level from a skill's usage history.
+ * Pure function — no I/O.
+ *
+ * Levels:
+ *   0 — no history or not yet generated
+ *   1 — generated (has a "generated" action entry)
+ *   2 — 3+ successful invocations
+ *   3 — 5+ successful invocations AND 0 failures
+ *
+ * Any failure after reaching level 2 or 3 demotes back to level 1.
+ *
+ * @param {Array<{action: string, success: boolean, date?: string}>} history
+ * @returns {number} trust level 0-3
+ */
+export function evaluateTrustLevel(history) {
+  if (!history || history.length === 0) return 0;
+
+  const hasGenerated = history.some(e => e.action === 'generated');
+  if (!hasGenerated) return 0;
+
+  const invocations = history.filter(e => e.action === 'invoked');
+  const successes = invocations.filter(e => e.success === true).length;
+  const failures = invocations.filter(e => e.success === false).length;
+
+  // Any failure demotes to level 1
+  if (failures > 0) return 1;
+
+  // Level 3: 5+ successes, 0 failures
+  if (successes >= 5) return 3;
+
+  // Level 2: 3+ successes
+  if (successes >= 3) return 2;
+
+  // Has been generated but not enough usage
+  return 1;
+}
+
+/**
+ * Track skill usage by appending an entry to the skill's history.jsonl
+ * and returning the current trust level.
+ *
+ * @param {string} skillsDir - path to .mint/skills directory
+ * @param {string} skillName - name of the skill
+ * @param {boolean} success - whether the invocation succeeded
+ * @returns {number} current trust level
+ */
+export function trackSkillUsage(skillsDir, skillName, success) {
+  const skillDir = path.join(skillsDir, skillName);
+  fs.mkdirSync(skillDir, { recursive: true });
+
+  const historyPath = path.join(skillDir, 'history.jsonl');
+
+  const entry = {
+    date: new Date().toISOString(),
+    action: 'invoked',
+    success,
+    details: success ? 'invocation succeeded' : 'invocation failed',
+  };
+  appendJsonl(historyPath, entry);
+
+  const history = readJsonl(historyPath);
+  return evaluateTrustLevel(history);
+}
+
+/**
+ * Promote a skill's trust level by updating its SKILL.md frontmatter.
+ *
+ * - Level 2: removes `disable-model-invocation: true` line
+ * - Level 3: adds `auto-invoke: true` to frontmatter
+ *
+ * @param {string} skillDir - path to the skill directory containing SKILL.md
+ * @param {number} newLevel - target trust level (2 or 3)
+ */
+export function promoteTrust(skillDir, newLevel) {
+  const skillPath = path.join(skillDir, 'SKILL.md');
+  let content = fs.readFileSync(skillPath, 'utf8');
+
+  // Check for YAML frontmatter (---\n...\n---)
+  const fmMatch = content.match(/^(---\n)([\s\S]*?\n)(---\n)/);
+  if (!fmMatch) return;
+
+  let frontmatter = fmMatch[2];
+
+  if (newLevel >= 2) {
+    // Remove disable-model-invocation: true line
+    frontmatter = frontmatter
+      .split('\n')
+      .filter(line => !/^\s*disable-model-invocation:\s*true\s*$/.test(line))
+      .join('\n');
+  }
+
+  if (newLevel >= 3) {
+    // Add auto-invoke: true if not already present
+    if (!/auto-invoke:\s*true/.test(frontmatter)) {
+      frontmatter = frontmatter.trimEnd() + '\nauto-invoke: true\n';
+    }
+  }
+
+  content = fmMatch[1] + frontmatter + fmMatch[3] + content.slice(fmMatch[0].length);
+  fs.writeFileSync(skillPath, content);
+}
+
+/**
+ * Detect variation between two fingerprints.
+ * Returns 'match' (distance 0), 'minor' (distance 1-maxDistance), or 'major' (distance > maxDistance).
+ *
+ * @param {string} existingFingerprint
+ * @param {string} newFingerprint
+ * @param {number} [maxDistance=2] - maximum distance for 'minor' classification
+ * @returns {'match'|'minor'|'major'}
+ */
+export function detectVariation(existingFingerprint, newFingerprint, maxDistance = 2) {
+  const distance = fingerprintDistance(existingFingerprint, newFingerprint);
+  if (distance === 0) return 'match';
+  if (distance <= maxDistance) return 'minor';
+  return 'major';
 }

@@ -24,6 +24,9 @@ export const MINT_IGNORE_ENTRIES = [
   '.mint/dream-report.md',
   '.mint/issues-archive.jsonl',
   '.mint/wins-archive.jsonl',
+  '.mint/skills/',
+  '.mint/workflows.jsonl',
+  '.mint/workflow-candidates.jsonl',
 ];
 
 /**

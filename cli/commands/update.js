@@ -38,6 +38,12 @@ const NEW_CONFIG_KEYS = [
     default: true,
     defaultOff: false,
   },
+  {
+    key: 'automation',
+    label: 'Adaptive Automation (detect repetitive workflows, auto-generate skills)',
+    default: { enabled: true, minOccurrences: 3, minConfidence: 5 },
+    defaultOff: { enabled: false },
+  },
 ];
 
 // ─── Dependency updaters ──────────────────────────────────────────────────────

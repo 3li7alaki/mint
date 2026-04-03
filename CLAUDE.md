@@ -38,6 +38,7 @@ The only exceptions:
 - `skills/mint/modes/` — one file per execution mode (quick, plan, ship, etc.)
 - `skills/mint/phases/` — one file per pipeline step (implement, review, docs, etc.)
 - `skills/mint/reference/` — detailed docs loaded only when needed
+- `.mint/skills/` — auto-generated project-specific skills from adaptive automation
 - `agents/*.md` — one agent per job, max 200 lines each
 - CLI uses bun + @clack/prompts. See `cli/` and `cli/lib/`
 - Reviewers use three severities: BLOCKING, WARNING, INFO
@@ -51,6 +52,7 @@ The only exceptions:
 - `templates/spec.xml` — XML spec schema every task gets
 - `.mint/config.json` — project config (gates, reviewers, browser, design, plugins)
 - `.mint/hard-blocks.md` — immutable constraints agents can never violate
+- `.mint/research/adaptive-automation.md` — adaptive automation design
 
 ## Gotchas
 
@@ -58,4 +60,6 @@ The only exceptions:
 - `.mint/sessions/` files are gitignored — per-session state, not shared
 - All learning logs (issues, wins, instincts) are JSONL with confidence scoring — use `upsertInstinct()`, never raw append
 - The old 1900-line SKILL.md is gone — router + modes + phases + references
+- `.mint/skills/` is gitignored — generated skills are personal, promote to `.claude/skills/` to share
+- When user mentions automating a workflow, check `.mint/skills/` for generated skills and `.mint/workflow-candidates.jsonl` for detected patterns
 - No superpowers plugin — mint is the orchestration framework, don't layer another on top

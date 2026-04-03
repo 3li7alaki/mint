@@ -87,6 +87,7 @@ You describe what you want. mint auto-detects the right approach:
 | "How should I...", "Compare..." | **Research** — investigates, saves structured report |
 | "Check quality", "Audit" | **Verify** — runs all gates and audits |
 | "Dream", "Consolidate learning" | **Dream** — prunes instincts, triages issues, promotes patterns, health report |
+| "Automate", "Detect workflows" | **Automate** — mine patterns, generate skills, graduate trust |
 | "Design review", "Design profile" | **Design** — design intelligence commands |
 | "Set up doc tracking" | **Doc Setup** — scans docs, maps sections to code, builds manifest |
 | "Optimize my setup", "Am I using mint fully?" | **Optimize** — full audit of config, docs, workspace, agents, features |
@@ -363,6 +364,29 @@ Enable/disable in config:
   }
 }
 ```
+
+### Adaptive Automation
+
+mint watches how you work and turns repeated workflows into reusable skills -- automatically.
+
+**How it works:**
+1. **Trace** -- session activity is recorded in `.mint/workflow-traces.jsonl`
+2. **Mine** -- `mint-workflow-miner` detects repeated command patterns across sessions
+3. **Generate** -- confirmed patterns become self-contained skills in `.mint/skills/`
+4. **Graduate** -- skills start at `suggest` (ask first), promote to `confirm` (auto-run, ask to commit), then `auto` (fully autonomous) after proven reliability
+
+**Example:** You keep running test-fix-commit cycles. mint detects the pattern, generates a skill, and offers to run it next time. After 3 successful runs, it stops asking.
+
+```
+[mint] automate · 3 workflow candidates detected
+  1. test-fix-commit (seen 5x)
+  2. lint-format (seen 3x)
+  3. doc-update (seen 4x)
+```
+
+Skills in `.mint/skills/` are personal (gitignored). Promote to `.claude/skills/` to share with the team.
+
+Say `"automate"` or `"detect workflows"` to trigger. Dream mode also mines workflows during consolidation.
 
 ## TDD Support
 

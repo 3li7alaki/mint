@@ -25,6 +25,7 @@ Evaluate in order — first match wins:
 | "dream", "consolidate learning" | dream | Read `modes/dream.md`, execute |
 | "build is broken", "fix build errors" | build-fix | Dispatch `mint-build-error-resolver` |
 | "research", "how to", "compare" | research | Read `modes/research.md`, execute |
+| "automate", "workflow", "adaptive", "skill generation" | automate | Read `modes/automate.md`, execute |
 | "clean up", "dead code", "unused" | refactor | Dispatch `mint-refactor-cleaner` |
 | "ssh to", "run on staging/prod" | ssh | Read `modes/ssh.md`, execute |
 | "browse", "open", "screenshot", "scrape" | browse | Read `modes/browse.md`, execute |

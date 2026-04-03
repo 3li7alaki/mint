@@ -43,6 +43,13 @@ Dream consolidation complete.
   Report: .mint/dream-report.md
 ```
 
+## Workflow Mining
+
+After standard consolidation completes, if `config.adaptive.enabled` is `true` (or not
+explicitly disabled), dispatch `mint-workflow-miner` in background to scan recent session
+traces for repeated patterns. Results go to `.mint/workflow-candidates.jsonl`. This keeps
+the candidate pool fresh without requiring the user to invoke automate mode manually.
+
 ## Post-Dream
 
 If promotion candidates exist, offer:

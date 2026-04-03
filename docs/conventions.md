@@ -300,3 +300,60 @@ Each section entry has:
 | `tracks` | Glob patterns of code files this section depends on |
 | `staleness` | Detection strategy: `glob-count`, `content-hash`, `git-diff` |
 | `description` | What this section must contain (guides the documenter) |
+
+### Workflow Traces (`.mint/workflow-traces.jsonl`)
+
+```jsonl
+{"date":"2026-04-01","session":"a1b2c3","commands":["bun test","edit src/auth.ts","bun test"],"duration":45,"outcome":"pass","fingerprint":"test-edit-test-abc123"}
+```
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `date` | string | ISO-8601 date |
+| `session` | string | Session ID that produced the trace |
+| `commands` | string[] | Ordered sequence of commands/actions |
+| `duration` | number | Seconds from first to last command |
+| `outcome` | string | `"pass"`, `"fail"`, or `"abandoned"` |
+| `fingerprint` | string | Normalized hash for clustering |
+
+### Workflow Candidates (`.mint/workflow-candidates.jsonl`)
+
+```jsonl
+{"id":"test-fix-commit","pattern":["test","fix","test","commit"],"occurrences":5,"firstSeen":"2026-03-15","lastSeen":"2026-04-01","status":"pending"}
+```
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `id` | string | Kebab-case candidate identifier |
+| `pattern` | string[] | Normalized command sequence |
+| `occurrences` | number | Times this pattern was observed |
+| `firstSeen` | string | ISO-8601 date of first observation |
+| `lastSeen` | string | ISO-8601 date of most recent observation |
+| `status` | string | `"pending"`, `"accepted"`, `"dismissed"` |
+
+### Generated Skills (`.mint/skills/<name>/`)
+
+Each generated skill is a directory:
+
+```
+.mint/skills/<name>/
+  manifest.json     ← metadata, trust level, usage stats
+  SKILL.md          ← the skill prompt (Claude-readable)
+  test.md           ← validation criteria
+```
+
+**Naming:** `<name>` is kebab-case, derived from the candidate ID (e.g., `test-fix-commit`).
+
+**manifest.json schema:**
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `name` | string | Skill name (matches directory name) |
+| `description` | string | One-line description |
+| `trust` | string | `"suggest"`, `"confirm"`, or `"auto"` |
+| `sourceCandidate` | string | Candidate ID this skill was generated from |
+| `usageCount` | number | Times successfully executed |
+| `createdAt` | string | ISO-8601 creation timestamp |
+| `lastUsed` | string | ISO-8601 last execution timestamp |
+
+Generated skills are gitignored. Promote to `.claude/skills/` to share.

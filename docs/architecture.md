@@ -33,7 +33,8 @@ Router (SKILL.md — ~125 lines)
   │   ├─ modes/dream.md → learning consolidation
   │   ├─ modes/ssh.md → remote commands
   │   ├─ modes/browse.md → browser automation
-  │   └─ modes/design.md → design intelligence
+  │   ├─ modes/design.md → design intelligence
+│   └─ modes/automate.md → adaptive automation
   │
   ├─ (plan mode) load phase file per pipeline step
   │   ├─ phases/decompose.md → phases/implement.md → phases/desloppify.md
@@ -61,6 +62,8 @@ Subagent Pool (~29 agents, fresh context per dispatch)
   ├─ De-sloppifier ──────── post-implementation cleanup
   ├─ Build Error Resolver ─ minimal build/type error fixes
   ├─ Refactor Cleaner ───── dead code detection and removal
+  ├─ Workflow Miner ────── detects repeated workflows from session traces
+  ├─ Skill Generator ───── generates skills from workflow candidates
   └─ Plugin Agents ──────── browser, design, stack extensions
 ```
 
@@ -433,6 +436,54 @@ The orchestrator auto-selects which Claude model executes each spec based on com
 | `large` | Opus | Architecture, novel patterns — deep reasoning |
 
 Model routing is configured via `config.modelRouting`. Per-reviewer model config (already supported) is separate — this adds per-spec routing for the planner/executor. The planner assigns estimates during decomposition; the orchestrator maps estimates to models during dispatch.
+
+## Adaptive Automation
+
+mint observes how you work and generates project-specific skills from repeated workflows.
+
+### 4-Phase Pipeline
+
+```
+Session traces → Workflow Miner → Skill Generator → .mint/skills/
+     (raw)         (detect)          (codify)        (execute)
+```
+
+1. **Trace** — session activity (commands, file edits, gate runs) is recorded in `.mint/workflow-traces.jsonl`
+2. **Mine** — `mint-workflow-miner` fingerprints command sequences, clusters similar traces, and surfaces candidates in `.mint/workflow-candidates.jsonl`
+3. **Generate** — `mint-skill-generator` takes a confirmed candidate and produces a self-contained skill with manifest, prompt, and test
+4. **Execute** — generated skills live in `.mint/skills/<name>/` and run through the trust gradient
+
+### Data Flow
+
+```
+session → trace → fingerprint → cluster → candidate → skill
+```
+
+Each step reduces volume and increases confidence. Only candidates confirmed by the user become skills.
+
+### Trust Gradient
+
+Generated skills start untrusted and graduate through use:
+
+| Level | Behavior | Promotion trigger |
+|-------|----------|-------------------|
+| `suggest` | Display skill, ask before running | Default |
+| `confirm` | Run automatically, ask to commit | 3 successful uses |
+| `auto` | Run and commit silently | Manual promotion only |
+
+Trust level is stored in the skill's `manifest.json` and can be set manually.
+
+### Directory Structure
+
+```
+.mint/skills/
+  <name>/
+    manifest.json     ← name, trust level, source candidate, usage count
+    SKILL.md          ← the generated skill prompt
+    test.md           ← validation criteria
+```
+
+Skills in `.mint/skills/` are gitignored (personal). Promote to `.claude/skills/` to share with the team.
 
 ## Golden Rules
 

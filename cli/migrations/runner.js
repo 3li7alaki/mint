@@ -81,7 +81,8 @@ export async function runMigrations(projectRoot, targetVersion, options = {}) {
   }
 
   // Backup config before any migration
-  const backupPath = path.join(projectRoot, '.mint', `.config-backup-${currentVersion}.json`);
+  const backupLabel = config.mintVersion || 'pre-migration';
+  const backupPath = path.join(projectRoot, '.mint', `.config-backup-${backupLabel}.json`);
   try {
     fs.writeFileSync(backupPath, JSON.stringify(config, null, 2) + '\n');
   } catch { /* backup is best-effort */ }

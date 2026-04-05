@@ -27,6 +27,7 @@ export const MINT_IGNORE_ENTRIES = [
   '.mint/skills/',
   '.mint/workflows.jsonl',
   '.mint/workflow-candidates.jsonl',
+  '.mint/.config-backup-*.json',
 ];
 
 /**

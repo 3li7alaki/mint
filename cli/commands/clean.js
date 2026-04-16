@@ -1,6 +1,6 @@
 import * as p from '@clack/prompts';
 import { cleanAllWorktrees, listWorktrees } from '../lib/worktree.js';
-import { cleanStaleSessions } from '../lib/session.js';
+import { cleanStaleSessions, reclaimOrphanedSessions } from '../lib/session.js';
 
 export async function run(args = [], flags = {}) {
   const cwd = process.cwd();
@@ -13,11 +13,17 @@ export async function run(args = [], flags = {}) {
     p.log.success(`Removed ${sessionsCleaned} stale session${sessionsCleaned > 1 ? 's' : ''}`);
   }
 
+  // Reclaim orphaned sessions (dead pid or stale heartbeat)
+  const orphansReclaimed = reclaimOrphanedSessions(cwd);
+  if (orphansReclaimed > 0) {
+    p.log.success(`Reclaimed ${orphansReclaimed} orphaned session${orphansReclaimed > 1 ? 's' : ''}`);
+  }
+
   // Clean worktrees
   const worktrees = listWorktrees(cwd);
 
   if (worktrees.length === 0) {
-    if (sessionsCleaned === 0) p.log.info('Nothing to clean.');
+    if (sessionsCleaned === 0 && orphansReclaimed === 0) p.log.info('Nothing to clean.');
     p.outro('Clean');
     return;
   }

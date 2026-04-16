@@ -41,7 +41,8 @@ Open issues: 2 — see .mint/issues.md
 When this command is invoked:
 
 1. **Find active task:**
-   - Scan `.mint/tasks/` for directories
+   - Scan `.mint/tasks/<session-id>/` for directories (current session only —
+     concurrent sessions are intentionally invisible)
    - Find most recent with non-terminal execution.json status
 
 2. **Read execution state:**
@@ -77,4 +78,4 @@ Open issues: 2 — see .mint/issues.md
 
 - This is read-only — doesn't affect execution
 - Shows the orchestrator's view, not individual agent internals
-- Use `tail -f .mint/tasks/<slug>/output.log` for real-time agent output
+- Use `tail -f .mint/tasks/<session-id>/<slug>/output.log` for real-time agent output

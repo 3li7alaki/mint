@@ -112,7 +112,7 @@ Each subagent:
 - Gets **fresh context** — no memory from previous agents
 - Receives **exactly what it needs** — spec XML, config, workspace context, or diff (not everything)
 - Returns **a concise summary** — never raw tool output
-- Writes **artifacts to disk** — `.mint/tasks/`, `.mint/research/`, commits
+- Writes **artifacts to disk** — `.mint/tasks/<session-id>/`, `.mint/research/`, commits
 - **Cannot spawn other subagents** — only the orchestrator dispatches
 
 This prevents context pollution. An agent that builds up too much context makes worse decisions. Fresh agents make better decisions.
@@ -313,7 +313,10 @@ The manifest is committed to git — it's shared team knowledge about documentat
 
 ## Execution Tracking
 
-Every spec gets a per-spec `execution.json` that records status transitions, attempt history, gate results, review verdicts, and commit hashes. This enables:
+Every spec gets a per-spec `execution.json` that records status transitions, attempt history, gate results, review verdicts, and commit hashes. Files live under
+`.mint/tasks/<session-id>/<slug>/<spec-id>/execution.json` — the session-id prefix
+isolates concurrent Claude conversations from each other's in-flight work. Status
+and resume scans only look inside the current session's namespace. This enables:
 - **Resumability** — interrupted sessions can pick up where they left off
 - **Visibility** — clear record of what happened at each pipeline stage
 - **Retry intelligence** — the spec retry protocol uses attempt history to write targeted rewrites

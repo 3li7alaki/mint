@@ -29,16 +29,19 @@ Batch (independent):
   Tasks: <descriptions>
 ```
 
-Plus: `.mint/config.json` and `.mint/hard-blocks.md`
+Plus:
+- `.mint/config.json` and `.mint/hard-blocks.md`
+- `<session-id>` — session identifier from your dynamic prompt; used literally as the path prefix under `.mint/tasks/` to isolate concurrent Claude conversations
 
 ## Execution
 
 ### Phased tasks
 
 For each phase, apply planner logic with wave-based execution:
-1. Decompose phase into XML specs (saved to `.mint/tasks/<phase-slug>/`)
-2. **Verify specs exist** — check `.mint/tasks/<phase-slug>/` contains `.xml` files before
-   proceeding. If no specs were created, re-run decomposition with explicit instruction.
+1. Decompose phase into XML specs (saved to `.mint/tasks/<session-id>/<phase-slug>/`)
+2. **Verify specs exist** — check `.mint/tasks/<session-id>/<phase-slug>/` contains
+   `.xml` files before proceeding. If no specs were created, re-run decomposition with
+   explicit instruction.
 3. **Build dependency graph** — parse `<depends-on>` from all specs, group into waves
    (see SKILL.md "Build dependency graph and execute in waves" for algorithm)
 4. Create `execution.json` for each spec before starting execution
@@ -127,6 +130,7 @@ When `config.context.enabled` is `true` and context-mode MCP tools are available
 
 ## Rules
 
+- **Never write to `.mint/tasks/` without the `<session-id>` prefix** — all spec/execution files live under `.mint/tasks/<session-id>/<phase-slug>/`
 - **Gates never skip** regardless of pace
 - **Never push** — commits only
 - **Never continue past failure** without returning to orchestrator

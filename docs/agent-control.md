@@ -54,14 +54,18 @@ For long tasks, agents can run in background:
 ```
 Agent dispatched in background.
 Task ID: abc123
-Monitor: tail -f .mint/tasks/<slug>/output.log
+Monitor: tail -f .mint/tasks/<session-id>/<slug>/output.log
 Stop: touch .mint/stop
 ```
 
 Check progress anytime:
 ```bash
-tail -50 .mint/tasks/<slug>/output.log
+tail -50 .mint/tasks/<session-id>/<slug>/output.log
 ```
+
+`<session-id>` is the current Claude conversation id — each live session writes to its
+own namespace under `.mint/tasks/` so concurrent conversations don't collide. Find
+yours in `.mint/sessions/.current-session-id`.
 
 ## Recovery Options
 
@@ -78,7 +82,7 @@ After interruption:
 ### Check execution state
 
 ```bash
-cat .mint/tasks/<slug>/<spec-id>/execution.json
+cat .mint/tasks/<session-id>/<slug>/<spec-id>/execution.json
 ```
 
 Shows: status, attempts, gate results, review verdicts.

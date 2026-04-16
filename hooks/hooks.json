@@ -3,13 +3,8 @@
     "SessionStart": [
       {
         "matcher": "startup|resume|clear|compact",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "'${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.cmd' session-start",
-            "async": false
-          }
-        ]
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/session-start-capture.cjs\"" }],
+        "description": "Capture Claude session_id so the mint CLI uses the same id"
       }
     ],
     "PreToolUse": [

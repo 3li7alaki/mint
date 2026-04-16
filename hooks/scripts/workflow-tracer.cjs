@@ -88,7 +88,12 @@ function parseGitOperations(logOutput) {
 }
 
 /**
- * Scan execution state from .mint/tasks/ for gate results.
+ * Scan execution state from `.mint/tasks/<session-id>/` for gate results.
+ *
+ * `tasksDir` must already be scoped to a single session's namespace
+ * (i.e. `.mint/tasks/<session-id>/`). The caller is responsible for
+ * resolving the current session id and passing the scoped path in so
+ * concurrent conversations never see each other's execution state.
  */
 function extractExecutionOps(tasksDir) {
   const ops = [];
@@ -144,7 +149,9 @@ function computeFingerprint(operations) {
 function buildTrace(projectRoot, sessionData, sessionId) {
   const { session } = sessionData;
   const mintDir = path.join(projectRoot, '.mint');
-  const tasksDir = path.join(mintDir, 'tasks');
+  // Scope execution-state scanning to the current session's namespace so
+  // concurrent conversations don't get their gate results cross-pollinated.
+  const sessionTasksDir = path.join(mintDir, 'tasks', sessionId);
 
   // Determine session start time
   const startTime = session.invokedAt || session.startedAt || session.createdAt;
@@ -165,10 +172,10 @@ function buildTrace(projectRoot, sessionData, sessionId) {
     } catch { /* git log failed — proceed without */ }
   }
 
-  // Collect operations from execution state
+  // Collect operations from execution state (scoped to this session)
   let execOps = [];
-  if (fs.existsSync(tasksDir)) {
-    execOps = extractExecutionOps(tasksDir);
+  if (fs.existsSync(sessionTasksDir)) {
+    execOps = extractExecutionOps(sessionTasksDir);
   }
 
   // Merge operations: exec ops (edit, gate) come before git ops (commit)

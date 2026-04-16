@@ -60,6 +60,8 @@ this from pipeline state and passes it as the `prompt` parameter to the Agent to
 ## Decomposer
 
 ```xml
+<session-id>{current session id — substitute the real value from getSessionId()}</session-id>
+
 <feature>
 {feature description from user}
 </feature>
@@ -91,6 +93,10 @@ this from pipeline state and passes it as the `prompt` parameter to the Agent to
   <recent-changes>{output from detect_changes — recently modified symbols}</recent-changes>
 </graph-context>
 ```
+
+The decomposer uses `<session-id>` when writing spec files to
+`.mint/tasks/<session-id>/<slug>/NNN-<title>.xml` so concurrent conversations stay
+isolated from each other's in-flight specs.
 
 ## Spec Reviewer (Stage 1)
 
@@ -188,6 +194,8 @@ All stage 2 reviewers receive the same context structure:
 ## Shipper
 
 ```xml
+<session-id>{current session id — substitute the real value from getSessionId()}</session-id>
+
 <ship-plan>
 {confirmed ship plan with phases and batches}
 </ship-plan>
@@ -200,6 +208,9 @@ All stage 2 reviewers receive the same context structure:
 {.mint/hard-blocks.md contents}
 </hard-blocks>
 ```
+
+The shipper writes phase specs to `.mint/tasks/<session-id>/<phase-slug>/` and reads
+back execution state from the same per-session namespace.
 
 ## Verifier (Layer 2)
 

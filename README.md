@@ -68,7 +68,7 @@ Run `mint init` in your project (seeds from global defaults if set):
 ├── instincts.jsonl         — scored conventions (confidence, dedup, decay)
 ├── metrics.jsonl           — per-spec execution metrics for evidence-based evolution
 ├── sessions/               — per-session state (gitignored, timestamp-prefixed IDs)
-├── tasks/<slug>/           — spec XMLs + execution.json + pipeline-state.json per spec
+├── tasks/<session-id>/<slug>/ — per-session spec XMLs + execution.json + pipeline-state.json
 ├── .freeze-list.json       — frozen/guarded paths (gitignored)
 ├── .browser-sessions.json  — browser cookies (gitignored)
 └── .gate-ledger.jsonl      — gate run dedup (gitignored)

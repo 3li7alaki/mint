@@ -25,16 +25,20 @@ Dispatch `mint-decomposer` subagent.
 Build prompt from `templates/agent-context.md` → "Decomposer" section:
 - Feature description, config, hard blocks, learning context (issues, wins, instincts)
 - Graph context (if available): architecture overview, blast radius, affected modules
+- **Session id** — resolve via `getSessionId()` (from `cli/lib/session.js`) and
+  substitute into the `<session-id>` field so the decomposer writes to the right
+  per-session namespace.
 
-Planner reads existing code, breaks work into atomic specs saved to `.mint/tasks/<slug>/`.
+Decomposer reads existing code, breaks work into atomic specs saved to
+`.mint/tasks/<session-id>/<slug>/`.
 
 ## Verify Specs Exist (hard gate)
 
-After planner returns, VERIFY spec files were created:
+After decomposer returns, VERIFY spec files were created:
 
-1. Check `.mint/tasks/<slug>/` exists and contains `.xml` files
-2. If **no XML files** → planner skipped creation. This is a failure:
-   - Log to `.mint/issues.jsonl`: "spec-skip: planner returned without creating specs"
+1. Check `.mint/tasks/<session-id>/<slug>/` exists and contains `.xml` files
+2. If **no XML files** → decomposer skipped creation. This is a failure:
+   - Log to `.mint/issues.jsonl`: "spec-skip: decomposer returned without creating specs"
    - Re-dispatch with explicit instruction: "Create XML spec files ONLY — do not implement"
    - If second attempt fails → escalate to user
 3. If specs found → verify required fields: `<id>`, `<title>`, `<goal>`, `<scope>`, `<steps>`, `<acceptance>`, `<commit>`

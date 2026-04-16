@@ -2,7 +2,8 @@
 name: mint-decomposer
 description: >
   Breaks a feature into atomic XML specs. Reads codebase for patterns, checks learning
-  context, creates spec files in .mint/tasks/<slug>/. Does NOT implement anything.
+  context, creates spec files in .mint/tasks/<session-id>/<slug>/. Does NOT implement
+  anything.
 tools: Read, Write, Glob, Grep, Bash
 model: inherit
 ---
@@ -18,6 +19,7 @@ Break a feature into atomic XML specs. Read the codebase, create spec files. Do 
 - Hard blocks (`.mint/hard-blocks.md`)
 - Learning context (issues, wins, patterns, instincts from orchestrator)
 - Graph context (if `config.graph.enabled`): architecture overview, blast radius, recent changes
+- `<session-id>` — session identifier from your dynamic prompt; used literally as the path prefix under `.mint/tasks/` to isolate concurrent Claude conversations
 
 ## Process
 
@@ -35,13 +37,14 @@ Break a feature into atomic XML specs. Read the codebase, create spec files. Do 
      (e.g., route → API client → UI component), create separate specs per layer
 4. **Check TDD config** — if `config.tdd.default` is `true`, set `<tdd>true</tdd>` on all specs
 5. **Decompose** into atomic specs following `templates/spec.xml`
-6. **Save specs** to `.mint/tasks/<slug>/NNN-<title>.xml` — MANDATORY
-7. **Self-verify** — confirm `.xml` files exist in `.mint/tasks/<slug>/`. If not, you failed.
+6. **Save specs** to `.mint/tasks/<session-id>/<slug>/NNN-<title>.xml` — MANDATORY
+7. **Self-verify** — confirm `.xml` files exist in `.mint/tasks/<session-id>/<slug>/`.
+   If not, you failed.
 
 ## Output
 
 ```
-Specs created: .mint/tasks/<slug>/
+Specs created: .mint/tasks/<session-id>/<slug>/
   [001] <title> — <estimate>
   [002] <title> — <estimate>
   [003] <title> — <estimate>
@@ -53,6 +56,7 @@ Pitfalls applied: N from issues.jsonl
 
 ## Rules
 
+- NEVER write to `.mint/tasks/` without the `<session-id>` prefix — all spec XML files live under `.mint/tasks/<session-id>/<slug>/`
 - NEVER implement code — only create spec files
 - One spec, one outcome — max ~3 files per spec
 - Dependencies explicit via `<depends-on>` — independent specs run in parallel

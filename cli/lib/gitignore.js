@@ -11,6 +11,8 @@ const MARKER = '# mint local state';
 
 /** Entries that mint needs gitignored in every project. */
 export const MINT_IGNORE_ENTRIES = [
+  // Covers session-scoped tasks (.mint/tasks/<session-id>/...) and the
+  // 0.8.4→0.8.5 quarantine bucket (.mint/tasks/_legacy-pre-0.8.5/...).
   '.mint/tasks/',
   '.mint/research/',
   '.mint/worktrees/',

@@ -13,7 +13,9 @@ pipeline state after each step and loads the next phase file.
   - `"branch"` — create feature branch in main checkout
   - `"none"` — work on current branch
 - Read `reference/learning-loop.md` — load issues/wins/instincts for planner context
-- Check for resumable specs (scan `.mint/tasks/` for non-terminal execution.json)
+- Check for resumable specs — scan ONLY the current session's namespace
+  `.mint/tasks/<session-id>/` for non-terminal execution.json. Other sessions'
+  in-flight specs are invisible to this one by design (per-session isolation).
 - **Graph auto-check:** If `config.graph.enabled` and `config.graph.autoIndex`:
   1. Read `reference/graph.md` for graph query patterns
   2. Check graph freshness via `index_status` — if stale, reindex in background
@@ -41,7 +43,7 @@ Dispatch `mint-decomposer` with feature description + learning context.
 
 ## 4. Build Waves
 
-1. Read all spec XML files in `.mint/tasks/<slug>/`
+1. Read all spec XML files in `.mint/tasks/<session-id>/<slug>/`
 2. Parse `<id>` and `<depends-on>` for each spec
 3. Group into parallel waves (specs whose deps are all satisfied)
 4. Show the wave plan to user before executing
@@ -59,7 +61,8 @@ For each wave, for each spec — run the **per-spec pipeline**.
 
 ### Pipeline State Machine
 
-Before starting a spec, create `.mint/tasks/<slug>/<spec-id>/pipeline-state.json`:
+Before starting a spec, create
+`.mint/tasks/<session-id>/<slug>/<spec-id>/pipeline-state.json`:
 
 ```json
 {

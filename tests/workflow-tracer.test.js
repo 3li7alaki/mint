@@ -10,6 +10,7 @@ const {
   computeFingerprint,
   findActiveSession,
   extractExecutionOps,
+  buildTrace,
 } = require('../hooks/scripts/workflow-tracer.cjs');
 
 const TMP = path.join(import.meta.dir, '.tmp-tracer');
@@ -231,5 +232,94 @@ describe('extractExecutionOps', () => {
     fs.writeFileSync(path.join(specDir, 'execution.json'), 'not json');
     const ops = extractExecutionOps(path.join(TMP, 'tasks'));
     expect(ops).toEqual([]);
+  });
+});
+
+describe('buildTrace session scoping', () => {
+  // Per .mint/issues.jsonl follow-up from spec 003: confirm buildTrace reads from
+  // .mint/tasks/<session-id>/ only, never the global tasks tree.
+  //
+  // We don't init a real git repo in TMP, so git log inside buildTrace fails
+  // and gitOps come back empty — that's intentional. We only assert on
+  // execOps which come from the session-scoped tasks dir.
+
+  function seedSession(root, sessionId, slug, gates) {
+    const specDir = path.join(root, '.mint', 'tasks', sessionId, slug, '001');
+    fs.mkdirSync(specDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(specDir, 'execution.json'),
+      JSON.stringify({ gates, filesModified: [`src/${slug}.ts`] }),
+    );
+  }
+
+  test('buildTrace scopes execution scan to .mint/tasks/<session-id>/ only', () => {
+    fs.mkdirSync(path.join(TMP, '.mint'), { recursive: true });
+    seedSession(TMP, 'sess-A', 'feat-a', { lint: 'pass', types: 'pass' });
+    // Drop a global / legacy entry that should NOT bleed into A's trace.
+    const legacyDir = path.join(TMP, '.mint', 'tasks', 'legacy-feat', '001');
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(legacyDir, 'execution.json'),
+      JSON.stringify({ gates: { tests: 'fail' }, filesModified: ['src/leak.ts'] }),
+    );
+
+    const trace = buildTrace(
+      TMP,
+      { session: { task: 'A', mode: 'plan', invokedAt: new Date().toISOString() } },
+      'sess-A',
+    );
+
+    // Trace must reference the session id and contain only A's files.
+    expect(trace.sessionId).toBe('sess-A');
+    const editOps = trace.operations.filter(o => o.type === 'edit');
+    const allFiles = editOps.flatMap(o => o.files);
+    expect(allFiles).toContain('src/feat-a.ts');
+    expect(allFiles).not.toContain('src/leak.ts');
+
+    // Outcome derives from A's gates only (all pass).
+    expect(trace.outcome).toBe('success');
+  });
+
+  test('two sessions do not cross-pollinate execution operations', () => {
+    fs.mkdirSync(path.join(TMP, '.mint'), { recursive: true });
+    // A is clean; B has a failing gate.
+    seedSession(TMP, 'sess-A', 'feat-a', { lint: 'pass', types: 'pass' });
+    seedSession(TMP, 'sess-B', 'feat-b', { lint: 'pass', types: 'fail' });
+
+    const traceA = buildTrace(
+      TMP,
+      { session: { task: 'A', mode: 'plan', invokedAt: new Date().toISOString() } },
+      'sess-A',
+    );
+    const traceB = buildTrace(
+      TMP,
+      { session: { task: 'B', mode: 'plan', invokedAt: new Date().toISOString() } },
+      'sess-B',
+    );
+
+    const filesA = traceA.operations.filter(o => o.type === 'edit').flatMap(o => o.files);
+    const filesB = traceB.operations.filter(o => o.type === 'edit').flatMap(o => o.files);
+
+    expect(filesA).toEqual(['src/feat-a.ts']);
+    expect(filesB).toEqual(['src/feat-b.ts']);
+
+    // A's outcome is success (no failing gates), B's is failure.
+    expect(traceA.outcome).toBe('success');
+    expect(traceB.outcome).toBe('failure');
+  });
+
+  test('buildTrace returns empty execOps when session has no tasks dir', () => {
+    fs.mkdirSync(path.join(TMP, '.mint'), { recursive: true });
+    // Sibling session has work but the queried session does not — must come back clean.
+    seedSession(TMP, 'sess-other', 'feat-other', { tests: 'pass' });
+
+    const trace = buildTrace(
+      TMP,
+      { session: { task: 'mine', mode: 'plan', invokedAt: new Date().toISOString() } },
+      'sess-mine',
+    );
+
+    const execOps = trace.operations.filter(o => o.type === 'edit' || o.type === 'gate');
+    expect(execOps).toEqual([]);
   });
 });

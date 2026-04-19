@@ -38,11 +38,12 @@ describe('getSessionId', () => {
     expect(id1).toBe(id2);
   });
 
-  test('generates timestamp-random format', () => {
+  test('generates timestamp-random format when no captured id', () => {
     _resetSessionId();
     const id = getSessionId();
-    // Format: 12-char hex timestamp + dash + 8-char hex random
-    expect(id).toMatch(/^[a-f0-9]{12}-[a-f0-9]{8}$/);
+    // Either the captured Claude session_id (UUID: 8-4-4-4-12) from a live
+    // capture file, or the generated fallback (12-char hex timestamp + 8-char hex).
+    expect(id).toMatch(/^([a-f0-9]{12}-[a-f0-9]{8}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/);
   });
 
   test('timestamp prefix is sortable', () => {

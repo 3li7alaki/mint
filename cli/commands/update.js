@@ -1,9 +1,11 @@
 import * as p from '@clack/prompts';
 import path from 'path';
+import os from 'os';
 import fs from 'fs';
 import { execSync } from 'child_process';
 import { detectTool, detectContextMode, detectCodeGraph, readJsonSafe, fileExists, ensureClaudeMd, getGlobalConfigPath, loadGlobalConfig, saveGlobalConfig, GLOBAL_KEYS, registerProject, getRegisteredProjects } from '../lib/detect.js';
 import { ensureGitignore } from '../lib/gitignore.js';
+import { scanUserHooks } from '../lib/hook-compat.js';
 import { spinner } from '../lib/spinner.js';
 
 // New core config keys added per version.
@@ -438,6 +440,23 @@ export async function run(positional = [], flags = {}) {
         }
       }
     }
+
+    // ─── Hook compatibility check ─────────────────────────────────────────
+    // Scans ~/.claude/hooks for user hooks known to block mint subagents
+    // (e.g. cbm-code-discovery-gate). Warn-only here — `mint doctor --fix`
+    // does the actual neutralization with consent.
+    try {
+      const hookScan = scanUserHooks(os.homedir());
+      if (hookScan.knownUnpatched.length > 0) {
+        const n = hookScan.knownUnpatched.length;
+        p.log.warn(`${n} user hook${n > 1 ? 's' : ''} may block mint subagents:`);
+        for (const h of hookScan.knownUnpatched) {
+          const dir = path.dirname(h.path).replace(os.homedir(), '~');
+          p.log.message(`  - ${h.name} (${dir}/)`);
+        }
+        p.log.info('Run `mint doctor --fix` to neutralize.');
+      }
+    } catch { /* scanning is best-effort; never fail update over it */ }
   }
 
   p.outro(`mint v${version}${depsOnly ? '' : ' — restart Claude Code to activate'}`);

@@ -1,9 +1,11 @@
 import * as p from '@clack/prompts';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { execSync } from 'child_process';
 import { readJsonSafe, fileExists, detectStack, detectTool, detectContextMode, detectCodeGraph, getGlobalConfigPath, loadGlobalConfig, GLOBAL_KEYS, ensureReadmeSignature } from '../lib/detect.js';
 import { spinner } from '../lib/spinner.js';
+import { scanUserHooks, applyHookPatch } from '../lib/hook-compat.js';
 
 export async function run(flags = {}) {
   const cwd = process.cwd();
@@ -208,6 +210,46 @@ export async function run(flags = {}) {
   if (autoFix) {
     for (const issue of [...critical, ...warns]) {
       tryFix(issue);
+    }
+  }
+
+  // ─── Hook compatibility ────────────────────────────────────────────────
+  // Scans ~/.claude/hooks for known user hooks that break mint subagents
+  // (e.g. cbm-code-discovery-gate's `exit 2`). Reports read-only by
+  // default; with --fix, prompts for consent and neutralizes in place
+  // via applyHookPatch (which handles backup + symlink safety).
+  const hookScan = scanUserHooks(os.homedir());
+  if (hookScan.knownPatched.length > 0 || hookScan.knownUnpatched.length > 0) {
+    console.log(`\n  \x1b[1mHook compatibility\x1b[0m`);
+    for (const h of hookScan.knownPatched) {
+      console.log(`  \x1b[32m✓\x1b[0m ${h.name} — neutralized`);
+    }
+    for (const h of hookScan.knownUnpatched) {
+      console.log(`  \x1b[33m⚠\x1b[0m ${h.name} — found, blocking (run with --fix to neutralize)`);
+    }
+
+    if (autoFix && hookScan.knownUnpatched.length > 0) {
+      const n = hookScan.knownUnpatched.length;
+      const confirmed = await p.confirm({
+        message: `Neutralize ${n} hook${n > 1 ? 's' : ''}?`,
+        initialValue: true,
+      });
+      if (!p.isCancel(confirmed) && confirmed) {
+        for (const h of hookScan.knownUnpatched) {
+          try {
+            const { patched, reason } = applyHookPatch(h.entry, { homeDir: os.homedir() });
+            if (patched) {
+              p.log.success(`${h.name} neutralized (backup: ${path.basename(h.path)}.mint-backup)`);
+            } else {
+              p.log.warn(`${h.name}: ${reason}`);
+            }
+          } catch (err) {
+            p.log.error(`${h.name}: ${err.message}`);
+          }
+        }
+      }
+    } else if (hookScan.knownUnpatched.length > 0) {
+      console.log(`  \x1b[2m○\x1b[0m Run \`mint doctor --fix\` to neutralize`);
     }
   }
 

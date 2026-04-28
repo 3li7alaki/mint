@@ -1,9 +1,6 @@
 ---
 name: mint
-description: >
-  REQUIRED for ALL coding tasks. Invoke BEFORE writing any code or editing any file.
-  Auto-routes to quick/plan/ship/research/verify. Enforces gates, reviews, atomic commits.
-  No exceptions — if you're about to modify files, invoke mint first.
+description: "Orchestrates structured development workflows by auto-routing tasks to execution modes — quick fixes (≤3 files), multi-step plans, parallel shipping, research, or verification. Manages quality gates (lint, types, tests), multi-stage code review pipelines, session state, and atomic commits. Use when building a feature, fixing a bug, refactoring code, planning implementation, shipping changes, researching APIs, or checking project quality gates."
 ---
 
 # mint
@@ -114,29 +111,6 @@ them for the current step — not at startup.
 
 ---
 
-## What Agents Receive (Prompt Caching)
+## Agent Dispatch (Prompt Caching)
 
-Each agent has two layers — **static** (cached) and **dynamic** (per-dispatch):
-
-- **Static:** The agent `.md` file in `agents/` — identity, rules, checklist. Cached by
-  Anthropic's API across identical requests. Multiple specs in a wave share this cache.
-- **Dynamic:** The `prompt` parameter built from `templates/agent-context.md`. Contains
-  only the per-dispatch inputs (spec XML, diff, config values). Keep this minimal.
-
-**Rule: Never duplicate agent instructions in the dynamic prompt.** The agent already has
-its `.md` file as system prompt.
-
-| Agent | Dynamic context (from `templates/agent-context.md`) |
-|-------|------------------------------------------------------|
-| Decomposer | Feature desc + config + hard blocks + learning context |
-| Planner | Spec XML + autocommit + TDD + retry/correction context |
-| Spec Reviewer | Spec XML + git diff |
-| Stage 2 Reviewers | Git diff + file list (+ conventions/business docs if applicable) |
-| Adversarial Tester | Spec XML + git diff + test framework + file paths (worktree isolation) |
-| Documenter | Doc path + description + change summary + manifest sections |
-| De-sloppifier | Git diff + spec XML + gate commands |
-| Researcher | Question + config |
-| Shipper | Ship plan + config + hard blocks |
-| Verifier | Failing gate output + config |
-| Build Resolver | Error output + config + in-scope files |
-| Dream Consolidator | Learning file paths + counts + config + previous report |
+Each agent receives a **static** layer (the agent `.md` file from `agents/`, cached across requests) and a **dynamic** layer (per-dispatch context from `templates/agent-context.md`). Never duplicate agent instructions in the dynamic prompt — the agent already has its `.md` file as system prompt. Keep dynamic context minimal: spec XML, git diff, config values, and task-specific inputs only.

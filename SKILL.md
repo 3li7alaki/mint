@@ -1,15 +1,33 @@
 ---
 name: mint
-description: >
-  Auto-routing orchestrator for disciplined agentic development. Invoke this skill for ALL coding
-  tasks — mint auto-detects the right mode (quick, plan, research, ship, verify).
+description: "Structured development workflow that auto-routes coding tasks to the right execution mode — quick fixes, multi-step plans, research, shipping, or verification. Enforces quality gates (lint, types, tests), multi-stage code review, and atomic commits. Use when starting a feature, fixing a bug, refactoring code, planning implementation, shipping a release, or running quality checks."
 ---
 
 # mint
 
-**This file is a convenience redirect.** The full orchestrator lives at `skills/mint/SKILL.md`.
+Disciplined agentic development — fresh context per task, zero slop. Routes every coding task to the right execution mode, enforces quality gates, and manages multi-stage review pipelines.
 
-If you're reading this directly, invoke the `mint` skill via the Skill tool instead — it loads
-the complete orchestrator with all routing logic, execution flows, and plugin support.
+## Quick Start
 
-For the auto-trigger instruction, see `skills/using-mint/SKILL.md`.
+Invoke `mint` via the Skill tool with a task description. mint auto-detects the right mode:
+
+| Mode | When | What it does |
+|------|------|-------------|
+| quick | Task touches ≤3 files, scope obvious | Direct implementation with quality gates |
+| plan | Multi-file changes, ambiguous scope | Decomposes into specs, implements in phases |
+| ship | Multiple features, "build all" | Parallel spec execution with coordinated review |
+| research | "How to", "compare", investigation | Structured research with documented findings |
+| verify | "Check gates", "audit" | Runs lint, types, tests and reports status |
+
+## Routing Logic
+
+The full orchestrator at `skills/mint/SKILL.md` evaluates signals in order — first match wins. Override with "just quick-fix it" or "plan this out" to force a mode.
+
+## What mint Enforces
+
+- **Quality gates** — lint + types + tests before every commit
+- **Multi-stage review** — spec review, then parallel audit (quality, security, conventions, tests)
+- **Atomic commits** — one commit per logical change, never push (human reviews and pushes)
+- **Context protection** — heavy work delegated to subagents, main context stays clean
+
+For the auto-trigger rule (invoke mint before any file modification), see `skills/using-mint/SKILL.md`.

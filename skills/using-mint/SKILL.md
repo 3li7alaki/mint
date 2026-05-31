@@ -42,7 +42,7 @@ mint will auto-detect the right mode, announce the routing decision, and execute
 
 - **Auto-routing** — quick/plan/research/ship/verify based on complexity
 - **Quality gates** — lint + types + tests enforced before every commit
-- **Multi-stage review** — spec review, then parallel audit (quality, security, conventions, tests)
+- **Multi-stage review** — spec review, then parallel audit (quality, security, conventions, tests, business)
 - **Learning loop** — past failures become future prevention via issues.md
 - **Context protection** — main context stays clean, heavy work delegated to subagents
 

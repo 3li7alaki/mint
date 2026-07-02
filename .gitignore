@@ -1,0 +1,12 @@
+# mint's per-session work-state — disposable, lazy-created, never committed
+.mint/
+
+# compiled binary
+/mint
+cli/mint
+
+# session scratch
+scratchpad/
+
+# personal harness config (not part of the tool)
+.claude/

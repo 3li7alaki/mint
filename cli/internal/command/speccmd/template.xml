@@ -1,0 +1,30 @@
+<task>
+  <id>NNN</id>
+  <title>Short descriptive title</title>
+  <goal>One sentence - what this unit achieves when done</goal>
+
+  <scope>
+    <can-modify>exact/paths/to/files.js, other/file.js</can-modify>
+    <cannot-modify>everything else</cannot-modify>
+  </scope>
+
+  <steps>
+    1. Concrete step with exact file/function reference
+    2. Every step actionable - no "figure it out"
+  </steps>
+
+  <acceptance>
+    - WHEN the change runs, THE result SHALL satisfy the goal
+    - WHEN an edge case is hit, THE code SHALL handle it without error
+  </acceptance>
+
+  <commit>type(scope): short description</commit>
+
+  <!-- Optional. Add a <gates> block (one "label: command" per line, e.g.
+       "tests: go test ./...") and/or a <reviews> line ("security, quality") to declare
+       what this unit must pass. Omit them to inherit the session's declared gates/
+       reviews - `mint spec new` bakes those in at creation. (Kept as prose, not a
+       sample <gates> tag, so an unfilled spec resolves to no required gates.) -->
+
+  <!-- Optional. <risk>safety</risk> forces a clause-3 cross-engine safety review. -->
+</task>

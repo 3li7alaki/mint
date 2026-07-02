@@ -1,26 +1,25 @@
 #!/bin/sh
 # mint installer — slim, no runtime deps, no root, idempotent (also acts as updater).
-#   curl -fsSL https://mint.dev/install.sh | sh
-#   curl -fsSL https://mint.dev/install.sh | sh -s -- --version=v0.9.0
-#   curl -fsSL https://mint.dev/install.sh | sh -s -- --uninstall
+#   curl -fsSL https://raw.githubusercontent.com/3li7alaki/mint/main/install.sh | sh
+#   curl -fsSL .../install.sh | sh -s -- --uninstall
 #
-# mint is a single self-contained Go binary. This script downloads the right one for
-# your platform from GitHub Releases, drops it under ~/.mint/bin, and symlinks it onto
-# your PATH at ~/.local/bin/mint.
+# mint is a single self-contained Go binary, distributed as a rolling `latest` release
+# (no version numbers — every push to main republishes the current build). This script
+# downloads the right one for your platform, drops it under ~/.mint/bin, and symlinks it
+# onto your PATH at ~/.local/bin/mint. Re-run it any time to update in place.
 set -eu
 
 TOOL="mint"
 REPO="3li7alaki/mint"
+RELEASE="latest"          # rolling tag; there is no semver
 INSTALL_DIR="$HOME/.$TOOL"
 BIN_DIR="$INSTALL_DIR/bin"
 LINK_DIR="$HOME/.local/bin"
 
-VERSION="latest"
 NO_PATH=false
 UNINSTALL=false
 for arg in "$@"; do
   case "$arg" in
-    --version=*) VERSION="${arg#*=}" ;;
     --no-path)   NO_PATH=true ;;
     --uninstall) UNINSTALL=true ;;
     *) echo "unknown flag: $arg" >&2; exit 1 ;;
@@ -55,15 +54,9 @@ case "$ARCH" in
 esac
 TARGET="${OS}-${ARCH}"
 
-# Resolve the version tag (latest = ask the GitHub API).
-if [ "$VERSION" = "latest" ]; then
-  VERSION=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-    | grep '"tag_name"' | head -1 | cut -d'"' -f4)
-  [ -n "$VERSION" ] || err "could not resolve latest version (rate-limited? pass --version=vX.Y.Z)"
-fi
-
-URL="https://github.com/$REPO/releases/download/$VERSION/${TOOL}-${TARGET}"
-say "installing $TOOL $VERSION for $TARGET ..."
+# Rolling release: the asset lives under the fixed `latest` tag — no API call needed.
+URL="https://github.com/$REPO/releases/download/$RELEASE/${TOOL}-${TARGET}"
+say "installing $TOOL ($TARGET) ..."
 
 # Download to a temp file, then atomically move into place (a failed download never
 # leaves a half-written binary on PATH).
@@ -90,7 +83,7 @@ if [ "$NO_PATH" != true ]; then
 fi
 
 # Verify against the binary we just installed (not a stale PATH entry).
-INSTALLED=$("$BIN_DIR/$TOOL" --version 2>/dev/null || echo "$VERSION")
+INSTALLED=$("$BIN_DIR/$TOOL" --version 2>/dev/null || echo "installed")
 if command -v "$TOOL" >/dev/null 2>&1; then
   say "✓ $TOOL $INSTALLED installed — run: mint --help"
 else

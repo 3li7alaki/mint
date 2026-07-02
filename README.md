@@ -8,7 +8,11 @@ mint is a small, deterministic engine that guarantees a unit of work is *actuall
 properly* — the same way no matter which agent runs it, how many run, or whether a human is
 watching. You own the shape of the work. mint owns the floor you can't fall through.
 
-`zero runtime dependencies` · `zero-token` · `engine-blind` · `single Go binary`
+[![CI](https://github.com/3li7alaki/mint/actions/workflows/ci.yml/badge.svg)](https://github.com/3li7alaki/mint/actions/workflows/ci.yml)
+[![Stars](https://img.shields.io/github/stars/3li7alaki/mint?style=flat)](https://github.com/3li7alaki/mint/stargazers)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![single Go binary](https://img.shields.io/badge/single-Go%20binary-00ADD8?logo=go&logoColor=white)
+![zero deps](https://img.shields.io/badge/runtime%20deps-zero-success)
 
 </div>
 
@@ -127,15 +131,18 @@ declared review has a passing verdict attached).
 
 ## Install
 
-mint is a single static Go binary with zero runtime dependencies.
+mint is a single static Go binary with zero runtime dependencies. One line installs it to
+your PATH — no root, no toolchain:
 
 ```bash
-git clone https://github.com/3li7alaki/mint
-cd mint/cli
-go build -o mint ./cmd/mint      # then put it on your PATH
-
-mint --help
+curl -fsSL https://raw.githubusercontent.com/3li7alaki/mint/main/install.sh | sh
 ```
+
+**Updating is the same command** — re-run it and it replaces the binary in place with the
+latest build (mint ships as a rolling `latest` release; there are no version numbers). Remove
+it with `… | sh -s -- --uninstall`.
+
+Prefer to build from source? `git clone`, then `cd cli && go build -o mint ./cmd/mint`.
 
 Then point your agent at the contract once — add `@AGENTS.md` (or a copy of
 [`AGENTS.md`](AGENTS.md)) to your global agent config. Any agent that reads it can wield mint;

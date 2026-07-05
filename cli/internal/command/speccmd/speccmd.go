@@ -32,7 +32,8 @@ type NewResult struct {
 
 func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int, error) {
 	if len(args) == 0 {
-		fmt.Fprintln(stdout, "  Usage: mint spec validate|scope <spec-path>")
+		fmt.Fprintln(stdout, "  Usage: mint spec new \"<title>\" [--session <id>] [--slug <slug>]")
+		fmt.Fprintln(stdout, "         mint spec validate|scope <spec-path>")
 		return 1, nil
 	}
 	switch args[0] {
@@ -85,7 +86,8 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		}
 		return 0, nil
 	default:
-		fmt.Fprintln(stdout, "  Usage: mint spec validate|scope <spec-path>")
+		fmt.Fprintln(stdout, "  Usage: mint spec new \"<title>\" [--session <id>] [--slug <slug>]")
+		fmt.Fprintln(stdout, "         mint spec validate|scope <spec-path>")
 		return 1, nil
 	}
 }

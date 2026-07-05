@@ -4,9 +4,11 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -20,8 +22,13 @@ import (
 var templateText string
 
 type Flags struct {
-	Session string
-	Slug    string
+	Session    string
+	Slug       string
+	Goal       string
+	Scope      string
+	Acceptance string
+	Steps      string
+	Commit     string
 }
 
 type NewResult struct {
@@ -32,14 +39,13 @@ type NewResult struct {
 
 func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int, error) {
 	if len(args) == 0 {
-		fmt.Fprintln(stdout, "  Usage: mint spec new \"<title>\" [--session <id>] [--slug <slug>]")
-		fmt.Fprintln(stdout, "         mint spec validate|scope <spec-path>")
+		printUsage(stdout)
 		return 1, nil
 	}
 	switch args[0] {
 	case "new":
 		if len(args) < 2 {
-			return 1, fmt.Errorf("Usage: mint spec new \"<title>\" [--session <id>] [--slug <slug>]")
+			return 1, fmt.Errorf("Usage: mint spec new \"<title>\" [--session <id>] [--slug <slug>] [--goal <text>] [--scope <paths>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
 		}
 		result, err := New(root, args[1], flags)
 		if err != nil {
@@ -50,6 +56,15 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 			return 1, err
 		}
 		fmt.Fprintln(stdout, string(b))
+		return 0, nil
+	case "set":
+		if len(args) < 2 {
+			return 1, fmt.Errorf("Usage: mint spec set <spec-path> [--goal <text>] [--scope <paths>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
+		}
+		if err := Set(root, args[1], flags); err != nil {
+			return 1, err
+		}
+		fmt.Fprintf(stdout, "  ok %s updated\n", args[1])
 		return 0, nil
 	case "validate":
 		if len(args) < 2 {
@@ -86,8 +101,7 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		}
 		return 0, nil
 	default:
-		fmt.Fprintln(stdout, "  Usage: mint spec new \"<title>\" [--session <id>] [--slug <slug>]")
-		fmt.Fprintln(stdout, "         mint spec validate|scope <spec-path>")
+		printUsage(stdout)
 		return 1, nil
 	}
 }
@@ -125,22 +139,100 @@ func New(root, title string, flags Flags) (NewResult, error) {
 	if _, err := gitignore.Ensure(root, nil); err != nil {
 		return NewResult{}, err
 	}
-	if err := atomic.WriteString(specPath, specschema.Scaffold(templateText, fields)); err != nil {
+	scaffolded := applyFieldFlags(specschema.Scaffold(templateText, fields), flags)
+	if err := atomic.WriteString(specPath, scaffolded); err != nil {
 		return NewResult{}, err
 	}
 	return NewResult{SpecPath: specPath, Branch: "feat/" + slug, ID: id}, nil
 }
 
-func readSpec(root, specPath string) (string, error) {
-	abs := specPath
-	if !filepath.IsAbs(abs) {
-		abs = filepath.Join(root, specPath)
+func Set(root, specPath string, flags Flags) error {
+	abs := resolveSpecPath(root, specPath)
+	b, err := os.ReadFile(abs)
+	if err != nil {
+		return fmt.Errorf("Spec not found: %s", specPath)
 	}
+	updated := applyFieldFlags(string(b), flags)
+	if err := atomic.WriteString(abs, updated); err != nil {
+		return err
+	}
+	result := specschema.Validate(updated)
+	if len(result.Errors) > 0 || len(result.Warnings) > 0 {
+		var lines []string
+		for _, e := range result.Errors {
+			lines = append(lines, "error  "+e)
+		}
+		for _, w := range result.Warnings {
+			lines = append(lines, "warn   "+w)
+		}
+		return fmt.Errorf("spec validation failed:\n  %s", strings.Join(lines, "\n  "))
+	}
+	return nil
+}
+
+func readSpec(root, specPath string) (string, error) {
+	abs := resolveSpecPath(root, specPath)
 	b, err := os.ReadFile(abs)
 	if err != nil {
 		return "", fmt.Errorf("Spec not found: %s", specPath)
 	}
 	return string(b), nil
+}
+
+func resolveSpecPath(root, specPath string) string {
+	if filepath.IsAbs(specPath) {
+		return specPath
+	}
+	return filepath.Join(root, specPath)
+}
+
+func applyFieldFlags(xml string, flags Flags) string {
+	out := xml
+	if flags.Goal != "" {
+		out = replaceElementContent(out, "goal", escapeXML(flags.Goal))
+	}
+	if flags.Scope != "" {
+		out = replaceElementContent(out, "can-modify", renderScope(flags.Scope))
+	}
+	if flags.Steps != "" {
+		out = replaceElementContent(out, "steps", escapeXML(flags.Steps))
+	}
+	if flags.Acceptance != "" {
+		out = replaceElementContent(out, "acceptance", escapeXML(flags.Acceptance))
+	}
+	if flags.Commit != "" {
+		out = replaceElementContent(out, "commit", escapeXML(flags.Commit))
+	}
+	return out
+}
+
+func replaceElementContent(xml, name, content string) string {
+	re := regexp.MustCompile(`(<` + regexp.QuoteMeta(name) + `>)[\s\S]*?(</` + regexp.QuoteMeta(name) + `>)`)
+	m := re.FindStringSubmatchIndex(xml)
+	if m == nil {
+		return xml
+	}
+	return xml[:m[3]] + content + xml[m[4]:]
+}
+
+func renderScope(scope string) string {
+	var paths []string
+	for _, path := range strings.Split(scope, ",") {
+		if trimmed := strings.TrimSpace(path); trimmed != "" {
+			paths = append(paths, escapeXML(trimmed))
+		}
+	}
+	return strings.Join(paths, ",")
+}
+
+func escapeXML(s string) string {
+	return html.EscapeString(s)
+}
+
+func printUsage(stdout io.Writer) {
+	fmt.Fprintln(stdout, "  Usage: mint spec new \"<title>\" [--session <id>] [--slug <slug>] [--goal <text>] [--scope <paths>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
+	fmt.Fprintln(stdout, "         mint spec set <spec-path> [--goal <text>] [--scope <paths>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
+	fmt.Fprintln(stdout, "         mint spec validate|scope <spec-path>")
 }
 
 func gatesFromState(state session.State) map[string]string {

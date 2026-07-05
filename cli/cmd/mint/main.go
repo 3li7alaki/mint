@@ -397,6 +397,36 @@ func parseSpecArgs(args []string) ([]string, speccmd.Flags, error) {
 			}
 			flags.Slug = args[i+1]
 			i++
+		case "--goal":
+			if i+1 >= len(args) {
+				return nil, flags, fmt.Errorf("--goal requires a value")
+			}
+			flags.Goal = args[i+1]
+			i++
+		case "--scope":
+			if i+1 >= len(args) {
+				return nil, flags, fmt.Errorf("--scope requires a value")
+			}
+			flags.Scope = args[i+1]
+			i++
+		case "--acceptance":
+			if i+1 >= len(args) {
+				return nil, flags, fmt.Errorf("--acceptance requires a value")
+			}
+			flags.Acceptance = args[i+1]
+			i++
+		case "--steps":
+			if i+1 >= len(args) {
+				return nil, flags, fmt.Errorf("--steps requires a value")
+			}
+			flags.Steps = args[i+1]
+			i++
+		case "--commit":
+			if i+1 >= len(args) {
+				return nil, flags, fmt.Errorf("--commit requires a value")
+			}
+			flags.Commit = args[i+1]
+			i++
 		default:
 			out = append(out, args[i])
 		}

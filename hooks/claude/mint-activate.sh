@@ -16,7 +16,8 @@ cat <<'RULE'
 MINT DISCIPLINE ACTIVE — the floor, not a suggestion.
 
 For any real unit of work (a feature, fix, or change worth proving done):
-- `mint spec` defines it: goal, scope (can-modify), acceptance (EARS).
+- `mint spec new "<title>"` scaffolds it, then fill goal/scope/acceptance. NEVER
+  hand-write the spec XML — use the CLI so the format is always valid.
 - Do the work inside scope.
 - `mint done <slug> <spec-id>` re-checks the ACTUAL diff against the floor — gates
   pass, scope respected, nothing gamed, an independent acceptance verdict attached.

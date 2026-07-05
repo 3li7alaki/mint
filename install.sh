@@ -72,6 +72,16 @@ trap - EXIT INT TERM
 mkdir -p "$LINK_DIR"
 ln -sf "$BIN_DIR/$TOOL" "$LINK_DIR/$TOOL"
 
+# Install the opt-in Claude Code hook to a tool-owned XDG location, so other tooling
+# (a dotfiles setup) can bind to a stable path regardless of where mint was cloned.
+HOOK_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/$TOOL/hooks"
+mkdir -p "$HOOK_DIR"
+if curl -fsSL "https://raw.githubusercontent.com/$REPO/main/hooks/claude/mint-activate.sh" \
+     -o "$HOOK_DIR/mint-activate.sh" 2>/dev/null; then
+  chmod +x "$HOOK_DIR/mint-activate.sh"
+  say "  hook -> $HOOK_DIR/mint-activate.sh (opt-in; wire in your agent config)"
+fi
+
 # Add ~/.local/bin to PATH once, guarded against duplicates.
 if [ "$NO_PATH" != true ]; then
   LINE="export PATH=\"$LINK_DIR:\$PATH\""

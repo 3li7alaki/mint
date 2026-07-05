@@ -98,7 +98,11 @@ func Run(root string, args []string, flags Flags, stdout io.Writer) (int, error)
 		if len(args) < 2 {
 			return 1, fmt.Errorf("Usage: mint session end <id>")
 		}
-		return printJSON(stdout, map[string]any{"sessionId": args[1], "deleted": session.DeleteState(root, args[1])})
+		deleted := session.DeleteState(root, args[1])
+		if deleted && session.ReadCapturedID(root) == args[1] {
+			_ = session.ClearCapturedID(root)
+		}
+		return printJSON(stdout, map[string]any{"sessionId": args[1], "deleted": deleted})
 	default:
 		fmt.Fprintln(stdout, "  Usage: mint session new|list|show|set-autocommit|set-gates|set-reviews|resume|end ...")
 		return 1, nil
@@ -136,6 +140,9 @@ func runNew(root string, flags Flags, stdout io.Writer) (int, error) {
 		"autoCommitOverride": autoCommitOverride,
 	}
 	if err := session.WriteState(root, id, state); err != nil {
+		return 1, err
+	}
+	if err := session.WriteCapturedID(root, id); err != nil {
 		return 1, err
 	}
 	return printJSON(stdout, map[string]any{"sessionId": id, "dir": session.GetSessionsDir(root)})

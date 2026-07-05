@@ -47,6 +47,25 @@ func ReadCapturedID(root string) string {
 	return strings.TrimSpace(string(b))
 }
 
+// WriteCapturedID pins the current session so bare commands (exec, done, spec)
+// resolve to it instead of minting a fresh id per invocation.
+func WriteCapturedID(root, sessionID string) error {
+	if err := os.MkdirAll(GetSessionsDir(root), 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(GetSessionsDir(root), currentSessionFile)
+	return atomic.Write(path, []byte(sessionID+"\n"))
+}
+
+// ClearCapturedID removes the current-session pointer.
+func ClearCapturedID(root string) error {
+	err := os.Remove(filepath.Join(GetSessionsDir(root), currentSessionFile))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+
 func WriteState(root string, sessionID string, state State) error {
 	if sessionID == "" {
 		sessionID = ReadCapturedID(root)

@@ -148,6 +148,46 @@ func TestReadAndSessionIsolation(t *testing.T) {
 	}
 }
 
+func TestOwningSessions(t *testing.T) {
+	root := t.TempDir()
+	if _, err := Init(root, "feat", "001", "sid-a", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := OwningSessions(root, "feat", "001"); len(got) != 1 || got[0] != "sid-a" {
+		t.Fatalf("unique owner = %v, want [sid-a]", got)
+	}
+	if got := OwningSessions(root, "feat", "999"); len(got) != 0 {
+		t.Fatalf("no owner = %v, want empty", got)
+	}
+	if _, err := Init(root, "feat", "001", "sid-b", nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := OwningSessions(root, "feat", "001"); len(got) != 2 || got[0] != "sid-a" || got[1] != "sid-b" {
+		t.Fatalf("multi owner = %v, want sorted [sid-a sid-b]", got)
+	}
+}
+
+// Adversarial: glob metacharacters and path traversal in slug/specID must never
+// mis-match, error into a wrong zero-owner fallthrough, or escape .mint/tasks/.
+func TestOwningSessionsRejectsHostileIdentifiers(t *testing.T) {
+	root := t.TempDir()
+	if _, err := Init(root, "feat", "001", "sid-a", nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"fe[a", "fe*t", "fe?t", "..", ".", "", "a/b"} {
+		if got := OwningSessions(root, id, "001"); len(got) != 0 {
+			t.Fatalf("hostile slug %q returned owners %v, want none", id, got)
+		}
+		if got := OwningSessions(root, "feat", id); len(got) != 0 {
+			t.Fatalf("hostile specID %q returned owners %v, want none", id, got)
+		}
+	}
+	// The literal unit is still resolvable — hostile inputs didn't corrupt state.
+	if got := OwningSessions(root, "feat", "001"); len(got) != 1 {
+		t.Fatalf("literal owner lost after hostile probes: %v", got)
+	}
+}
+
 func readRaw(t *testing.T, root, specID string) map[string]any {
 	t.Helper()
 	b, err := os.ReadFile(Path(root, testSlug, specID, testSession))

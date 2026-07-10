@@ -42,6 +42,44 @@ func Path(root, slug, specID, sessionID string) string {
 	return filepath.Join(root, ".mint", "tasks", sessionID, slug, specID, "execution.json")
 }
 
+// OwningSessions returns the session ids whose tasks tree holds an
+// execution.json for slug+specID. A unit's execution.json lives under exactly
+// one session, so a single hit is the owner; zero means the unit is new; more
+// than one is ambiguous and forces --session. This lets done/exec find the
+// session that recorded the reviews regardless of cwd (worktree) or a missing
+// current-session pin.
+func OwningSessions(root, slug, specID string) []string {
+	// Walk session dirs and test each candidate path literally. slug/specID are
+	// untrusted (spec-derived) — never feed them to filepath.Glob, whose
+	// metacharacters ('*', '?', '[') would mis-match or error them into a wrong
+	// zero-owner fallthrough. os.ReadDir yields names in sorted order, so owners
+	// come out deterministic.
+	if !isLiteralSegment(slug) || !isLiteralSegment(specID) {
+		return nil // path-traversal / separator in an identifier — no owner
+	}
+	entries, err := os.ReadDir(filepath.Join(root, ".mint", "tasks"))
+	if err != nil {
+		return nil
+	}
+	var owners []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if info, statErr := os.Stat(Path(root, slug, specID, e.Name())); statErr == nil && info.Mode().IsRegular() {
+			owners = append(owners, e.Name())
+		}
+	}
+	return owners
+}
+
+// isLiteralSegment rejects identifiers that aren't a single, in-place path
+// segment — empty, "." / "..", or anything with a separator — so a crafted
+// slug/specID can't escape .mint/tasks/<session>/ during ownership resolution.
+func isLiteralSegment(s string) bool {
+	return s != "" && s != "." && s != ".." && !strings.ContainsRune(s, '/') && !strings.ContainsRune(s, filepath.Separator)
+}
+
 func Read(root, slug, specID, sessionID string) (*State, bool) {
 	b, err := os.ReadFile(Path(root, slug, specID, sessionID))
 	if err != nil {

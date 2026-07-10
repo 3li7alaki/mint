@@ -103,6 +103,36 @@ func TestExecUsesCapturedSession(t *testing.T) {
 	}
 }
 
+// A worker inits + records under one session, then a bare command (no --session,
+// no pin) must still land on that owning session — not mint a fresh empty one.
+func TestExecResolvesOwningSessionWithoutPin(t *testing.T) {
+	root := rootWithMint(t)
+	if _, err := execstate.Init(root, "feat", "001", "owner-sid", nil); err != nil {
+		t.Fatal(err)
+	}
+	if code, err := Run(root, []string{"record-review", "feat", "001", "correctness", "passed"}, Flags{}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil || code != 0 {
+		t.Fatalf("record-review code=%d err=%v", code, err)
+	}
+	state, ok := execstate.Read(root, "feat", "001", "owner-sid")
+	if !ok || state.Reviews["correctness"] != "passed" {
+		t.Fatalf("review not recorded on owning session: state=%#v ok=%v", state, ok)
+	}
+}
+
+func TestExecAmbiguousOwnersRequireSession(t *testing.T) {
+	root := rootWithMint(t)
+	if _, err := execstate.Init(root, "feat", "001", "sid-a", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := execstate.Init(root, "feat", "001", "sid-b", nil); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Run(root, []string{"record-review", "feat", "001", "correctness", "passed"}, Flags{}, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "--session") {
+		t.Fatalf("expected ambiguity error, got %v", err)
+	}
+}
+
 func rootWithMint(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

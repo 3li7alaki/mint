@@ -34,7 +34,7 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		return 1, fmt.Errorf("No mint session here - run `mint session new` first")
 	}
 	slug, specID := args[0], args[1]
-	sessionID, err := resolveSessionID(root, flags.Session)
+	sessionID, err := resolveSessionID(root, slug, specID, flags.Session)
 	if err != nil {
 		return 1, err
 	}
@@ -151,13 +151,26 @@ func FormatReport(result floor.Result) string {
 	return strings.Join(lines, "\n")
 }
 
-func resolveSessionID(root, explicit string) (string, error) {
-	id := strings.TrimSpace(explicit)
-	if id != "" {
+// resolveSessionID resolves the session that OWNS this unit. done re-checks an
+// existing execution.json, so an explicit --session wins, then the session that
+// actually holds the unit's execution.json (survives a worktree cwd or a missing
+// current-session pin), then the pinned id, and only a genuinely new unit falls
+// through to a generated id. Minting a fresh id for an existing unit was the bug:
+// done targeted an empty execution.json and clause-1 (declared reviews) could
+// never be satisfied.
+func resolveSessionID(root, slug, specID, explicit string) (string, error) {
+	if id := strings.TrimSpace(explicit); id != "" {
 		return id, nil
 	}
-	id = session.ReadCapturedID(root)
-	if id != "" {
+	switch owners := execstate.OwningSessions(root, slug, specID); len(owners) {
+	case 1:
+		return owners[0], nil
+	case 0:
+		// no execution.json yet — fall through to pin/generate (new unit)
+	default:
+		return "", fmt.Errorf("multiple sessions own %s/%s (%s) — pass --session <id> to pick one", slug, specID, strings.Join(owners, ", "))
+	}
+	if id := session.ReadCapturedID(root); id != "" {
 		return id, nil
 	}
 	generated, err := session.GenerateID(time.Now())

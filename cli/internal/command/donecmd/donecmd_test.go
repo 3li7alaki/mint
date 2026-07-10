@@ -41,6 +41,28 @@ func TestDoneProvenanceLessUnitFailsClause2AndRecordsDod(t *testing.T) {
 	}
 }
 
+// Regression: done with no --session and no pin must resolve to the session that
+// owns the unit's execution.json (where reviews were recorded), not mint a fresh
+// empty one that leaves clause-1 unsatisfiable. This was the worktree/unpinned bug.
+func TestDoneResolvesOwningSessionWithoutFlag(t *testing.T) {
+	root := newRepo(t)
+	writeFile(t, filepath.Join(root, "app.js"), "x\n")
+	writeSpec(t, root, "owner-sid", "feat", "010", []string{"app.js"}, "")
+	writeVerdict(t, root, "feat", "010", map[string]any{"accepted": true, "byEngine": "codex", "bySession": "s2"})
+	if _, err := execstate.Init(root, "feat", "010", "owner-sid", &execstate.Maker{Engine: "claude", Session: "owner-sid"}); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	code, err := Run(root, []string{"feat", "010"}, Flags{Terminal: "done-verified", JSON: true}, &out, &bytes.Buffer{})
+	if err != nil || code != 0 {
+		t.Fatalf("Run code=%d err=%v out=%q", code, err, out.String())
+	}
+	state, ok := execstate.Read(root, "feat", "010", "owner-sid")
+	if !ok || state.Reviews["dod"] != "passed" {
+		t.Fatalf("dod not recorded on owning session: state=%#v ok=%v", state, ok)
+	}
+}
+
 func TestDonePassesWithRecordedDifferentEngineMaker(t *testing.T) {
 	root := newRepo(t)
 	writeFile(t, filepath.Join(root, "app.js"), "x\n")

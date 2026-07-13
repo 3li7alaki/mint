@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"mint/internal/execstate"
 )
 
 func TestReadVerdict(t *testing.T) {
@@ -64,6 +66,9 @@ func TestBuildInputCollectsFacts(t *testing.T) {
 	verdictPath := writeJSON(t, filepath.Join(root, "verdict.json"), map[string]any{
 		"accepted": true, "byEngine": "codex", "bySession": "s2",
 	})
+	if _, err := execstate.Init(root, "feat", "001", "sess-x", &execstate.Maker{Engine: "claude", Session: "s1"}); err != nil {
+		t.Fatal(err)
+	}
 
 	input, err := BuildInput(root, BuildOptions{
 		SpecPath:      specPath,
@@ -71,8 +76,6 @@ func TestBuildInputCollectsFacts(t *testing.T) {
 		SpecID:        "001",
 		VerdictPath:   verdictPath,
 		TerminalState: "done-verified",
-		MakerEngine:   "claude",
-		MakerSession:  "s1",
 		SessionID:     "sess-x",
 	})
 	if err != nil {
@@ -90,11 +93,37 @@ func TestBuildInputCollectsFacts(t *testing.T) {
 	if input.Verdict == nil || input.Verdict["byEngine"] != "codex" {
 		t.Fatalf("verdict = %#v", input.Verdict)
 	}
-	if input.MakerEngine != "claude" || input.MakerSession != "s1" || input.TerminalState != "done-verified" {
+	if input.MakerEngine != "claude" || input.MakerVendor != "anthropic" || input.MakerModel != "claude" || input.MakerLocality != "remote" || input.MakerSession != "s1" || input.TerminalState != "done-verified" {
 		t.Fatalf("pass-through facts wrong: %#v", input)
 	}
 	if len(input.RequiredReviews) != 0 || len(input.Reviews) != 0 {
 		t.Fatalf("unexpected reviews: required=%#v attached=%#v", input.RequiredReviews, input.Reviews)
+	}
+}
+
+func TestBuildInputMakerProvenanceComesOnlyFromExecutionState(t *testing.T) {
+	root := newGitRepo(t)
+	specPath := writeSpecFile(t, root, "sess-maker", "feat", "maker", []string{"README.md"}, passGateXML())
+	verdictPath := writeJSON(t, filepath.Join(root, "verdict.json"), map[string]any{
+		"accepted": true, "byEngine": "opencode", "bySession": "checker",
+		"byVendor": "openai", "byModel": "gpt", "byLocality": "remote",
+		"makerVendor": "anthropic", "makerModel": "claude", "makerLocality": "local",
+	})
+	if _, err := execstate.Init(root, "feat", "maker", "sess-maker", &execstate.Maker{Engine: "codex", Session: "maker"}); err != nil {
+		t.Fatal(err)
+	}
+	input, err := BuildInput(root, BuildOptions{
+		SpecPath: specPath, Slug: "feat", SpecID: "maker", SessionID: "sess-maker", VerdictPath: verdictPath,
+		MakerEngine: "claude", MakerSession: "forged-option",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if input.MakerEngine != "codex" || input.MakerVendor != "openai" || input.MakerModel != "gpt" || input.MakerLocality != "remote" || input.MakerSession != "maker" {
+		t.Fatalf("maker provenance was not loaded from execution state: %#v", input)
+	}
+	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "different chassis do not establish independence") {
+		t.Fatalf("checker forged maker identity through verdict/options: %#v", c2)
 	}
 }
 
@@ -179,8 +208,11 @@ func TestBuildInputReviews(t *testing.T) {
 	if got := strings.Join(input.RequiredReviews, ","); got != "security,quality" {
 		t.Fatalf("required reviews = %#v", input.RequiredReviews)
 	}
-	if input.Reviews["security"] != "passed" || input.Reviews["quality"] != "failed" {
+	if input.Reviews["security"].Verdict != "passed" || input.Reviews["quality"].Verdict != "failed" {
 		t.Fatalf("attached reviews = %#v", input.Reviews)
+	}
+	if input.Reviews["security"].Provenance.Engine != "" {
+		t.Fatalf("legacy string review must remain unattributed: %#v", input.Reviews["security"])
 	}
 
 	sessionOnlySpec := writeSpecFile(t, root, "sess-r", "feat", "005", []string{"README.md"}, passGateXML())

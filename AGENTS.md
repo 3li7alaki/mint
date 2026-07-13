@@ -65,12 +65,17 @@ inherits your agenda and your reasoning instead of re-deriving them.
 
 1. **Completion is proven, not declared.** Deterministic gates pass, an independent
    acceptance verdict is attached, and — on a code diff — every review lens you declared
-   (`mint session set-reviews` / spec `<reviews>`) has an attached passing verdict. A
-   self-made claim is an input to verification, never the verdict.
+   (`mint session set-reviews` / spec `<reviews>`) has a registry-validated, independently
+   attributable passing verdict. A bare pass string is not evidence. A self-made claim is
+   an input to verification, never the verdict.
 2. **Maker ≠ checker, graded by risk.** The verdict's independence is verified by its
    provenance. Normal work needs a **fresh independent context** — a separate session with
-   none of the maker's state. The safety carve-out needs a **genuinely different engine**
-   than the maker.
+   none of the maker's state. The safety carve-out needs a checker backed by a **different
+   model vendor** than the maker; changing only the runner/chassis is not independence.
+   Maker provenance comes from the maker's recorded execution state, never fields supplied
+   by the checker. Multi-model chassis must report registry-validated vendor and model
+   provenance, and local-only work fails closed unless mint can prove locality from trusted
+   execution or fixed-registry evidence rather than a verdict claim.
 3. **Safety carve-out is never minimized or skipped.** Security, trust-boundary validation,
    **accessibility**, and **data-loss** handling are floor. A diff that touches any of the
    four cannot reach done without the matching independent check.
@@ -84,8 +89,23 @@ inherits your agenda and your reasoning instead of re-deriving them.
 
 mint checks the deterministic clauses itself and **never calls a model**. The semantic
 judgment — "does this diff satisfy acceptance" — is yours to supply as the attached verdict;
-mint verifies that judgment *happened and was independent*, not its content. Depth comes from
-you; integrity comes from mint.
+mint verifies that the provenance of that judgment is *well-formed, registry-valid, and
+distinct from the maker*, not its content. Depth comes from you; integrity comes from mint.
+
+**What "independent" means here, precisely — and its limit.** Provenance is declared, not
+authenticated. mint reads the maker's identity from write-once execution state (so a checker
+cannot forge the maker), validates every engine/vendor/locality claim against a registry
+compiled into the binary, and fails closed on missing, malformed, or self-matching provenance.
+What mint does **not** do is prove that the named engine actually *ran* — it trusts that the
+`--maker-engine` at init and the `byEngine`/`--by-engine` on a verdict name the context that
+truly produced the work. A single actor that declares one engine at init and a different one on
+the verdict can therefore still manufacture an apparent maker≠checker split without a second
+engine ever executing. mint raises the floor from "type the word `passed`" to "attach
+registry-valid, fail-closed, maker-distinct provenance"; it does not yet make that provenance
+unforgeable. Closing that gap requires authenticating execution (a signed attestation, or mint
+itself invoking the checker) — an open, deliberately-unshipped decision, because the latter
+collides with mint's rule that it is not a harness. Until then: the floor stops gaming and
+accident, not a determined actor forging identity against their own gate.
 
 **When `done` FAILS, re-mint the spec — don't patch the work.** A failed `done` appends a note
 keyed to the spec (`done-fail-<slug>-<id>`) naming the clause that failed and why; retries

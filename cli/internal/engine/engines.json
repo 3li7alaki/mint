@@ -11,7 +11,10 @@
         "bypass": ["--dangerously-skip-permissions"]
       },
       "reference": true,
-      "probeOrder": 10
+      "probeOrder": 10,
+      "vendor": "anthropic",
+      "model": "claude",
+      "locality": "remote"
     },
     {
       "key": "codex",
@@ -24,7 +27,10 @@
         "bypass": ["--dangerously-bypass-approvals-and-sandbox"]
       },
       "reference": true,
-      "probeOrder": 20
+      "probeOrder": 20,
+      "vendor": "openai",
+      "model": "gpt",
+      "locality": "remote"
     },
     {
       "key": "kimi",
@@ -38,7 +44,10 @@
       },
       "reference": true,
       "probeOrder": 30,
-      "stopFromExit": true
+      "stopFromExit": true,
+      "vendor": "moonshot",
+      "model": "kimi",
+      "locality": "remote"
     },
     {
       "key": "opencode",
@@ -52,7 +61,8 @@
       },
       "reference": true,
       "probeOrder": 40,
-      "stopFromExit": true
+      "stopFromExit": true,
+      "configurable": true
     }
   ]
 }

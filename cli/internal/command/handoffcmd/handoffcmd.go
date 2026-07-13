@@ -92,7 +92,7 @@ func Build(root, sessionID string, state session.State, specs []SpecInfo, notes 
 			lines = append(lines, "- Scope (can-modify): "+strings.Join(scope, ", "))
 		}
 		if state, ok := execstate.Read(root, spec.Slug, spec.SpecID, sessionID); ok {
-			lines = append(lines, "- Exec: status="+state.Status+" - gates: "+formatMap(state.Gates)+" - reviews: "+formatMap(state.Reviews))
+			lines = append(lines, "- Exec: status="+state.Status+" - gates: "+formatMap(state.Gates)+" - reviews: "+formatReviews(state.Reviews))
 			commit := "(none)"
 			if state.Commit != nil && *state.Commit != "" {
 				commit = *state.Commit
@@ -181,6 +181,14 @@ func formatMap(values map[string]string) string {
 		parts = append(parts, key+"="+values[key])
 	}
 	return strings.Join(parts, " ")
+}
+
+func formatReviews(values map[string]execstate.Review) string {
+	verdicts := make(map[string]string, len(values))
+	for key, review := range values {
+		verdicts[key] = review.Verdict
+	}
+	return formatMap(verdicts)
 }
 
 func stateString(state session.State, key, fallback string) string {

@@ -24,7 +24,7 @@ func TestHandoffWritesSeedFromSessionAndExecState(t *testing.T) {
 	if _, err := execstate.RecordGate(root, "feat", "001", "tests", "pass", "sid-a"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := execstate.RecordReview(root, "feat", "001", "quality", "passed", "sid-a"); err != nil {
+	if _, err := execstate.RecordReview(root, "feat", "001", "quality", "passed", "sid-a", &execstate.Provenance{Engine: "codex", Session: "reviewer"}); err != nil {
 		t.Fatal(err)
 	}
 

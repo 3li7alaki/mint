@@ -5,6 +5,37 @@ import (
 	"testing"
 )
 
+func TestResolveProvenanceFixedAndConfigurable(t *testing.T) {
+	fixed, err := ResolveProvenance(" CODEX ", "", "", "")
+	if err != nil || fixed.Vendor != "openai" || fixed.Model != "gpt" || fixed.Locality != "remote" {
+		t.Fatalf("fixed provenance = %#v, %v", fixed, err)
+	}
+	if _, err := ResolveProvenance("codex", "anthropic", "gpt", "remote"); err == nil {
+		t.Fatal("conflicting fixed provenance should fail")
+	}
+	for _, fields := range [][3]string{{"", "llama", "local"}, {"lab", "", "local"}, {"lab", "llama", ""}, {"lab", "llama", "onsite"}} {
+		if _, err := ResolveProvenance("opencode", fields[0], fields[1], fields[2]); err == nil {
+			t.Fatalf("invalid configurable provenance %#v should fail", fields)
+		}
+	}
+	if _, err := ResolveProvenance("opencode", "оpenai", "gpt-5", "remote"); err == nil {
+		t.Fatal("confusable non-ASCII vendor should fail")
+	}
+	got, err := ResolveProvenance("opencode", "Local Lab", "Llama 70B", "LOCAL")
+	if err != nil || got.Vendor != "local lab" || got.Model != "llama 70b" || got.Locality != "local" {
+		t.Fatalf("configurable provenance = %#v, %v", got, err)
+	}
+	if _, err := ResolveExecutionProvenance("opencode", "zai", "glm", "local"); err == nil {
+		t.Fatal("caller-supplied local execution provenance should not be trusted")
+	}
+	if got, err := ResolveExecutionProvenance("opencode", "zai", "glm", "remote"); err != nil || got.Locality != "remote" {
+		t.Fatalf("conservative remote execution provenance = %#v, %v", got, err)
+	}
+	if ProvesLocal("opencode") || ProvesLocal("codex") {
+		t.Fatal("remote/configurable engines must not prove local execution")
+	}
+}
+
 func TestRegistryKeys(t *testing.T) {
 	want := []string{"claude", "codex", "kimi", "opencode"}
 	if got := Keys(); !reflect.DeepEqual(got, want) {

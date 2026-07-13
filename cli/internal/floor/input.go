@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"mint/internal/execstate"
 	"mint/internal/specschema"
 	"mint/internal/verify"
 )
@@ -53,18 +54,24 @@ func BuildInput(root string, opts BuildOptions) (Input, error) {
 
 	gates := verify.Run(root, opts.Slug, opts.SpecID, opts.SessionID, opts.SpecPath)
 
-	return Input{
+	input := Input{
 		Spec:            string(specBytes),
 		ChangedFiles:    changed,
 		Patch:           patch,
 		Gates:           &GateResult{OK: gates.OK},
 		Verdict:         ReadVerdict(opts.VerdictPath),
-		MakerEngine:     opts.MakerEngine,
-		MakerSession:    opts.MakerSession,
 		TerminalState:   opts.TerminalState,
 		RequiredReviews: resolveRequiredReviews(root, opts.SpecPath, opts.SessionID),
 		Reviews:         attachedReviews(root, opts.Slug, opts.SpecID, opts.SessionID),
-	}, nil
+	}
+	if state, ok := execstate.Read(root, opts.Slug, opts.SpecID, opts.SessionID); ok && state.Maker != nil {
+		input.MakerEngine = state.Maker.Engine
+		input.MakerVendor = state.Maker.Vendor
+		input.MakerModel = state.Maker.Model
+		input.MakerLocality = state.Maker.Locality
+		input.MakerSession = state.Maker.Session
+	}
+	return input, nil
 }
 
 func ReadVerdict(path string) map[string]any {
@@ -186,22 +193,12 @@ func resolveRequiredReviews(root, specPath, sessionID string) []string {
 	return reviews
 }
 
-func attachedReviews(root, slug, specID, sessionID string) map[string]string {
-	state, ok := readJSONObject(execPath(root, slug, specID, sessionID))
-	if !ok {
-		return map[string]string{}
+func attachedReviews(root, slug, specID, sessionID string) map[string]execstate.Review {
+	state, ok := execstate.Read(root, slug, specID, sessionID)
+	if !ok || state.Reviews == nil {
+		return map[string]execstate.Review{}
 	}
-	raw, ok := state["reviews"].(map[string]any)
-	if !ok {
-		return map[string]string{}
-	}
-	reviews := map[string]string{}
-	for key, value := range raw {
-		if s, ok := value.(string); ok {
-			reviews[key] = s
-		}
-	}
-	return reviews
+	return state.Reviews
 }
 
 func readJSONObject(path string) (map[string]any, bool) {
@@ -222,13 +219,6 @@ func sessionPath(root, sessionID string) string {
 		return filepath.Join(root, ".mint", "sessions", ".json")
 	}
 	return filepath.Join(root, ".mint", "sessions", sessionID+".json")
-}
-
-func execPath(root, slug, specID, sessionID string) string {
-	if sessionID == "" || slug == "" || specID == "" {
-		return ""
-	}
-	return filepath.Join(root, ".mint", "tasks", sessionID, slug, specID, "execution.json")
 }
 
 func IsInvalidBaseError(err error) bool {

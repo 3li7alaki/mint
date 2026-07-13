@@ -271,6 +271,36 @@ func parseExecArgs(args []string) ([]string, execcmd.Flags, error) {
 			}
 			flags.MakerEngine = args[i+1]
 			i++
+		case "--by-engine":
+			if i+1 >= len(args) {
+				return nil, flags, fmt.Errorf("--by-engine requires a value")
+			}
+			flags.ByEngine = args[i+1]
+			i++
+		case "--by-vendor":
+			if i+1 >= len(args) {
+				return nil, flags, fmt.Errorf("--by-vendor requires a value")
+			}
+			flags.ByVendor = args[i+1]
+			i++
+		case "--by-model":
+			if i+1 >= len(args) {
+				return nil, flags, fmt.Errorf("--by-model requires a value")
+			}
+			flags.ByModel = args[i+1]
+			i++
+		case "--by-locality":
+			if i+1 >= len(args) {
+				return nil, flags, fmt.Errorf("--by-locality requires a value")
+			}
+			flags.ByLocality = args[i+1]
+			i++
+		case "--by-session":
+			if i+1 >= len(args) {
+				return nil, flags, fmt.Errorf("--by-session requires a value")
+			}
+			flags.BySession = args[i+1]
+			i++
 		case "--commit":
 			if i+1 >= len(args) {
 				return nil, flags, fmt.Errorf("--commit requires a value")

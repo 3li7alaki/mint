@@ -39,15 +39,30 @@ func TestExecRecordsGateReviewStatus(t *testing.T) {
 	if code, err := Run(root, []string{"record-gate", "feat", "001", "tests", "pass"}, Flags{Session: "sid-a"}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil || code != 0 {
 		t.Fatalf("record-gate code=%d err=%v", code, err)
 	}
-	if code, err := Run(root, []string{"record-review", "feat", "001", "quality", "passed"}, Flags{Session: "sid-a"}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil || code != 0 {
+	if code, err := Run(root, []string{"record-review", "feat", "001", "quality", "passed"}, Flags{Session: "sid-a", ByEngine: "codex", BySession: "reviewer"}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil || code != 0 {
 		t.Fatalf("record-review code=%d err=%v", code, err)
 	}
 	if code, err := Run(root, []string{"set-status", "feat", "001", "passed"}, Flags{Session: "sid-a", Commit: "abc123"}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil || code != 0 {
 		t.Fatalf("set-status code=%d err=%v", code, err)
 	}
 	state, _ := execstate.Read(root, "feat", "001", "sid-a")
-	if state.Gates["tests"] != "pass" || state.Reviews["quality"] != "passed" || state.Status != "passed" || state.Commit == nil || *state.Commit != "abc123" {
+	if state.Gates["tests"] != "pass" || state.Reviews["quality"].Verdict != "passed" || state.Status != "passed" || state.Commit == nil || *state.Commit != "abc123" {
 		t.Fatalf("state = %#v", state)
+	}
+}
+
+func TestExecRecordReviewRequiresProvenance(t *testing.T) {
+	root := rootWithMint(t)
+	if _, err := execstate.Init(root, "feat", "001", "sid-a", nil); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Run(root, []string{"record-review", "feat", "001", "quality", "passed"}, Flags{Session: "sid-a"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "provenance is required") {
+		t.Fatalf("bare pass should fail fast, got %v", err)
+	}
+	state, _ := execstate.Read(root, "feat", "001", "sid-a")
+	if len(state.Reviews) != 0 {
+		t.Fatalf("bare pass was stored: %#v", state.Reviews)
 	}
 }
 
@@ -56,7 +71,7 @@ func TestExecStatusAndReviews(t *testing.T) {
 	if _, err := execstate.Init(root, "feat", "001", "sid-a", nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := execstate.RecordReview(root, "feat", "001", "quality", "passed", "sid-a"); err != nil {
+	if _, err := execstate.RecordReview(root, "feat", "001", "quality", "passed", "sid-a", &execstate.Provenance{Engine: "codex", Session: "reviewer"}); err != nil {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
@@ -69,11 +84,11 @@ func TestExecStatusAndReviews(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("reviews code=%d err=%v", code, err)
 	}
-	var reviews map[string]string
+	var reviews map[string]execstate.Review
 	if err := json.Unmarshal(out.Bytes(), &reviews); err != nil {
 		t.Fatalf("parse reviews: %v", err)
 	}
-	if reviews["quality"] != "passed" {
+	if reviews["quality"].Verdict != "passed" {
 		t.Fatalf("reviews = %#v", reviews)
 	}
 }
@@ -110,11 +125,11 @@ func TestExecResolvesOwningSessionWithoutPin(t *testing.T) {
 	if _, err := execstate.Init(root, "feat", "001", "owner-sid", nil); err != nil {
 		t.Fatal(err)
 	}
-	if code, err := Run(root, []string{"record-review", "feat", "001", "correctness", "passed"}, Flags{}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil || code != 0 {
+	if code, err := Run(root, []string{"record-review", "feat", "001", "correctness", "passed"}, Flags{ByEngine: "codex", BySession: "reviewer"}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil || code != 0 {
 		t.Fatalf("record-review code=%d err=%v", code, err)
 	}
 	state, ok := execstate.Read(root, "feat", "001", "owner-sid")
-	if !ok || state.Reviews["correctness"] != "passed" {
+	if !ok || state.Reviews["correctness"].Verdict != "passed" {
 		t.Fatalf("review not recorded on owning session: state=%#v ok=%v", state, ok)
 	}
 }

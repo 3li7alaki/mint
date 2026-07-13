@@ -14,7 +14,7 @@ import (
 	"mint/internal/session"
 )
 
-func TestDoneProvenanceLessUnitFailsClause2AndRecordsDod(t *testing.T) {
+func TestDoneProvenanceLessUnitFailsClause2WithoutForgingReview(t *testing.T) {
 	root := newRepo(t)
 	writeFile(t, filepath.Join(root, "app.js"), "x\n")
 	writeSpec(t, root, "sid-a", "feat", "001", []string{"app.js"}, "")
@@ -36,8 +36,8 @@ func TestDoneProvenanceLessUnitFailsClause2AndRecordsDod(t *testing.T) {
 		t.Fatalf("failed = %#v", failed)
 	}
 	state, ok := execstate.Read(root, "feat", "001", "sid-a")
-	if !ok || state.Reviews["dod"] != "failed" {
-		t.Fatalf("state = %#v ok=%v", state, ok)
+	if !ok || len(state.Reviews) != 0 {
+		t.Fatalf("done must not self-record a review: state=%#v ok=%v", state, ok)
 	}
 }
 
@@ -58,8 +58,8 @@ func TestDoneResolvesOwningSessionWithoutFlag(t *testing.T) {
 		t.Fatalf("Run code=%d err=%v out=%q", code, err, out.String())
 	}
 	state, ok := execstate.Read(root, "feat", "010", "owner-sid")
-	if !ok || state.Reviews["dod"] != "passed" {
-		t.Fatalf("dod not recorded on owning session: state=%#v ok=%v", state, ok)
+	if !ok || len(state.Reviews) != 0 {
+		t.Fatalf("done must not self-record a review: state=%#v ok=%v", state, ok)
 	}
 }
 
@@ -84,7 +84,7 @@ func TestDonePassesWithRecordedDifferentEngineMaker(t *testing.T) {
 		t.Fatalf("result = %#v", result)
 	}
 	state, _ := execstate.Read(root, "feat", "002", "sid-a")
-	if state.Reviews["dod"] != "passed" {
+	if len(state.Reviews) != 0 {
 		t.Fatalf("state = %#v", state)
 	}
 }
@@ -131,7 +131,10 @@ func TestDoneExplicitSpecPath(t *testing.T) {
 	spec := filepath.Join(root, "custom-spec.xml")
 	writeFile(t, spec, specXML("009", []string{"app.js"}, passGateXML()))
 	writeVerdict(t, root, "feat", "009", map[string]any{"accepted": true, "byEngine": "codex", "bySession": "s2"})
-	code, err := Run(root, []string{"feat", "009"}, Flags{Session: "sid-a", Spec: "custom-spec.xml", Terminal: "done-verified", MakerEngine: "claude", MakerSession: "s1", JSON: true}, &bytes.Buffer{}, &bytes.Buffer{})
+	if _, err := execstate.Init(root, "feat", "009", "sid-a", &execstate.Maker{Engine: "claude", Session: "s1"}); err != nil {
+		t.Fatal(err)
+	}
+	code, err := Run(root, []string{"feat", "009"}, Flags{Session: "sid-a", Spec: "custom-spec.xml", Terminal: "done-verified", JSON: true}, &bytes.Buffer{}, &bytes.Buffer{})
 	if err != nil || code != 0 {
 		t.Fatalf("Run code=%d err=%v", code, err)
 	}

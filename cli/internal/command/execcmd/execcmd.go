@@ -18,6 +18,11 @@ type Flags struct {
 	Session     string
 	MakerEngine string
 	Commit      string
+	ByEngine    string
+	ByVendor    string
+	ByModel     string
+	ByLocality  string
+	BySession   string
 }
 
 func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int, error) {
@@ -64,13 +69,16 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		return printJSON(stdout, state)
 	case "record-review":
 		if len(args) < 5 {
-			return 1, fmt.Errorf("Usage: mint exec record-review <slug> <spec-id> <key> <verdict>")
+			return 1, fmt.Errorf("Usage: mint exec record-review <slug> <spec-id> <key> <verdict> --by-engine <engine> --by-session <session> [--by-vendor <vendor> --by-model <model> --by-locality <local|remote>]")
 		}
 		sessionID, err := resolveSessionID(root, args[1], args[2], flags.Session)
 		if err != nil {
 			return 1, err
 		}
-		state, err := execstate.RecordReview(root, args[1], args[2], args[3], args[4], sessionID)
+		state, err := execstate.RecordReview(root, args[1], args[2], args[3], args[4], sessionID, &execstate.Provenance{
+			Engine: flags.ByEngine, Vendor: flags.ByVendor, Model: flags.ByModel,
+			Locality: flags.ByLocality, Session: flags.BySession,
+		})
 		if err != nil {
 			return 1, err
 		}

@@ -67,7 +67,6 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		return 1, nil
 	}
 	result := floor.Enforce(input)
-	_, _ = execstate.RecordReview(root, slug, specID, "dod", verdictFromPass(result.Pass), sessionID)
 	if !result.Pass {
 		topic := failNoteTopic(slug, specID)
 		if _, err := notelist.Append(root, topic, failNoteText(result), nil, time.Now()); err != nil {
@@ -219,13 +218,6 @@ func failNoteText(result floor.Result) string {
 		lines = append(lines, fmt.Sprintf("clause %d (%s)%s", c.Clause, c.Name, why))
 	}
 	return strings.Join(lines, "\n")
-}
-
-func verdictFromPass(pass bool) string {
-	if pass {
-		return "passed"
-	}
-	return "failed"
 }
 
 func joinInts(values []int) string {

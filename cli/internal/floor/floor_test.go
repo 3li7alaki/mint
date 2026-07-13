@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"mint/internal/engine"
+	"mint/internal/execstate"
 )
 
 func TestTerminalStates(t *testing.T) {
@@ -196,28 +197,28 @@ func TestClauseVerifiableCompletion(t *testing.T) {
 
 	input = passingInput()
 	input.RequiredReviews = []string{"security", "quality"}
-	input.Reviews = map[string]string{"security": "passed"}
+	input.Reviews = reviewMap("security", "passed", "codex", "reviewer")
 	if c1 := clauseResult(t, Enforce(input), 1); c1.Pass || !strings.Contains(reason(c1), "quality (not run)") {
 		t.Fatalf("missing declared review got %#v", c1)
 	}
 
 	input = passingInput()
 	input.RequiredReviews = []string{"security"}
-	input.Reviews = map[string]string{"security": "failed"}
+	input.Reviews = reviewMap("security", "failed", "codex", "reviewer")
 	if c1 := clauseResult(t, Enforce(input), 1); c1.Pass || !strings.Contains(reason(c1), "security (failed)") {
 		t.Fatalf("failed declared review got %#v", c1)
 	}
 
 	input = passingInput()
 	input.RequiredReviews = []string{"security", "quality"}
-	input.Reviews = map[string]string{"security": "passed", "quality": "passed"}
+	input.Reviews = reviewMap("security", "passed", "codex", "reviewer", "quality", "passed", "claude", "fresh-session")
 	if c1 := clauseResult(t, Enforce(input), 1); !c1.Pass {
 		t.Fatalf("all declared reviews passed should satisfy clause 1: %#v", c1)
 	}
 
 	input = passingInput()
 	input.RequiredReviews = []string{"", "  "}
-	input.Reviews = map[string]string{}
+	input.Reviews = map[string]execstate.Review{}
 	if c1 := clauseResult(t, Enforce(input), 1); !c1.Pass {
 		t.Fatalf("blank declared review names should be ignored: %#v", c1)
 	}
@@ -226,7 +227,7 @@ func TestClauseVerifiableCompletion(t *testing.T) {
 	input.Spec = specWith("README.md", "docs/x.md")
 	input.ChangedFiles = []string{"README.md", "docs/x.md"}
 	input.RequiredReviews = []string{"security"}
-	input.Reviews = map[string]string{}
+	input.Reviews = map[string]execstate.Review{}
 	if c1 := clauseResult(t, Enforce(input), 1); !c1.Pass {
 		t.Fatalf("docs-only declared review should be no-op: %#v", c1)
 	}
@@ -235,9 +236,42 @@ func TestClauseVerifiableCompletion(t *testing.T) {
 	input.Spec = specWith("README.md", "cli/lib/floor-kernel.js")
 	input.ChangedFiles = []string{"README.md", "cli/lib/floor-kernel.js"}
 	input.RequiredReviews = []string{"security"}
-	input.Reviews = map[string]string{}
+	input.Reviews = map[string]execstate.Review{}
 	if c1 := clauseResult(t, Enforce(input), 1); c1.Pass || !strings.Contains(reason(c1), "security (not run)") {
 		t.Fatalf("mixed code/docs diff should still require declared reviews: %#v", c1)
+	}
+}
+
+func TestDeclaredReviewRejectsMissingAndMakerProvenance(t *testing.T) {
+	for name, review := range map[string]execstate.Review{
+		"no provenance": {Verdict: "passed"},
+		"maker engine and session": {
+			Verdict:    "passed",
+			Provenance: execstate.Provenance{Engine: "claude", Session: "sess-maker"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			input := passingInput()
+			input.RequiredReviews = []string{"quality"}
+			input.Reviews = map[string]execstate.Review{"quality": review}
+			c1 := clauseResult(t, Enforce(input), 1)
+			if c1.Pass || !strings.Contains(reason(c1), "declared review(s) not satisfied") {
+				t.Fatalf("self-asserted review satisfied floor: %#v", c1)
+			}
+		})
+	}
+}
+
+func TestSafetyReviewRequiresDifferentVendor(t *testing.T) {
+	input := passingInput()
+	input.RequiredReviews = []string{"security"}
+	input.Reviews = reviewMap("security", "passed", "claude", "fresh-session")
+	if c1 := clauseResult(t, Enforce(input), 1); c1.Pass || !strings.Contains(reason(c1), "different model vendor") {
+		t.Fatalf("same-vendor safety review satisfied floor: %#v", c1)
+	}
+	input.Reviews = reviewMap("security", "passed", "codex", "fresh-session")
+	if c1 := clauseResult(t, Enforce(input), 1); !c1.Pass {
+		t.Fatalf("different-vendor safety review should satisfy floor: %#v", c1)
 	}
 }
 
@@ -496,6 +530,11 @@ func TestClauseMakerCheckerIdentityAllowlistAndDisguises(t *testing.T) {
 		input := passingInput()
 		input.MakerEngine = maker
 		input.Verdict["byEngine"] = checker
+		if checker == "opencode" {
+			input.Verdict["byVendor"] = "independent-vendor"
+			input.Verdict["byModel"] = "independent-model"
+			input.Verdict["byLocality"] = "local"
+		}
 		c2 := clauseResult(t, Enforce(input), 2)
 		if !c2.Pass {
 			t.Fatalf("registered checker %q vs maker %q should pass: %#v", checker, maker, c2)
@@ -547,6 +586,109 @@ func TestClauseMakerCheckerIdentityAllowlistAndDisguises(t *testing.T) {
 	input.Verdict["byEngine"] = "codex"
 	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "not a recognized engine") {
 		t.Fatalf("unknown maker engine should fail closed: %#v", c2)
+	}
+}
+
+func TestClauseMakerCheckerUsesModelVendorNotChassis(t *testing.T) {
+	input := passingInput()
+	input.MakerEngine = "codex"
+	input.ChangedFiles = []string{"src/auth/login.go"}
+	input.Spec = specWith("src/auth/login.go")
+	input.Patch = "+ validate token"
+	input.Verdict["byEngine"] = "opencode"
+	input.Verdict["byVendor"] = "openai"
+	input.Verdict["byModel"] = "gpt-5"
+	input.Verdict["byLocality"] = "remote"
+	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "both resolve to vendor openai") {
+		t.Fatalf("different chassis with the same vendor must fail independence: %#v", c2)
+	}
+
+	input.Verdict["byVendor"] = "local-lab"
+	input.Verdict["byModel"] = "llama-70b"
+	input.Verdict["byLocality"] = "local"
+	if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
+		t.Fatalf("different vendor on configurable chassis should pass: %#v", c2)
+	}
+}
+
+func TestClauseMakerCheckerSameVendorDifferentChassisFailsForNormalWork(t *testing.T) {
+	input := passingInput()
+	input.MakerEngine = "codex"
+	input.Verdict["byEngine"] = "opencode"
+	input.Verdict["byVendor"] = "openai"
+	input.Verdict["byModel"] = "gpt-5"
+	input.Verdict["byLocality"] = "remote"
+	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "different chassis do not establish independence") {
+		t.Fatalf("normal unit accepted same vendor hidden behind another chassis: %#v", c2)
+	}
+}
+
+func TestClauseMakerCheckerConfigurableProvenanceFailsClosed(t *testing.T) {
+	for _, missing := range []string{"byVendor", "byModel", "byLocality"} {
+		input := passingInput()
+		input.Verdict["byEngine"] = "opencode"
+		input.Verdict["byVendor"] = "local-lab"
+		input.Verdict["byModel"] = "llama-70b"
+		input.Verdict["byLocality"] = "local"
+		delete(input.Verdict, missing)
+		if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "requires explicit vendor, model, and locality") {
+			t.Fatalf("missing %s did not fail closed: %#v", missing, c2)
+		}
+	}
+	input := passingInput()
+	input.Verdict["byVendor"] = 5
+	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "must be a non-empty string") {
+		t.Fatalf("malformed optional fixed provenance was silently ignored: %#v", c2)
+	}
+}
+
+func TestClauseMakerCheckerConfigurableMakerProvenanceComesFromExecutionInput(t *testing.T) {
+	input := passingInput()
+	input.MakerEngine = "opencode"
+	input.MakerVendor = "openai"
+	input.MakerModel = "gpt-5"
+	input.MakerLocality = "remote"
+	input.Verdict["byEngine"] = "claude"
+	if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
+		t.Fatalf("recorded configurable maker provenance should pass with another vendor: %#v", c2)
+	}
+	input.MakerModel = ""
+	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "requires explicit vendor, model, and locality") {
+		t.Fatalf("configurable maker without model did not fail closed: %#v", c2)
+	}
+}
+
+func TestClauseMakerCheckerIgnoresCheckerForgedMakerIdentity(t *testing.T) {
+	input := passingInput()
+	input.MakerEngine = "codex"
+	input.Verdict["byEngine"] = "opencode"
+	input.Verdict["byVendor"] = "openai"
+	input.Verdict["byModel"] = "gpt"
+	input.Verdict["byLocality"] = "remote"
+	input.Verdict["makerVendor"] = "anthropic"
+	input.Verdict["makerModel"] = "claude"
+	input.Verdict["makerLocality"] = "local"
+	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "different chassis do not establish independence") {
+		t.Fatalf("checker forged maker identity through verdict: %#v", c2)
+	}
+}
+
+func TestClauseMakerCheckerLocalityIsOptIn(t *testing.T) {
+	input := passingInput()
+	input.Verdict["byEngine"] = "codex" // registry proves remote
+	if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
+		t.Fatalf("remote checker should remain compatible without locality declaration: %#v", c2)
+	}
+	input.Spec = strings.Replace(input.Spec, "</task>", "  <locality>local</locality>\n</task>", 1)
+	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "requires local-only") {
+		t.Fatalf("declared local-only unit accepted remote checker: %#v", c2)
+	}
+	input.Verdict["byEngine"] = "opencode"
+	input.Verdict["byVendor"] = "zai"
+	input.Verdict["byModel"] = "glm"
+	input.Verdict["byLocality"] = "local"
+	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "cannot prove") {
+		t.Fatalf("self-asserted local configurable checker should fail closed: %#v", c2)
 	}
 }
 
@@ -1404,6 +1546,17 @@ func passingInput() Input {
 		MakerSession:  "sess-maker",
 		TerminalState: "done-verified",
 	}
+}
+
+func reviewMap(entries ...string) map[string]execstate.Review {
+	reviews := map[string]execstate.Review{}
+	for i := 0; i+3 < len(entries); i += 4 {
+		reviews[entries[i]] = execstate.Review{
+			Verdict:    entries[i+1],
+			Provenance: execstate.Provenance{Engine: entries[i+2], Session: entries[i+3]},
+		}
+	}
+	return reviews
 }
 
 func withPatch(patch string) Input {

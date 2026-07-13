@@ -17,6 +17,17 @@ type Row struct {
 	Reference    bool
 	ProbeOrder   int
 	StopFromExit bool
+	Vendor       string
+	Model        string
+	Locality     string
+	Configurable bool
+}
+
+type Provenance struct {
+	Engine   string
+	Vendor   string
+	Model    string
+	Locality string
 }
 
 type manifest struct {
@@ -53,6 +64,13 @@ func loadRegistry(data []byte) (map[string]Row, error) {
 		if row.Binary == "" {
 			return nil, fmt.Errorf("engine %q has empty binary", row.Key)
 		}
+		if row.Configurable {
+			if row.Vendor != "" || row.Model != "" || row.Locality != "" {
+				return nil, fmt.Errorf("configurable engine %q cannot pin provenance", row.Key)
+			}
+		} else if row.Vendor == "" || row.Model == "" || (row.Locality != "local" && row.Locality != "remote") {
+			return nil, fmt.Errorf("fixed engine %q must pin vendor, model, and locality", row.Key)
+		}
 		if _, exists := registry[key]; exists {
 			return nil, fmt.Errorf("engine %q is duplicated", key)
 		}
@@ -63,6 +81,63 @@ func loadRegistry(data []byte) (map[string]Row, error) {
 		return nil, fmt.Errorf("engine manifest has no trusted engines")
 	}
 	return registry, nil
+}
+
+func ResolveProvenance(name, vendor, model, locality string) (Provenance, error) {
+	key := Canonical(name)
+	row, ok := Registry[key]
+	if !ok {
+		return Provenance{}, fmt.Errorf("engine %q is not recognized", name)
+	}
+	vendor, model, locality = Canonical(vendor), Canonical(model), Canonical(locality)
+	if row.Configurable {
+		if vendor == "" || model == "" || locality == "" {
+			return Provenance{}, fmt.Errorf("multi-model chassis %q requires explicit vendor, model, and locality provenance", key)
+		}
+		if !isStrictClaim(vendor) || !isStrictClaim(model) {
+			return Provenance{}, fmt.Errorf("engine %q vendor and model must use visible ASCII provenance text", key)
+		}
+		if locality != "local" && locality != "remote" {
+			return Provenance{}, fmt.Errorf("engine %q locality must be local or remote", key)
+		}
+		return Provenance{Engine: key, Vendor: vendor, Model: model, Locality: locality}, nil
+	}
+	if (vendor != "" && vendor != row.Vendor) || (model != "" && model != row.Model) || (locality != "" && locality != row.Locality) {
+		return Provenance{}, fmt.Errorf("provenance supplied for fixed engine %q conflicts with registry metadata", key)
+	}
+	return Provenance{Engine: key, Vendor: row.Vendor, Model: row.Model, Locality: row.Locality}, nil
+}
+
+// ResolveExecutionProvenance validates provenance while the engine is running,
+// before it is persisted in execution state. A configurable chassis cannot
+// prove a local endpoint from its key alone, so a caller's "local" string is
+// rejected; remote is conservative and cannot weaken a local-only guarantee.
+func ResolveExecutionProvenance(name, vendor, model, locality string) (Provenance, error) {
+	key := Canonical(name)
+	row, ok := Registry[key]
+	if !ok {
+		return Provenance{}, fmt.Errorf("engine %q is not recognized", name)
+	}
+	if row.Configurable && Canonical(locality) == "local" {
+		return Provenance{}, fmt.Errorf("multi-model chassis %q cannot prove local execution from caller-supplied locality", key)
+	}
+	return ResolveProvenance(name, vendor, model, locality)
+}
+
+// ProvesLocal reports whether mint's fixed registry metadata, rather than a
+// verdict claim, establishes that this engine runs locally.
+func ProvesLocal(name string) bool {
+	row, ok := Registry[Canonical(name)]
+	return ok && !row.Configurable && row.Locality == "local"
+}
+
+func isStrictClaim(value string) bool {
+	for _, r := range value {
+		if r < 0x20 || r > 0x7e {
+			return false
+		}
+	}
+	return value != ""
 }
 
 func Keys() []string {

@@ -34,7 +34,7 @@ func TestInitExecStateMaker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state.Maker == nil || state.Maker.Engine != "claude" || state.Maker.Session != "sX" {
+	if state.Maker == nil || state.Maker.Engine != "claude" || state.Maker.Vendor != "anthropic" || state.Maker.Model != "claude" || state.Maker.Locality != "remote" || state.Maker.Session != "sX" {
 		t.Fatalf("maker = %#v", state.Maker)
 	}
 	raw := readRaw(t, root, "001")
@@ -73,6 +73,38 @@ func TestInitExecStateMaker(t *testing.T) {
 	}
 }
 
+func TestInitExecStateConfigurableMakerProvenanceFailsClosedOnUnprovenLocality(t *testing.T) {
+	root := t.TempDir()
+	state, err := Init(root, testSlug, "005", testSession, &Maker{
+		Engine: "opencode", Vendor: "openai", Model: "gpt", Locality: "remote", Session: "maker-session",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Maker == nil || state.Maker.Vendor != "openai" || state.Maker.Model != "gpt" || state.Maker.Locality != "remote" {
+		t.Fatalf("recorded maker = %#v", state.Maker)
+	}
+	if _, err := Init(root, testSlug, "006", testSession, &Maker{
+		Engine: "opencode", Vendor: "zai", Model: "glm", Locality: "local", Session: "maker-session",
+	}); err == nil || !strings.Contains(err.Error(), "cannot prove local execution") {
+		t.Fatalf("caller-asserted local configurable engine should fail closed: %v", err)
+	}
+}
+
+func TestInitCannotOverwriteRecordedMakerProvenance(t *testing.T) {
+	root := t.TempDir()
+	if _, err := Init(root, testSlug, "007", testSession, &Maker{Engine: "codex", Session: "maker"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Init(root, testSlug, "007", testSession, &Maker{Engine: "claude", Session: "checker"}); err == nil || !strings.Contains(err.Error(), "write-once") {
+		t.Fatalf("checker re-initialized maker provenance: %v", err)
+	}
+	state, ok := Read(root, testSlug, "007", testSession)
+	if !ok || state.Maker == nil || state.Maker.Engine != "codex" || state.Maker.Vendor != "openai" || state.Maker.Session != "maker" {
+		t.Fatalf("recorded maker was overwritten: %#v", state)
+	}
+}
+
 func TestRecordGateReviewAndStatus(t *testing.T) {
 	root := t.TempDir()
 	if _, err := Init(root, testSlug, "020", testSession, nil); err != nil {
@@ -93,14 +125,24 @@ func TestRecordGateReviewAndStatus(t *testing.T) {
 	if _, err := RecordGate(root, testSlug, "020", "", "pass", testSession); err == nil {
 		t.Fatal("empty gate label should fail")
 	}
-	if _, err := RecordReview(root, testSlug, "020", "security", "passed", testSession); err != nil {
+	reviewer := &Provenance{Engine: "codex", Session: "review-session"}
+	if _, err := RecordReview(root, testSlug, "020", "security", "passed", testSession, reviewer); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := RecordReview(root, testSlug, "020", "quality", "failed", testSession); err != nil {
+	if _, err := RecordReview(root, testSlug, "020", "quality", "failed", testSession, reviewer); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := RecordReview(root, testSlug, "020", "security", "green", testSession); err == nil {
+	if _, err := RecordReview(root, testSlug, "020", "security", "green", testSession, reviewer); err == nil {
 		t.Fatal("invalid review verdict should fail")
+	}
+	if _, err := RecordReview(root, testSlug, "020", "quality", "passed", testSession, nil); err == nil {
+		t.Fatal("review without provenance should fail at record time")
+	}
+	if _, err := RecordReview(root, testSlug, "020", "quality", "passed", testSession, &Provenance{Engine: "opencode", Session: "reviewer"}); err == nil {
+		t.Fatal("configurable reviewer without vendor/model/locality should fail")
+	}
+	if _, err := RecordReview(root, testSlug, "020", "quality", "passed", testSession, &Provenance{Engine: "codex", Vendor: "anthropic", Session: "reviewer"}); err == nil {
+		t.Fatal("reviewer provenance conflicting with fixed registry should fail")
 	}
 	commit := "abc123"
 	state, err := SetStatus(root, testSlug, "020", "passed", testSession, &commit)
@@ -110,7 +152,7 @@ func TestRecordGateReviewAndStatus(t *testing.T) {
 	if state.Gates["e2e"] != "pass" || state.Gates["typecheck"] != "fail" || state.Gates["tier"] != "full" {
 		t.Fatalf("gates = %#v", state.Gates)
 	}
-	if state.Reviews["security"] != "passed" || state.Reviews["quality"] != "failed" {
+	if state.Reviews["security"].Verdict != "passed" || state.Reviews["quality"].Verdict != "failed" {
 		t.Fatalf("reviews = %#v", state.Reviews)
 	}
 	if state.CompletedAt == nil || state.Commit == nil || *state.Commit != "abc123" {

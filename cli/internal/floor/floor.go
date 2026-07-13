@@ -10,6 +10,7 @@ import (
 
 	"mint/internal/docclassify"
 	"mint/internal/engine"
+	"mint/internal/execstate"
 	"mint/internal/scopematch"
 	"mint/internal/specschema"
 )
@@ -28,10 +29,13 @@ type Input struct {
 	Gates           *GateResult
 	Verdict         map[string]any
 	MakerEngine     string
+	MakerVendor     string
+	MakerModel      string
+	MakerLocality   string
 	MakerSession    string
 	TerminalState   string
 	RequiredReviews []string
-	Reviews         map[string]string
+	Reviews         map[string]execstate.Review
 }
 
 type GateResult struct {
@@ -157,15 +161,33 @@ func clauseMakerChecker(input Input) clauseVerdict {
 	if !engine.IsKnown(input.MakerEngine) {
 		return fail(fmt.Sprintf("makerEngine (%s) is not a recognized engine — cannot verify independence against an unknown maker engine; supply the real engine that produced the diff (%s)", input.MakerEngine, strings.Join(engine.Keys(), "|")))
 	}
+	checkerVendor, checkerModel, checkerLocality, err := verdictProvenance(input.Verdict)
+	if err != nil {
+		return fail("checker provenance invalid: " + err.Error())
+	}
+	checker, err := engine.ResolveProvenance(checkerEngine, checkerVendor, checkerModel, checkerLocality)
+	if err != nil {
+		return fail("checker provenance invalid: " + err.Error() + " — attach registry-valid byVendor/byModel/byLocality fields")
+	}
+	maker, err := engine.ResolveProvenance(input.MakerEngine, input.MakerVendor, input.MakerModel, input.MakerLocality)
+	if err != nil {
+		return fail("maker execution provenance invalid: " + err.Error() + " — initialize the unit from the maker run so execution.json records registry-valid engine/vendor/model/locality")
+	}
+	if requiredLocality(input.Spec) == "local" && (!engine.ProvesLocal(checker.Engine) || checker.Locality != "local") {
+		return fail(fmt.Sprintf("unit requires local-only checking, but mint cannot prove %s/%s ran locally from trusted execution or registry evidence (claimed locality: %s)", checker.Engine, checker.Model, checker.Locality))
+	}
 
 	if IsSafetyTier(input) {
-		if !sameProvenance(checkerEngine, input.MakerEngine) {
+		if !sameProvenance(checker.Vendor, maker.Vendor) {
 			return pass()
 		}
-		return fail(fmt.Sprintf("safety-tier diff requires a verdict from a DIFFERENT engine; verdict.byEngine (%s) === makerEngine (%s) — re-run acceptance on a different engine and re-attach the verdict", checkerEngine, input.MakerEngine))
+		return fail(fmt.Sprintf("safety-tier diff requires a DIFFERENT engine intelligence (a different model vendor); checker %s/%s and maker %s/%s both resolve to vendor %s — re-run acceptance with a different vendor and re-attach provenance", checker.Engine, checker.Model, maker.Engine, maker.Model, checker.Vendor))
 	}
-	if !sameProvenance(checkerEngine, input.MakerEngine) {
+	if !sameProvenance(checker.Vendor, maker.Vendor) {
 		return pass()
+	}
+	if !sameProvenance(checker.Engine, maker.Engine) {
+		return fail(fmt.Sprintf("different chassis do not establish independence when both resolve to model vendor %s (%s vs %s) — use a different vendor", checker.Vendor, checker.Engine, maker.Engine))
 	}
 	if !sameProvenance(checkerSession, input.MakerSession) {
 		if !engine.IsStrictSession(checkerSession) {
@@ -174,6 +196,36 @@ func clauseMakerChecker(input Input) clauseVerdict {
 		return pass()
 	}
 	return fail(fmt.Sprintf("verdict came from the maker's own engine+session (%s/%s) — re-run acceptance in a fresh session (or on a different engine) and re-attach", input.MakerEngine, input.MakerSession))
+}
+
+func verdictProvenance(verdict map[string]any) (string, string, string, error) {
+	return namedVerdictProvenance(verdict, "by")
+}
+
+func namedVerdictProvenance(verdict map[string]any, prefix string) (string, string, string, error) {
+	values := make([]string, 3)
+	for i, suffix := range []string{"Vendor", "Model", "Locality"} {
+		key := prefix + suffix
+		raw, exists := verdict[key]
+		if !exists {
+			continue
+		}
+		value, ok := raw.(string)
+		if !ok || strings.TrimSpace(value) == "" {
+			return "", "", "", fmt.Errorf("verdict.%s must be a non-empty string when supplied", key)
+		}
+		values[i] = value
+	}
+	return values[0], values[1], values[2], nil
+}
+
+func requiredLocality(spec string) string {
+	re := regexp.MustCompile(`(?is)<locality>\s*([^<]+?)\s*</locality>`)
+	match := re.FindStringSubmatch(spec)
+	if len(match) != 2 {
+		return ""
+	}
+	return engine.Canonical(match[1])
 }
 
 func clauseSafetyCarveOut(input Input) clauseVerdict {
@@ -266,19 +318,71 @@ func missingDeclaredReviews(input Input) string {
 	var unmet []string
 	var lenses []string
 	for _, lens := range required {
-		verdict, ok := input.Reviews[lens]
+		review, ok := input.Reviews[lens]
 		if !ok {
 			unmet = append(unmet, lens+" (not run)")
 			lenses = append(lenses, lens)
-		} else if verdict != "passed" {
-			unmet = append(unmet, lens+" ("+verdict+")")
+		} else if review.Verdict != "passed" {
+			unmet = append(unmet, lens+" ("+review.Verdict+")")
+			lenses = append(lenses, lens)
+		} else if reason := reviewIndependenceFailure(input, lens, review); reason != "" {
+			unmet = append(unmet, lens+" ("+reason+")")
 			lenses = append(lenses, lens)
 		}
 	}
 	if len(unmet) == 0 {
 		return ""
 	}
-	return "declared review(s) not satisfied: " + strings.Join(unmet, ", ") + " — the driver declared these review lenses (mint session set-reviews / spec <reviews>) and the floor requires each to have an attached PASSING verdict before done. Run them and record the result: mint review --<lens> for " + strings.Join(lenses, ",") + ", then mint exec record-review <slug> <spec-id> <lens> passed"
+	return "declared review(s) not satisfied: " + strings.Join(unmet, ", ") + " — each declared lens requires an independently attributable PASSING verdict. Run the review in an independent context, then record its registry-validated provenance: mint exec record-review <slug> <spec-id> <lens> passed --by-engine <engine> --by-session <session>"
+}
+
+func reviewIndependenceFailure(input Input, lens string, review execstate.Review) string {
+	p := review.Provenance
+	if strings.TrimSpace(p.Engine) == "" || strings.TrimSpace(p.Session) == "" {
+		return "unattributed"
+	}
+	if !engine.IsStrictSession(p.Session) {
+		return "invalid reviewer session"
+	}
+	checker, err := engine.ResolveProvenance(p.Engine, p.Vendor, p.Model, p.Locality)
+	if err != nil {
+		return "invalid reviewer provenance: " + err.Error()
+	}
+	if strings.TrimSpace(input.MakerEngine) == "" || strings.TrimSpace(input.MakerSession) == "" {
+		return "maker provenance unknown"
+	}
+	maker, err := engine.ResolveProvenance(input.MakerEngine, input.MakerVendor, input.MakerModel, input.MakerLocality)
+	if err != nil {
+		return "maker provenance invalid: " + err.Error()
+	}
+	if requiredLocality(input.Spec) == "local" && (!engine.ProvesLocal(checker.Engine) || checker.Locality != "local") {
+		return "local execution is not provable"
+	}
+	if isSafetyReviewLens(lens) {
+		if sameProvenance(checker.Vendor, maker.Vendor) {
+			return "safety review requires a different model vendor"
+		}
+		return ""
+	}
+	if !sameProvenance(checker.Vendor, maker.Vendor) {
+		return ""
+	}
+	if !sameProvenance(checker.Engine, maker.Engine) {
+		return "different chassis with the same vendor is not independent"
+	}
+	if sameProvenance(p.Session, input.MakerSession) {
+		return "maker's own engine+session"
+	}
+	return ""
+}
+
+func isSafetyReviewLens(lens string) bool {
+	switch engine.Canonical(lens) {
+	case "security", "trust-boundary", "accessibility", "data-loss", "safety":
+		return true
+	default:
+		return false
+	}
 }
 
 func isLogicTier(input Input) bool {

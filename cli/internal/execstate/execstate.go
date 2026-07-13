@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"mint/internal/atomic"
+	"mint/internal/engine"
 )
 
 type State struct {
@@ -16,7 +17,7 @@ type State struct {
 	StartedAt   string            `json:"startedAt"`
 	CompletedAt *string           `json:"completedAt"`
 	Gates       map[string]string `json:"gates"`
-	Reviews     map[string]string `json:"reviews"`
+	Reviews     map[string]Review `json:"reviews"`
 	Commit      *string           `json:"commit"`
 	Attempts    []Attempt         `json:"attempts"`
 	Maker       *Maker            `json:"maker,omitempty"`
@@ -27,9 +28,32 @@ type Attempt struct {
 	Note string `json:"note,omitempty"`
 }
 
-type Maker struct {
-	Engine  string `json:"engine,omitempty"`
-	Session string `json:"session,omitempty"`
+type Provenance struct {
+	Engine   string `json:"engine,omitempty"`
+	Vendor   string `json:"vendor,omitempty"`
+	Model    string `json:"model,omitempty"`
+	Locality string `json:"locality,omitempty"`
+	Session  string `json:"session,omitempty"`
+}
+
+type Maker = Provenance
+
+type Review struct {
+	Verdict    string     `json:"verdict"`
+	Provenance Provenance `json:"provenance"`
+}
+
+// UnmarshalJSON keeps old string-only review entries readable but unattributed.
+// They deliberately fail the floor until the review is re-run and overwritten
+// with registry-validated provenance; this is not a migration or a trust shim.
+func (r *Review) UnmarshalJSON(data []byte) error {
+	var legacy string
+	if err := json.Unmarshal(data, &legacy); err == nil {
+		r.Verdict = legacy
+		return nil
+	}
+	type plain Review
+	return json.Unmarshal(data, (*plain)(r))
 }
 
 var (
@@ -93,32 +117,39 @@ func Read(root, slug, specID, sessionID string) (*State, bool) {
 		state.Gates = map[string]string{}
 	}
 	if state.Reviews == nil {
-		state.Reviews = map[string]string{}
+		state.Reviews = map[string]Review{}
 	}
 	return &state, true
 }
 
 func Init(root, slug, specID, sessionID string, maker *Maker) (*State, error) {
+	if _, exists := Read(root, slug, specID, sessionID); exists {
+		return nil, fmt.Errorf("execution state for %s/%s is already initialized — maker provenance is write-once", slug, specID)
+	}
 	state := &State{
 		Status:    "running",
 		StartedAt: time.Now().UTC().Format(time.RFC3339Nano),
 		Gates:     map[string]string{},
-		Reviews:   map[string]string{},
+		Reviews:   map[string]Review{},
 		Attempts:  []Attempt{},
 	}
 	if maker != nil {
-		recorded := Maker{}
+		recorded := Maker{Session: strings.TrimSpace(maker.Session)}
 		if strings.TrimSpace(maker.Engine) != "" {
-			recorded.Engine = maker.Engine
-		}
-		if strings.TrimSpace(maker.Session) != "" {
-			recorded.Session = maker.Session
+			provenance, err := engine.ResolveExecutionProvenance(maker.Engine, maker.Vendor, maker.Model, maker.Locality)
+			if err != nil {
+				return nil, fmt.Errorf("invalid maker execution provenance: %w", err)
+			}
+			recorded.Engine = provenance.Engine
+			recorded.Vendor = provenance.Vendor
+			recorded.Model = provenance.Model
+			recorded.Locality = provenance.Locality
 		}
 		if recorded.Engine != "" || recorded.Session != "" {
 			state.Maker = &recorded
 		}
 	}
-	if err := write(root, slug, specID, sessionID, state); err != nil {
+	if err := writeNew(root, slug, specID, sessionID, state); err != nil {
 		return nil, err
 	}
 	return state, nil
@@ -142,18 +173,34 @@ func RecordGate(root, slug, specID, gate, result, sessionID string) (*State, err
 	return state, nil
 }
 
-func RecordReview(root, slug, specID, key, verdict, sessionID string) (*State, error) {
+func RecordReview(root, slug, specID, key, verdict, sessionID string, reviewer *Provenance) (*State, error) {
 	if strings.TrimSpace(key) == "" {
 		return nil, fmt.Errorf("Review key is required")
 	}
 	if !reviewVerdicts[verdict] {
 		return nil, fmt.Errorf("Invalid review verdict %q — expected one of passed, failed", verdict)
 	}
+	if reviewer == nil || strings.TrimSpace(reviewer.Engine) == "" || strings.TrimSpace(reviewer.Session) == "" {
+		return nil, fmt.Errorf("Review provenance is required — record which engine+session produced the review")
+	}
+	if !engine.IsStrictSession(reviewer.Session) {
+		return nil, fmt.Errorf("Invalid review session %q — expected visible ASCII session/ref characters", reviewer.Session)
+	}
+	provenance, err := engine.ResolveProvenance(reviewer.Engine, reviewer.Vendor, reviewer.Model, reviewer.Locality)
+	if err != nil {
+		return nil, fmt.Errorf("invalid review provenance: %w", err)
+	}
 	state, err := requireState(root, slug, specID, sessionID)
 	if err != nil {
 		return nil, err
 	}
-	state.Reviews[key] = verdict
+	state.Reviews[key] = Review{
+		Verdict: verdict,
+		Provenance: Provenance{
+			Engine: provenance.Engine, Vendor: provenance.Vendor, Model: provenance.Model,
+			Locality: provenance.Locality, Session: strings.TrimSpace(reviewer.Session),
+		},
+	}
 	if err := write(root, slug, specID, sessionID, state); err != nil {
 		return nil, err
 	}
@@ -192,4 +239,29 @@ func requireState(root, slug, specID, sessionID string) (*State, error) {
 
 func write(root, slug, specID, sessionID string, state *State) error {
 	return atomic.WriteJSON(Path(root, slug, specID, sessionID), state)
+}
+
+func writeNew(root, slug, specID, sessionID string, state *State) error {
+	path := Path(root, slug, specID, sessionID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	b = append(b, '\n')
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if os.IsExist(err) {
+		return fmt.Errorf("execution state for %s/%s is already initialized — maker provenance is write-once", slug, specID)
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(b); err != nil {
+		_ = f.Close()
+		_ = os.Remove(path)
+		return err
+	}
+	return f.Close()
 }

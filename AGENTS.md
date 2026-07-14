@@ -153,3 +153,56 @@ For each unit:
 6. Treat only a floor-clear terminal verdict as done.
 
 The shape flexes. The floor does not.
+
+## Worked example — clearing the floor on a real diff
+
+Abstract steps become concrete here. This is a safety-tier change (touches a trust
+boundary), made by one engine and independently verified by a *different vendor* — the
+clause-2/clause-3 bar. Exact flags live in `mint <cmd> --help`; what's fixed here is the
+*shape* and the verdict contract.
+
+```bash
+# 1. Define the unit. Bake gates/reviews from the session (or pass --scope/--acceptance).
+mint spec new "harden token check" --slug harden-auth \
+  --scope "src/auth/**" --acceptance "WHEN a token is empty, THE system SHALL reject it"
+
+# 2. Record WHO is making the diff. Maker identity is written once, here, from the
+#    maker's own context — never supplied later on the verdict a checker writes.
+mint exec init harden-auth 001 --maker-engine codex        # codex/OpenAI is the maker
+
+# 3. Do the work inside scope. Then get an INDEPENDENT verdict from a DIFFERENT context —
+#    and, for the safety carve-out, a different model VENDOR than the maker. (Here: a
+#    Claude/Anthropic reviewer verifies OpenAI's diff.) The reviewer adversarially checks
+#    the diff and hands back its judgment; you attach it, you do not author its verdict.
+
+# 4. Record each declared review lens with the reviewer's registry-valid provenance.
+mint exec record-review harden-auth 001 security passed \
+  --by-engine claude --by-vendor anthropic --by-model claude --by-locality remote \
+  --by-session <the-reviewer-session>
+
+# 5. Run the declared gates.
+mint verify harden-auth 001
+
+# 6. Route the done-decision through the floor with the acceptance verdict attached.
+mint done harden-auth 001 --verdict verdict.json --terminal done-verified
+```
+
+The **acceptance verdict** (`--verdict <path>`, default `.mint/verdicts/<slug>-<id>.json`)
+is the independent judgment mint checks for *provenance*, never content. Its contract:
+
+| field | when | meaning |
+|---|---|---|
+| `accepted` | always | `true` only if the diff meets acceptance. `false`/absent fails clause 1. |
+| `byEngine` | always | the engine that produced the verdict. Must be present and registry-known (`engine.IsKnown`); resolved against the compiled registry. |
+| `bySession` | always | the session that produced the verdict. Must be present; *not* registry-backed. It only matters in one clause-2 path: when checker and maker are the **same vendor and same engine**, a `bySession` that differs from the maker's (and is strict-ASCII) is what establishes independence. It does nothing when the checker is a different vendor (that already passes) — and a same-vendor *different-engine* verdict fails regardless of `bySession`. The precise decision tree is `clauseMakerChecker`; the safe reading is: a genuinely different vendor is the clean path, and re-using the maker's own engine needs a real fresh session. |
+| `byVendor`, `byModel`, `byLocality` | optional | resolved by engine *type*: for a **fixed** engine (e.g. `codex`, `claude`) they may be omitted, and if supplied must match the registry-pinned values; for a **configurable** chassis (e.g. `opencode`) they must be present and structurally valid (visible-ASCII vendor/model, locality `local`\|`remote`) but are *not* checked against a registry of allowed values. |
+| `adversarialReviewed` + `adversarialReason` | logic / trust / safety diff | attests someone tried to *break* the behavior; the reason must be substantive. |
+| `safetyReviewed` + `safetyReason` | safety carve-out (security / trust-boundary / accessibility / data-loss) | the matching independent safety review. |
+| `tamperingReviewed` + `tamperingReason` | only if a green looks gamed | acknowledges a flagged verifier/assertion change with a reason. |
+
+A *substantive* reason is at least 8 characters and contains a letter — a bare `"ok"` or
+`"true"` does not clear it. Provenance names the context that produced the work; mint
+registry-validates the *engine* (`byEngine`, and the vendor/model/locality of a fixed engine),
+checks maker-distinctness by comparing that resolved provenance against the maker's, and — as
+the **What "independent" means here** paragraph states — trusts that the named engine truly ran
+(identity is *declared*, not authenticated).

@@ -164,6 +164,13 @@ mint done <slug> <id>            # route the done-decision through the floor
 mint is a **floor, not a driver** — it does not run your loop, dispatch to engines, or hold a
 schedule. You (or your harness) sequence the work and call `mint done` at the terminal edge.
 
+The one part that isn't self-evident from `--help` is *how independence is proven*: you record
+who made the diff (`mint exec init --maker-engine`), attach a verdict from a genuinely
+independent context (a fresh session — or, for the safety carve-out, a different model vendor),
+and register each declared review lens with that reviewer's registry-valid provenance. The
+[worked example in `AGENTS.md`](AGENTS.md#worked-example--clearing-the-floor-on-a-real-diff)
+walks the full flow end to end and documents the `verdict.json` contract.
+
 Run `mint <command> --help` for any of them. The contract lists no menus and no version-pinned
 flags on purpose — a menu in prose rots; a pointer to `--help` does not.
 

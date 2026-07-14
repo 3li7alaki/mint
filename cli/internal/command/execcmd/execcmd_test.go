@@ -161,6 +161,96 @@ func TestWitnessRequiresSentinel(t *testing.T) {
 	}
 }
 
+func TestInitWitnessedRecordsBinaryResolvedMaker(t *testing.T) {
+	root := rootWithMint(t)
+	fakeEngineOnPath(t, "codex", 0)
+	// --maker-engine claude contradicts the spawned codex binary -> reject.
+	_, err := Run(root, []string{"init-witnessed", "feat", "001"},
+		Flags{Session: "sid-a", MakerEngine: "claude", CheckerCmd: []string{"codex", "exec"}},
+		&bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "conflicts with the spawned binary") {
+		t.Fatalf("conflicting --maker-engine should be rejected, got %v", err)
+	}
+	if _, ok := execstate.Read(root, "feat", "001", "sid-a"); ok {
+		t.Fatal("rejected init-witnessed must not create state")
+	}
+	// Drop the conflicting flag: the binary is the source of truth.
+	code, err := Run(root, []string{"init-witnessed", "feat", "001"},
+		Flags{Session: "sid-a", CheckerCmd: []string{"codex", "exec"}},
+		&bytes.Buffer{}, &bytes.Buffer{})
+	if err != nil || code != 0 {
+		t.Fatalf("init-witnessed code=%d err=%v", code, err)
+	}
+	state, ok := execstate.Read(root, "feat", "001", "sid-a")
+	if !ok || state.Maker == nil {
+		t.Fatalf("maker not recorded: %#v", state)
+	}
+	if state.Maker.Engine != "codex" || state.Maker.Vendor != "openai" {
+		t.Fatalf("maker not resolved from binary: %#v", state.Maker)
+	}
+	if state.Maker.Session != "sid-a" {
+		t.Fatalf("maker session = %q, want sid-a", state.Maker.Session)
+	}
+}
+
+func TestInitWitnessedRefusesUnknownBinary(t *testing.T) {
+	root := rootWithMint(t)
+	fakeEngineOnPath(t, "rogue", 0)
+	_, err := Run(root, []string{"init-witnessed", "feat", "001"},
+		Flags{Session: "sid-a", CheckerCmd: []string{"rogue"}},
+		&bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "no registry engine") {
+		t.Fatalf("unknown binary should be refused, got %v", err)
+	}
+	if _, ok := execstate.Read(root, "feat", "001", "sid-a"); ok {
+		t.Fatal("unknown binary manufactured a maker")
+	}
+}
+
+func TestInitWitnessedRefusesNonZeroMaker(t *testing.T) {
+	root := rootWithMint(t)
+	fakeEngineOnPath(t, "codex", 1)
+	_, err := Run(root, []string{"init-witnessed", "feat", "001"},
+		Flags{Session: "sid-a", CheckerCmd: []string{"codex"}},
+		&bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "exited non-zero") {
+		t.Fatalf("non-zero maker should be refused, got %v", err)
+	}
+	if _, ok := execstate.Read(root, "feat", "001", "sid-a"); ok {
+		t.Fatal("non-zero maker was recorded")
+	}
+}
+
+func TestInitWitnessedMakerIsWriteOnce(t *testing.T) {
+	root := rootWithMint(t)
+	fakeEngineOnPath(t, "codex", 0)
+	if code, err := Run(root, []string{"init-witnessed", "feat", "001"},
+		Flags{Session: "sid-a", CheckerCmd: []string{"codex"}},
+		&bytes.Buffer{}, &bytes.Buffer{}); err != nil || code != 0 {
+		t.Fatalf("first witnessed init failed: code=%d err=%v", code, err)
+	}
+	// A later typed init must NOT overwrite the witnessed maker — the observed
+	// identity is the trust anchor, and it is write-once.
+	_, err := Run(root, []string{"init", "feat", "001"},
+		Flags{Session: "sid-a", MakerEngine: "claude"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "write-once") {
+		t.Fatalf("typed init should not overwrite a witnessed maker, got %v", err)
+	}
+	state, _ := execstate.Read(root, "feat", "001", "sid-a")
+	if state.Maker.Engine != "codex" {
+		t.Fatalf("witnessed maker was overwritten: %#v", state.Maker)
+	}
+}
+
+func TestInitWitnessedRequiresSentinel(t *testing.T) {
+	root := rootWithMint(t)
+	_, err := Run(root, []string{"init-witnessed", "feat", "001"},
+		Flags{Session: "sid-a"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "no maker command") {
+		t.Fatalf("missing sentinel should fail, got %v", err)
+	}
+}
+
 func readReview(t *testing.T, root, slug, specID, sessionID, lens string) execstate.Review {
 	t.Helper()
 	state, ok := execstate.Read(root, slug, specID, sessionID)

@@ -32,7 +32,7 @@ type Flags struct {
 
 func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int, error) {
 	if len(args) == 0 {
-		fmt.Fprintln(stdout, "  Usage: mint exec init|record-gate|record-review|witness|set-status|status|reviews <slug> <spec-id> ...")
+		fmt.Fprintln(stdout, "  Usage: mint exec init|init-witnessed|record-gate|record-review|witness|set-status|status|reviews <slug> <spec-id> ...")
 		return 1, nil
 	}
 	if _, err := os.Stat(filepath.Join(root, ".mint")); err != nil {
@@ -59,6 +59,8 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 			return 1, err
 		}
 		return printJSON(stdout, state)
+	case "init-witnessed":
+		return runInitWitnessed(root, args, flags, stdout, stderr)
 	case "record-gate":
 		if len(args) < 5 {
 			return 1, fmt.Errorf("Usage: mint exec record-gate <slug> <spec-id> <gate> <result>")
@@ -137,7 +139,7 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		}
 		return printJSON(stdout, state.Reviews)
 	default:
-		fmt.Fprintln(stdout, "  Usage: mint exec init|record-gate|record-review|witness|set-status|status|reviews <slug> <spec-id> ...")
+		fmt.Fprintln(stdout, "  Usage: mint exec init|init-witnessed|record-gate|record-review|witness|set-status|status|reviews <slug> <spec-id> ...")
 		return 1, nil
 	}
 }
@@ -220,41 +222,110 @@ func runWitness(root string, args []string, flags Flags, stdout, stderr io.Write
 		return 1, err
 	}
 
-	// Spawn the checker directly (no shell) so argv[0] is the exact binary we
-	// reverse-resolved, and stream its output to the driver so they see it run.
-	cmd := exec.Command(flags.CheckerCmd[0], flags.CheckerCmd[1:]...)
-	cmd.Dir = root
-	cmd.Stdout = stderr
-	cmd.Stderr = stderr
-	runErr := cmd.Run()
-	verdict := "passed"
-	var exitErr *exec.ExitError
-	switch {
-	case runErr == nil:
-		verdict = "passed"
-	case errors.As(runErr, &exitErr):
-		verdict = "failed"
-	default:
-		// Could not spawn/observe the process (binary vanished, permission) —
-		// record nothing rather than a verdict we didn't witness.
+	// Spawn the checker and derive the verdict from its exit: clean=passed,
+	// non-zero=failed, unspawnable=record nothing (we didn't witness it).
+	clean, runErr := spawnObserved(root, flags.CheckerCmd, stderr)
+	if runErr != nil {
 		return 1, fmt.Errorf("could not run witnessed checker %q: %w", flags.CheckerCmd[0], runErr)
 	}
-
-	// Provenance comes from the observed engine. Fixed engines carry registry
-	// vendor/model/locality; a configurable chassis binary can't reveal its
-	// model, so witness still needs caller-declared --by-vendor/--by-model there.
-	reviewer := &execstate.Provenance{Engine: row.Key, Session: sessionID}
-	if row.Configurable {
-		reviewer.Vendor = flags.ByVendor
-		reviewer.Model = flags.ByModel
-		reviewer.Locality = flags.ByLocality
+	verdict := "failed"
+	if clean {
+		verdict = "passed"
 	}
+
+	reviewer := &execstate.Provenance{Engine: row.Key, Session: sessionID}
+	applyChassisProvenance(reviewer, row, flags)
 	state, err := execstate.RecordReview(root, slug, specID, lens, verdict, sessionID, reviewer)
 	if err != nil {
 		return 1, err
 	}
 	fmt.Fprintf(stderr, "witnessed %s: engine=%s verdict=%s\n", lens, row.Key, verdict)
 	return printJSON(stdout, state)
+}
+
+// runInitWitnessed is the maker-side mirror of runWitness: mint spawns the ONE
+// command the driver names to establish maker identity, resolves the maker
+// engine from the binary that actually ran (never a typed --maker-engine), and
+// records it into write-once execution state. It stays a notary — mint runs the
+// identity-establishing command, NOT the maker's iterative work-loop; the
+// harness still drives the real work. A clean exit is required (same fail-closed
+// stance as witness): a command that can't exit clean is not trustworthy
+// identity.
+func runInitWitnessed(root string, args []string, flags Flags, stdout, stderr io.Writer) (int, error) {
+	if len(args) < 3 {
+		return 1, fmt.Errorf("Usage: mint exec init-witnessed <slug> <spec-id> [--by-vendor <v> --by-model <m> --by-locality <local|remote>] -- <maker command...>")
+	}
+	slug, specID := args[1], args[2]
+	if flags.CheckerCmd == nil {
+		return 1, fmt.Errorf("no maker command — put the maker after `--`, e.g. mint exec init-witnessed %s %s -- codex exec ...", slug, specID)
+	}
+	if len(flags.CheckerCmd) == 0 {
+		return 1, fmt.Errorf("empty maker command after `--`")
+	}
+
+	row, ok := engine.ByBinary(flags.CheckerCmd[0])
+	if !ok {
+		return 1, fmt.Errorf("maker binary %q resolves to no registry engine — init-witnessed only records a maker for a recognized engine", flags.CheckerCmd[0])
+	}
+	if e := strings.TrimSpace(flags.MakerEngine); e != "" && !engine.SameEngine(e, row.Key) {
+		return 1, fmt.Errorf("--maker-engine %q conflicts with the spawned binary, which resolves to engine %q — init-witnessed records the engine that runs", e, row.Key)
+	}
+
+	// init creates the unit, so resolve a session for a brand-new unit.
+	sessionID, err := newUnitSessionID(root, flags.Session)
+	if err != nil {
+		return 1, err
+	}
+
+	clean, runErr := spawnObserved(root, flags.CheckerCmd, stderr)
+	if runErr != nil {
+		return 1, fmt.Errorf("could not run witnessed maker %q: %w", flags.CheckerCmd[0], runErr)
+	}
+	if !clean {
+		return 1, fmt.Errorf("witnessed maker %q exited non-zero — refusing to record an identity from a command that could not exit clean", flags.CheckerCmd[0])
+	}
+
+	maker := &execstate.Maker{Engine: row.Key, Session: sessionID}
+	applyChassisProvenance(maker, row, flags)
+	state, err := execstate.Init(root, slug, specID, sessionID, maker)
+	if err != nil {
+		return 1, err
+	}
+	fmt.Fprintf(stderr, "witnessed maker: engine=%s\n", row.Key)
+	return printJSON(stdout, state)
+}
+
+// spawnObserved runs cmd directly (no shell) so argv[0] is the exact binary the
+// caller resolved through engine.ByBinary, streaming output to out so the driver
+// sees it run. Returns (true, nil) on a clean exit, (false, nil) on a non-zero
+// exit, and (false, err) when the process could not be spawned or observed at
+// all — the caller must record nothing in that last case.
+func spawnObserved(root string, argv []string, out io.Writer) (bool, error) {
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Dir = root
+	cmd.Stdout = out
+	cmd.Stderr = out
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return false, nil
+	}
+	return false, err
+}
+
+// applyChassisProvenance fills caller-declared vendor/model/locality only for a
+// configurable chassis, whose binary can't reveal the model behind it. A fixed
+// engine's provenance comes from the registry, so its fields stay empty and are
+// resolved downstream.
+func applyChassisProvenance(p *execstate.Provenance, row engine.Row, flags Flags) {
+	if row.Configurable {
+		p.Vendor = flags.ByVendor
+		p.Model = flags.ByModel
+		p.Locality = flags.ByLocality
+	}
 }
 
 func printJSON(stdout io.Writer, value any) (int, error) {

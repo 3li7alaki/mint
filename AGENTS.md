@@ -121,14 +121,28 @@ configurable chassis (`opencode`) binary proves the *chassis* ran, not which mod
 witness there still needs a caller-declared `--by-vendor`/`--by-model` it cannot observe; (c) a
 *rigged prompt* the driver feeds the real checker ("reply accepted") still passes — mint proves
 the engine ran, not that it saw the diff, and closing that would mean mint composing the prompt,
-which *is* harness territory and is deliberately not crossed. The maker side is still typed:
-authenticating the maker (a signed attestation, or minting through the same witnessed spawn)
-remains an open, deliberately-unshipped decision. Until then: the floor stops gaming and
-accident everywhere, and — for any review you witness — raises the checker bar from *typing an
-engine name that never ran* to *having a process by that binary name actually run and exit
-clean*. A determined actor can still defeat that by putting a renamed or wrapper binary named
-`codex` on `PATH` (limit (a)) — witness does not authenticate the process behind the name — so
-it closes the accidental and the lazy forgery, not the deliberate one.
+which *is* harness territory and is deliberately not crossed.
+
+**`mint exec init-witnessed` does the same for the maker.** The maker is typed by default at
+`mint exec init --maker-engine <X>`, but a driver that wants maker identity to be *observed*
+rather than declared runs `mint exec init-witnessed <slug> <spec-id> -- <maker command…>`: mint
+spawns that one command, reverse-resolves the maker engine from the binary that ran, and records
+it into write-once execution state — never from a typed `--maker-engine` (a conflicting flag is
+rejected). It is the maker-side mirror of witness and keeps mint a **notary, not a harness**:
+mint runs the single command the driver names to *establish identity*, not the maker's iterative
+work-loop — the harness still drives the real work. This holds mint to the rule that it is a tool
+harnesses use, never a harness itself; the strong-fix alternative (mint owning the maker's loop)
+is deliberately not built. The same three limits apply: it proves a *binary named* codex ran
+(not a renamed/wrapper spoof); a configurable chassis still needs caller-declared
+`--by-vendor`/`--by-model`; and because mint spawns only the identity-establishing command, a
+driver can run the real work elsewhere — closing *that* would again mean mint owning the loop.
+
+Until a signed attestation exists, the floor stops gaming and accident everywhere, and — for any
+review you witness or maker you init-witnessed — raises the identity bar from *typing an engine
+name that never ran* to *having a process by that binary name actually run and exit clean*. A
+determined actor can still defeat that by putting a renamed or wrapper binary named `codex` on
+`PATH` (limit (a)) — mint does not authenticate the process behind the name — so witnessing
+closes the accidental and the lazy forgery, not the deliberate one.
 
 **When `done` FAILS, re-mint the spec — don't patch the work.** A failed `done` appends a note
 keyed to the spec (`done-fail-<slug>-<id>`) naming the clause that failed and why; retries
@@ -192,6 +206,9 @@ mint spec new "harden token check" --slug harden-auth \
 # 2. Record WHO is making the diff. Maker identity is written once, here, from the
 #    maker's own context — never supplied later on the verdict a checker writes.
 mint exec init harden-auth 001 --maker-engine codex        # codex/OpenAI is the maker
+#    STRONGER TIER — let mint observe the maker engine from the process instead of
+#    trusting the flag (identity comes from the spawned binary, not --maker-engine):
+# mint exec init-witnessed harden-auth 001 -- codex exec "<establish maker identity>"
 
 # 3. Do the work inside scope. Then get an INDEPENDENT verdict from a DIFFERENT context —
 #    and, for the safety carve-out, a different model VENDOR than the maker. (Here: a

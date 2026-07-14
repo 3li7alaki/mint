@@ -35,7 +35,16 @@ func GetSessionsDir(root string) string {
 	return filepath.Join(root, sessionsDir)
 }
 
+// Path is the single chokepoint for a session's state file. It returns "" for a
+// non-literal sessionID so every caller that reads, writes, or deletes through
+// it fails closed on a traversal attempt (os.ReadFile/os.Remove("") error;
+// atomic writers reject it) rather than resolving a path outside the sessions
+// dir. Callers still validate up front for a clear error, but this guarantees
+// no future caller can bypass the guard.
 func Path(root, sessionID string) string {
+	if !atomic.IsLiteralSegment(sessionID) {
+		return ""
+	}
 	return filepath.Join(GetSessionsDir(root), sessionID+".json")
 }
 
@@ -50,6 +59,9 @@ func ReadCapturedID(root string) string {
 // WriteCapturedID pins the current session so bare commands (exec, done, spec)
 // resolve to it instead of minting a fresh id per invocation.
 func WriteCapturedID(root, sessionID string) error {
+	if !atomic.IsLiteralSegment(sessionID) {
+		return fmt.Errorf("invalid session %q — must be a single path segment (no empty, '.', '..', or path separator)", sessionID)
+	}
 	if err := os.MkdirAll(GetSessionsDir(root), 0o755); err != nil {
 		return err
 	}
@@ -77,6 +89,9 @@ func WriteState(root string, sessionID string, state State) error {
 		}
 		sessionID = id
 	}
+	if !atomic.IsLiteralSegment(sessionID) {
+		return fmt.Errorf("invalid session %q — must be a single path segment (no empty, '.', '..', or path separator)", sessionID)
+	}
 	if _, err := gitignore.Ensure(root, nil); err != nil {
 		return err
 	}
@@ -95,7 +110,7 @@ func ReadState(root string, sessionID string) (State, bool) {
 	if sessionID == "" {
 		sessionID = ReadCapturedID(root)
 	}
-	if sessionID == "" {
+	if sessionID == "" || !atomic.IsLiteralSegment(sessionID) {
 		return nil, false
 	}
 	b, err := os.ReadFile(Path(root, sessionID))
@@ -113,7 +128,7 @@ func DeleteState(root string, sessionID string) bool {
 	if sessionID == "" {
 		sessionID = ReadCapturedID(root)
 	}
-	if sessionID == "" {
+	if !atomic.IsLiteralSegment(sessionID) {
 		return false
 	}
 	return os.Remove(Path(root, sessionID)) == nil

@@ -78,7 +78,7 @@ func OwningSessions(root, slug, specID string) []string {
 	// metacharacters ('*', '?', '[') would mis-match or error them into a wrong
 	// zero-owner fallthrough. os.ReadDir yields names in sorted order, so owners
 	// come out deterministic.
-	if !isLiteralSegment(slug) || !isLiteralSegment(specID) {
+	if !IsLiteralSegment(slug) || !IsLiteralSegment(specID) {
 		return nil // path-traversal / separator in an identifier — no owner
 	}
 	entries, err := os.ReadDir(filepath.Join(root, ".mint", "tasks"))
@@ -97,14 +97,28 @@ func OwningSessions(root, slug, specID string) []string {
 	return owners
 }
 
-// isLiteralSegment rejects identifiers that aren't a single, in-place path
-// segment — empty, "." / "..", or anything with a separator — so a crafted
-// slug/specID can't escape .mint/tasks/<session>/ during ownership resolution.
-func isLiteralSegment(s string) bool {
-	return s != "" && s != "." && s != ".." && !strings.ContainsRune(s, '/') && !strings.ContainsRune(s, filepath.Separator)
+// IsLiteralSegment rejects identifiers that aren't a single, in-place path
+// segment, so a crafted slug/specID/sessionID can't escape .mint/tasks/ when a
+// command joins them into a read/write path (Path joins sessionID/slug/specID,
+// so all three are traversal-controlling). It delegates to the shared primitive
+// in atomic so session and execstate enforce identical rules.
+func IsLiteralSegment(s string) bool {
+	return atomic.IsLiteralSegment(s)
+}
+
+// validateSegments fails closed when any path-controlling identifier is not a
+// literal segment. Every execstate filesystem boundary routes through it.
+func validateSegments(slug, specID, sessionID string) error {
+	if !IsLiteralSegment(slug) || !IsLiteralSegment(specID) || !IsLiteralSegment(sessionID) {
+		return fmt.Errorf("invalid slug/spec-id/session %q/%q/%q — each must be a single path segment (no empty, '.', '..', or path separator)", slug, specID, sessionID)
+	}
+	return nil
 }
 
 func Read(root, slug, specID, sessionID string) (*State, bool) {
+	if !IsLiteralSegment(slug) || !IsLiteralSegment(specID) || !IsLiteralSegment(sessionID) {
+		return nil, false // hostile identifier — never resolve to a state
+	}
 	b, err := os.ReadFile(Path(root, slug, specID, sessionID))
 	if err != nil {
 		return nil, false
@@ -123,8 +137,11 @@ func Read(root, slug, specID, sessionID string) (*State, bool) {
 }
 
 func Init(root, slug, specID, sessionID string, maker *Maker) (*State, error) {
-	if _, exists := Read(root, slug, specID, sessionID); exists {
-		return nil, fmt.Errorf("execution state for %s/%s is already initialized — maker provenance is write-once", slug, specID)
+	if err := validateSegments(slug, specID, sessionID); err != nil {
+		return nil, err
+	}
+	if existing, exists := Read(root, slug, specID, sessionID); exists {
+		return upgradeMaker(root, slug, specID, sessionID, existing, maker)
 	}
 	state := &State{
 		Status:    "running",
@@ -133,26 +150,75 @@ func Init(root, slug, specID, sessionID string, maker *Maker) (*State, error) {
 		Reviews:   map[string]Review{},
 		Attempts:  []Attempt{},
 	}
-	if maker != nil {
-		recorded := Maker{Session: strings.TrimSpace(maker.Session)}
-		if strings.TrimSpace(maker.Engine) != "" {
-			provenance, err := engine.ResolveExecutionProvenance(maker.Engine, maker.Vendor, maker.Model, maker.Locality)
-			if err != nil {
-				return nil, fmt.Errorf("invalid maker execution provenance: %w", err)
-			}
-			recorded.Engine = provenance.Engine
-			recorded.Vendor = provenance.Vendor
-			recorded.Model = provenance.Model
-			recorded.Locality = provenance.Locality
-		}
-		if recorded.Engine != "" || recorded.Session != "" {
-			state.Maker = &recorded
-		}
+	resolved, err := resolveMaker(maker)
+	if err != nil {
+		return nil, err
 	}
+	state.Maker = resolved
 	if err := writeNew(root, slug, specID, sessionID, state); err != nil {
 		return nil, err
 	}
 	return state, nil
+}
+
+// resolveMaker snapshots caller-supplied maker provenance against the registry,
+// returning nil when nothing identifying was supplied.
+func resolveMaker(maker *Maker) (*Maker, error) {
+	if maker == nil {
+		return nil, nil
+	}
+	recorded := Maker{Session: strings.TrimSpace(maker.Session)}
+	if strings.TrimSpace(maker.Engine) != "" {
+		provenance, err := engine.ResolveExecutionProvenance(maker.Engine, maker.Vendor, maker.Model, maker.Locality)
+		if err != nil {
+			return nil, fmt.Errorf("invalid maker execution provenance: %w", err)
+		}
+		recorded.Engine = provenance.Engine
+		recorded.Vendor = provenance.Vendor
+		recorded.Model = provenance.Model
+		recorded.Locality = provenance.Locality
+	}
+	if recorded.Engine == "" && recorded.Session == "" {
+		return nil, nil
+	}
+	return &recorded, nil
+}
+
+// upgradeMaker fills maker provenance on an existing state that has none — the
+// case where verify/done auto-created a maker-less execution.json before the
+// unit ran `exec init`. A state that already records a maker engine is
+// write-once and refuses to be overwritten. An exclusive lock serializes the
+// check-then-write so two concurrent upgrades can't both observe "no maker" and
+// last-writer-win over a freshly recorded maker (the write-once invariant is a
+// trust boundary, so it must hold under a race, not just sequential calls).
+func upgradeMaker(root, slug, specID, sessionID string, existing *State, maker *Maker) (*State, error) {
+	unlock, err := lockUnit(root, slug, specID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	// Re-read under the lock: another upgrade may have recorded a maker between
+	// the caller's Read and our acquiring the lock.
+	if fresh, ok := Read(root, slug, specID, sessionID); ok {
+		existing = fresh
+	}
+	if existing.Maker != nil && strings.TrimSpace(existing.Maker.Engine) != "" {
+		return nil, fmt.Errorf("execution state for %s/%s is already initialized — maker provenance is write-once", slug, specID)
+	}
+	resolved, err := resolveMaker(maker)
+	if err != nil {
+		return nil, err
+	}
+	if resolved == nil || resolved.Engine == "" {
+		// Nothing to record and nothing recorded yet — a maker-less re-init
+		// (e.g. verify re-running). Leave the placeholder untouched.
+		return existing, nil
+	}
+	existing.Maker = resolved
+	if err := write(root, slug, specID, sessionID, existing); err != nil {
+		return nil, err
+	}
+	return existing, nil
 }
 
 func RecordGate(root, slug, specID, gate, result, sessionID string) (*State, error) {
@@ -238,10 +304,16 @@ func requireState(root, slug, specID, sessionID string) (*State, error) {
 }
 
 func write(root, slug, specID, sessionID string, state *State) error {
+	if err := validateSegments(slug, specID, sessionID); err != nil {
+		return err
+	}
 	return atomic.WriteJSON(Path(root, slug, specID, sessionID), state)
 }
 
 func writeNew(root, slug, specID, sessionID string, state *State) error {
+	if err := validateSegments(slug, specID, sessionID); err != nil {
+		return err
+	}
 	path := Path(root, slug, specID, sessionID)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -264,4 +336,36 @@ func writeNew(root, slug, specID, sessionID string, state *State) error {
 		return err
 	}
 	return f.Close()
+}
+
+// lockUnit acquires an exclusive per-unit lock via an O_EXCL lockfile so a
+// check-then-write (the maker upgrade) is serialized against a concurrent one.
+// It retries briefly on contention, then fails closed rather than proceeding
+// unlocked. The returned func releases the lock.
+func lockUnit(root, slug, specID, sessionID string) (func(), error) {
+	if err := validateSegments(slug, specID, sessionID); err != nil {
+		return nil, err
+	}
+	lockPath := Path(root, slug, specID, sessionID) + ".lock"
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
+		return nil, err
+	}
+	for attempt := 0; attempt < 100; attempt++ {
+		f, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err == nil {
+			_ = f.Close()
+			return func() { _ = os.Remove(lockPath) }, nil
+		}
+		if !os.IsExist(err) {
+			return nil, err
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	// Fail closed. We never age-out and reclaim a lock: a "stale" heuristic is
+	// itself fail-open — a live-but-paused holder (GC/SIGSTOP/scheduler stall)
+	// would let a waiter unlink its lock and both proceed, defeating the
+	// write-once serialization this lock exists to guarantee. A lock orphaned by
+	// a killed process is a rare, self-evident manual cleanup ("rm <unit>.lock"),
+	// not a reason to weaken the invariant.
+	return nil, fmt.Errorf("could not acquire execution lock for %s/%s — another init is in progress (if a prior run was killed, remove the stale %s.lock)", slug, specID, Path(root, slug, specID, sessionID))
 }

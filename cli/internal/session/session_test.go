@@ -8,6 +8,36 @@ import (
 	"time"
 )
 
+func TestSessionStateRejectsTraversalIDs(t *testing.T) {
+	root := t.TempDir()
+	// A file one level above the sessions dir that a traversal id would target.
+	victim := filepath.Join(root, "escape.json")
+	if err := os.WriteFile(victim, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"..", ".", "a/b", "../../escape", "../escape"} {
+		if err := WriteState(root, bad, State{"x": 1}); err == nil {
+			t.Fatalf("WriteState accepted hostile session %q", bad)
+		}
+		if err := WriteCapturedID(root, bad); err == nil {
+			t.Fatalf("WriteCapturedID accepted hostile session %q", bad)
+		}
+		if _, ok := ReadState(root, bad); ok {
+			t.Fatalf("ReadState resolved hostile session %q", bad)
+		}
+		if DeleteState(root, bad) {
+			t.Fatalf("DeleteState acted on hostile session %q", bad)
+		}
+		if p := Path(root, bad); p != "" {
+			t.Fatalf("Path returned a resolvable path for hostile session %q: %q", bad, p)
+		}
+	}
+	// The traversal target must be untouched: not created, not deleted.
+	if b, err := os.ReadFile(victim); err != nil || string(b) != "keep" {
+		t.Fatalf("hostile session id reached a file outside .mint/sessions (err=%v content=%q)", err, b)
+	}
+}
+
 func TestSessionPathsAndCapturedID(t *testing.T) {
 	root := t.TempDir()
 	if got := GetSessionsDir(root); got != filepath.Join(root, ".mint", "sessions") {

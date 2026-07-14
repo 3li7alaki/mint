@@ -22,8 +22,6 @@ type BuildOptions struct {
 	SpecID        string
 	VerdictPath   string
 	TerminalState string
-	MakerEngine   string
-	MakerSession  string
 	SessionID     string
 	Base          string
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"mint/internal/atomic"
+	"mint/internal/execstate"
 	"mint/internal/gitignore"
 	"mint/internal/session"
 	"mint/internal/specschema"
@@ -124,6 +125,12 @@ func New(root, title string, flags Flags) (NewResult, error) {
 	}
 	if slug == "" {
 		return NewResult{}, fmt.Errorf("Could not derive a slug from the title - pass --slug")
+	}
+	if !execstate.IsLiteralSegment(slug) {
+		return NewResult{}, fmt.Errorf("invalid slug %q - must be a single path segment (no empty, '.', '..', or path separator)", slug)
+	}
+	if !execstate.IsLiteralSegment(sessionID) {
+		return NewResult{}, fmt.Errorf("invalid session %q - must be a single path segment (no empty, '.', '..', or path separator)", sessionID)
 	}
 
 	dir := filepath.Join(root, ".mint", "tasks", sessionID, slug)

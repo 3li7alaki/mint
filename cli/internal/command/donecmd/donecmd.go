@@ -16,24 +16,25 @@ import (
 )
 
 type Flags struct {
-	Verdict      string
-	Terminal     string
-	MakerEngine  string
-	MakerSession string
-	Session      string
-	Spec         string
-	Base         string
-	JSON         bool
+	Verdict  string
+	Terminal string
+	Session  string
+	Spec     string
+	Base     string
+	JSON     bool
 }
 
 func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int, error) {
 	if len(args) < 2 {
-		return 1, fmt.Errorf("Usage: mint done <slug> <spec-id> [--verdict <path>] [--terminal <state>] [--maker-engine <e>] [--maker-session <s>] [--session <id>] [--spec <path>] [--base <ref>] [--json]")
+		return 1, fmt.Errorf("Usage: mint done <slug> <spec-id> [--verdict <path>] [--terminal <state>] [--session <id>] [--spec <path>] [--base <ref>] [--json]")
 	}
 	if _, err := os.Stat(filepath.Join(root, ".mint")); err != nil {
 		return 1, fmt.Errorf("No mint session here - run `mint session new` first")
 	}
 	slug, specID := args[0], args[1]
+	if !execstate.IsLiteralSegment(slug) || !execstate.IsLiteralSegment(specID) {
+		return 1, fmt.Errorf("invalid slug/spec-id %q/%q — each must be a single path segment (no empty, '.', '..', or path separator)", slug, specID)
+	}
 	sessionID, err := resolveSessionID(root, slug, specID, flags.Session)
 	if err != nil {
 		return 1, err
@@ -48,7 +49,6 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 	} else if !filepath.IsAbs(verdictPath) {
 		verdictPath = filepath.Join(root, verdictPath)
 	}
-	makerEngine, makerSession := ResolveMaker(root, slug, specID, sessionID, flags)
 	terminalState := flags.Terminal
 
 	input, err := floor.BuildInput(root, floor.BuildOptions{
@@ -57,8 +57,6 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		SpecID:        specID,
 		VerdictPath:   verdictPath,
 		TerminalState: terminalState,
-		MakerEngine:   makerEngine,
-		MakerSession:  makerSession,
 		SessionID:     sessionID,
 		Base:          flags.Base,
 	})
@@ -112,24 +110,6 @@ func ResolveSpecPath(root, slug, specID, sessionID, explicit string) (string, er
 	return "", fmt.Errorf("Could not resolve a spec for %s/%s under %s - pass --spec <path>", slug, specID, dir)
 }
 
-func ResolveMaker(root, slug, specID, sessionID string, flags Flags) (string, string) {
-	state, ok := execstate.Read(root, slug, specID, sessionID)
-	makerEngine := flags.MakerEngine
-	makerSession := flags.MakerSession
-	if ok && state.Maker != nil {
-		if strings.TrimSpace(state.Maker.Engine) != "" {
-			makerEngine = state.Maker.Engine
-		}
-		if strings.TrimSpace(state.Maker.Session) != "" {
-			makerSession = state.Maker.Session
-		}
-	}
-	if strings.TrimSpace(makerSession) == "" {
-		makerSession = sessionID
-	}
-	return makerEngine, makerSession
-}
-
 func FormatReport(result floor.Result) string {
 	headline := "PASS - floor clean, done"
 	if !result.Pass {
@@ -159,6 +139,9 @@ func FormatReport(result floor.Result) string {
 // never be satisfied.
 func resolveSessionID(root, slug, specID, explicit string) (string, error) {
 	if id := strings.TrimSpace(explicit); id != "" {
+		if !execstate.IsLiteralSegment(id) {
+			return "", fmt.Errorf("invalid session %q — must be a single path segment (no empty, '.', '..', or path separator)", id)
+		}
 		return id, nil
 	}
 	switch owners := execstate.OwningSessions(root, slug, specID); len(owners) {

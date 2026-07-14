@@ -114,11 +114,12 @@ func TestBuildInputMakerProvenanceComesOnlyFromExecutionState(t *testing.T) {
 	}
 	input, err := BuildInput(root, BuildOptions{
 		SpecPath: specPath, Slug: "feat", SpecID: "maker", SessionID: "sess-maker", VerdictPath: verdictPath,
-		MakerEngine: "claude", MakerSession: "forged-option",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Maker provenance is read only from execution.json (codex), never from the
+	// verdict's forged makerVendor/makerModel/makerLocality claims.
 	if input.MakerEngine != "codex" || input.MakerVendor != "openai" || input.MakerModel != "gpt" || input.MakerLocality != "remote" || input.MakerSession != "maker" {
 		t.Fatalf("maker provenance was not loaded from execution state: %#v", input)
 	}

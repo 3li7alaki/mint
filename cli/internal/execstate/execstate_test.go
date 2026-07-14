@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -241,6 +242,111 @@ func readRaw(t *testing.T, root, specID string) map[string]any {
 		t.Fatal(err)
 	}
 	return raw
+}
+
+func TestInitRejectsTraversalIdentifiers(t *testing.T) {
+	root := t.TempDir()
+	for _, id := range []string{"..", ".", "", "a/b", "../escape"} {
+		if _, err := Init(root, id, "001", testSession, nil); err == nil {
+			t.Fatalf("Init accepted hostile slug %q", id)
+		}
+		if _, err := Init(root, testSlug, id, testSession, nil); err == nil {
+			t.Fatalf("Init accepted hostile spec-id %q", id)
+		}
+	}
+	// A traversal identifier must not have written anything under .mint/tasks.
+	if entries, _ := os.ReadDir(filepath.Join(root, ".mint", "tasks", testSession)); len(entries) != 0 {
+		t.Fatalf("hostile identifier wrote state: %#v", entries)
+	}
+}
+
+func TestMutatorsRejectTraversalIdentifiers(t *testing.T) {
+	root := t.TempDir()
+	// Path joins sessionID/slug/specID, so all three are traversal-controlling.
+	// No mutation entry point may accept a hostile value in ANY of the three
+	// positions, and Init must refuse them too.
+	hostile := []string{"..", ".", "", "a/b", "../../escape"}
+	for _, bad := range hostile {
+		for _, pos := range []struct{ slug, specID, session string }{
+			{bad, "001", testSession},
+			{testSlug, bad, testSession},
+			{testSlug, "001", bad},
+		} {
+			if _, err := Init(root, pos.slug, pos.specID, pos.session, &Maker{Engine: "codex", Session: "s"}); err == nil {
+				t.Fatalf("Init accepted hostile identifier %q/%q/%q", pos.slug, pos.specID, pos.session)
+			}
+			if _, err := RecordGate(root, pos.slug, pos.specID, "tests", "pass", pos.session); err == nil {
+				t.Fatalf("RecordGate accepted hostile identifier %q/%q/%q", pos.slug, pos.specID, pos.session)
+			}
+			if _, err := RecordReview(root, pos.slug, pos.specID, "security", "passed", pos.session, &Provenance{Engine: "codex", Session: "s"}); err == nil {
+				t.Fatalf("RecordReview accepted hostile identifier %q/%q/%q", pos.slug, pos.specID, pos.session)
+			}
+			if _, err := SetStatus(root, pos.slug, pos.specID, "passed", pos.session, nil); err == nil {
+				t.Fatalf("SetStatus accepted hostile identifier %q/%q/%q", pos.slug, pos.specID, pos.session)
+			}
+		}
+	}
+	// A traversal target one level above root must never be created.
+	if _, err := os.Stat(filepath.Join(root, "..", "escape")); err == nil {
+		t.Fatal("hostile identifier escaped the repo root")
+	}
+}
+
+func TestConcurrentMakerUpgradeStaysWriteOnce(t *testing.T) {
+	root := t.TempDir()
+	if _, err := Init(root, testSlug, "020", testSession, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Two concurrent upgrades race to fill the maker-less placeholder. Exactly
+	// one must win; the other must see write-once, never last-writer-win.
+	engines := []string{"codex", "claude"}
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	for i := range engines {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, errs[i] = Init(root, testSlug, "020", testSession, &Maker{Engine: engines[i], Session: "s"})
+		}(i)
+	}
+	wg.Wait()
+	wins, writeOnce := 0, 0
+	for _, err := range errs {
+		if err == nil {
+			wins++
+		} else if strings.Contains(err.Error(), "write-once") {
+			writeOnce++
+		} else {
+			t.Fatalf("unexpected upgrade error: %v", err)
+		}
+	}
+	if wins != 1 || writeOnce != 1 {
+		t.Fatalf("concurrent upgrade not write-once: wins=%d writeOnce=%d", wins, writeOnce)
+	}
+	state, _ := Read(root, testSlug, "020", testSession)
+	if state.Maker == nil || state.Maker.Engine == "" {
+		t.Fatalf("no maker recorded after race: %#v", state)
+	}
+}
+
+func TestInitUpgradesMakerLessPlaceholder(t *testing.T) {
+	root := t.TempDir()
+	// verify/done create a maker-less placeholder before exec init runs.
+	if _, err := Init(root, testSlug, "010", testSession, nil); err != nil {
+		t.Fatal(err)
+	}
+	// A later init records the real maker instead of failing write-once.
+	state, err := Init(root, testSlug, "010", testSession, &Maker{Engine: "codex", Session: "maker"})
+	if err != nil {
+		t.Fatalf("maker-less placeholder was not upgradable: %v", err)
+	}
+	if state.Maker == nil || state.Maker.Engine != "codex" || state.Maker.Vendor != "openai" {
+		t.Fatalf("maker not recorded on upgrade: %#v", state.Maker)
+	}
+	// Once a real maker is recorded, it is write-once again.
+	if _, err := Init(root, testSlug, "010", testSession, &Maker{Engine: "claude", Session: "checker"}); err == nil || !strings.Contains(err.Error(), "write-once") {
+		t.Fatalf("recorded maker was not write-once after upgrade: %v", err)
+	}
 }
 
 func containsPath(path, sub string) bool {

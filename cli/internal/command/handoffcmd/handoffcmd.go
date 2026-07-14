@@ -41,6 +41,9 @@ func Run(root string, args []string, flags Flags, stdout io.Writer) (int, error)
 	if sessionID == "" {
 		return 1, fmt.Errorf("No session selected - pass a session id")
 	}
+	if !execstate.IsLiteralSegment(sessionID) {
+		return 1, fmt.Errorf("invalid session %q — must be a single path segment (no empty, '.', '..', or path separator)", sessionID)
+	}
 	state, _ := session.ReadState(root, sessionID)
 	specs := FindSpecs(root, sessionID)
 	seed := Build(root, sessionID, state, specs, flags.Notes)

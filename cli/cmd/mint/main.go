@@ -191,18 +191,6 @@ func parseDoneArgs(args []string) ([]string, donecmd.Flags, error) {
 			}
 			flags.Terminal = args[i+1]
 			i++
-		case "--maker-engine":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--maker-engine requires a value")
-			}
-			flags.MakerEngine = args[i+1]
-			i++
-		case "--maker-session":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--maker-session requires a value")
-			}
-			flags.MakerSession = args[i+1]
-			i++
 		case "--session":
 			if i+1 >= len(args) {
 				return nil, flags, fmt.Errorf("--session requires a value")
@@ -443,7 +431,11 @@ func parseSpecArgs(args []string) ([]string, speccmd.Flags, error) {
 			if i+1 >= len(args) {
 				return nil, flags, fmt.Errorf("--acceptance requires a value")
 			}
-			flags.Acceptance = args[i+1]
+			if flags.Acceptance == "" {
+				flags.Acceptance = args[i+1]
+			} else {
+				flags.Acceptance += "\n" + args[i+1]
+			}
 			i++
 		case "--steps":
 			if i+1 >= len(args) {

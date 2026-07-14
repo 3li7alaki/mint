@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"mint/internal/atomic"
 	"mint/internal/session"
 )
 
@@ -120,6 +121,9 @@ func runNew(root string, flags Flags, stdout io.Writer) (int, error) {
 			return 1, err
 		}
 		id = generated
+	}
+	if !atomic.IsLiteralSegment(id) {
+		return 1, fmt.Errorf("invalid session %q — must be a single path segment (no empty, '.', '..', or path separator)", id)
 	}
 	mode := flags.Mode
 	if mode == "" {

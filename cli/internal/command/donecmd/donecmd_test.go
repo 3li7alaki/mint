@@ -89,7 +89,7 @@ func TestDonePassesWithRecordedDifferentEngineMaker(t *testing.T) {
 	}
 }
 
-func TestDoneRecordedMakerOverridesHostileFlags(t *testing.T) {
+func TestDoneMakerComesFromRecordedExecutionState(t *testing.T) {
 	root := newRepo(t)
 	writeFile(t, filepath.Join(root, "app.js"), "x\n")
 	writeSpec(t, root, "sid-a", "feat", "003", []string{"app.js"}, "")
@@ -97,9 +97,11 @@ func TestDoneRecordedMakerOverridesHostileFlags(t *testing.T) {
 	if _, err := execstate.Init(root, "feat", "003", "sid-a", &execstate.Maker{Engine: "claude", Session: "sid-a"}); err != nil {
 		t.Fatal(err)
 	}
-	code, err := Run(root, []string{"feat", "003"}, Flags{Session: "sid-a", Terminal: "done-verified", MakerEngine: "codex", MakerSession: "s2", JSON: true}, &bytes.Buffer{}, &bytes.Buffer{})
+	// done exposes no maker flags — provenance is read only from execution.json,
+	// so a claude maker + codex checker verdict clears independence.
+	code, err := Run(root, []string{"feat", "003"}, Flags{Session: "sid-a", Terminal: "done-verified", JSON: true}, &bytes.Buffer{}, &bytes.Buffer{})
 	if err != nil || code != 0 {
-		t.Fatalf("recorded maker should win: code=%d err=%v", code, err)
+		t.Fatalf("recorded maker should drive independence: code=%d err=%v", code, err)
 	}
 }
 

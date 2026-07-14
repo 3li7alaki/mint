@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -33,6 +34,45 @@ func TestResolveProvenanceFixedAndConfigurable(t *testing.T) {
 	}
 	if ProvesLocal("opencode") || ProvesLocal("codex") {
 		t.Fatal("remote/configurable engines must not prove local execution")
+	}
+}
+
+func TestByBinaryResolvesSpawnedProcessToEngine(t *testing.T) {
+	reg := map[string]Row{
+		"codex":  {Key: "codex", Binary: "codex", Vendor: "openai", Model: "gpt", Locality: "remote"},
+		"claude": {Key: "claude", Binary: "claude", Vendor: "anthropic", Model: "claude", Locality: "remote"},
+	}
+	// Fake PATH: bare names and one absolute path all point at the same files.
+	look := func(name string) (string, error) {
+		switch name {
+		case "codex", "/opt/bin/codex":
+			return "/opt/bin/codex", nil
+		case "claude":
+			return "/usr/bin/claude", nil
+		default:
+			return "", errors.New("not found")
+		}
+	}
+	if row, ok := byBinary("codex", reg, look); !ok || row.Key != "codex" {
+		t.Fatalf("bare name should resolve to codex, got %#v ok=%v", row, ok)
+	}
+	if row, ok := byBinary("/opt/bin/codex", reg, look); !ok || row.Key != "codex" {
+		t.Fatalf("absolute path should resolve to the same engine, got %#v ok=%v", row, ok)
+	}
+	if _, ok := byBinary("rogue", reg, look); ok {
+		t.Fatal("unknown binary must resolve to no engine")
+	}
+	if _, ok := byBinary("", reg, look); ok {
+		t.Fatal("empty name must resolve to no engine")
+	}
+}
+
+func TestSameEngineIsCanonical(t *testing.T) {
+	if !SameEngine(" CODEX ", "codex") {
+		t.Fatal("SameEngine should canonicalize before comparing")
+	}
+	if SameEngine("codex", "claude") {
+		t.Fatal("distinct engines must not match")
 	}
 }
 

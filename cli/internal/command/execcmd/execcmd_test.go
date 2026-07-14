@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -64,6 +65,109 @@ func TestExecRecordReviewRequiresProvenance(t *testing.T) {
 	if len(state.Reviews) != 0 {
 		t.Fatalf("bare pass was stored: %#v", state.Reviews)
 	}
+}
+
+// fakeEngineOnPath drops an executable named after a registry engine onto a
+// PATH the test controls, so witness spawns a real process resolvable by
+// engine.ByBinary. exitCode is what the fake returns.
+func fakeEngineOnPath(t *testing.T, name string, exitCode int) {
+	t.Helper()
+	dir := t.TempDir()
+	script := "#!/bin/sh\nexit " + strconv.Itoa(exitCode) + "\n"
+	bin := filepath.Join(dir, name)
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func TestWitnessRecordsBinaryResolvedEngineOnPass(t *testing.T) {
+	root := rootWithMint(t)
+	if _, err := execstate.Init(root, "feat", "001", "sid-a", nil); err != nil {
+		t.Fatal(err)
+	}
+	fakeEngineOnPath(t, "codex", 0)
+	code, err := Run(root, []string{"witness", "feat", "001"},
+		Flags{Session: "sid-a", Review: "security", ByEngine: "claude", CheckerCmd: []string{"codex", "review"}},
+		&bytes.Buffer{}, &bytes.Buffer{})
+	// --by-engine claude contradicts the spawned codex binary -> must reject.
+	if err == nil || !strings.Contains(err.Error(), "conflicts with the spawned binary") {
+		t.Fatalf("conflicting --by-engine should be rejected, got code=%d err=%v", code, err)
+	}
+	// Drop the conflicting flag: the binary is the source of truth.
+	code, err = Run(root, []string{"witness", "feat", "001"},
+		Flags{Session: "sid-a", Review: "security", CheckerCmd: []string{"codex", "review"}},
+		&bytes.Buffer{}, &bytes.Buffer{})
+	if err != nil || code != 0 {
+		t.Fatalf("witness code=%d err=%v", code, err)
+	}
+	review := readReview(t, root, "feat", "001", "sid-a", "security")
+	if review.Verdict != "passed" {
+		t.Fatalf("verdict = %q, want passed", review.Verdict)
+	}
+	if review.Provenance.Engine != "codex" || review.Provenance.Vendor != "openai" {
+		t.Fatalf("provenance not resolved from binary: %#v", review.Provenance)
+	}
+	if review.Provenance.Session != "sid-a" {
+		t.Fatalf("witness session = %q, want sid-a", review.Provenance.Session)
+	}
+}
+
+func TestWitnessRecordsFailedOnNonZeroExit(t *testing.T) {
+	root := rootWithMint(t)
+	if _, err := execstate.Init(root, "feat", "001", "sid-a", nil); err != nil {
+		t.Fatal(err)
+	}
+	fakeEngineOnPath(t, "codex", 1)
+	code, err := Run(root, []string{"witness", "feat", "001"},
+		Flags{Session: "sid-a", Review: "security", CheckerCmd: []string{"codex"}},
+		&bytes.Buffer{}, &bytes.Buffer{})
+	if err != nil || code != 0 {
+		t.Fatalf("witness should record (not error) on checker failure: code=%d err=%v", code, err)
+	}
+	if got := readReview(t, root, "feat", "001", "sid-a", "security").Verdict; got != "failed" {
+		t.Fatalf("verdict = %q, want failed", got)
+	}
+}
+
+func TestWitnessRefusesUnknownBinary(t *testing.T) {
+	root := rootWithMint(t)
+	if _, err := execstate.Init(root, "feat", "001", "sid-a", nil); err != nil {
+		t.Fatal(err)
+	}
+	fakeEngineOnPath(t, "rogue", 0)
+	_, err := Run(root, []string{"witness", "feat", "001"},
+		Flags{Session: "sid-a", Review: "security", CheckerCmd: []string{"rogue"}},
+		&bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "no registry engine") {
+		t.Fatalf("unknown binary should be refused, got %v", err)
+	}
+	state, _ := execstate.Read(root, "feat", "001", "sid-a")
+	if len(state.Reviews) != 0 {
+		t.Fatalf("unknown binary manufactured a review: %#v", state.Reviews)
+	}
+}
+
+func TestWitnessRequiresSentinel(t *testing.T) {
+	root := rootWithMint(t)
+	if _, err := execstate.Init(root, "feat", "001", "sid-a", nil); err != nil {
+		t.Fatal(err)
+	}
+	// No CheckerCmd (nil) = the caller never wrote `--`.
+	_, err := Run(root, []string{"witness", "feat", "001"},
+		Flags{Session: "sid-a", Review: "security"}, &bytes.Buffer{}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "no checker command") {
+		t.Fatalf("missing sentinel should fail, got %v", err)
+	}
+}
+
+func readReview(t *testing.T, root, slug, specID, sessionID, lens string) execstate.Review {
+	t.Helper()
+	state, ok := execstate.Read(root, slug, specID, sessionID)
+	if !ok {
+		t.Fatal("execution state missing")
+	}
+	return state.Reviews[lens]
 }
 
 func TestExecStatusAndReviews(t *testing.T) {

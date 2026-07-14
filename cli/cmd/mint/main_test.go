@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestParseSpecArgsAcceptanceAccumulates(t *testing.T) {
 	_, flags, err := parseSpecArgs([]string{
@@ -34,5 +37,49 @@ func TestParseDoneArgsHasNoMakerFlags(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("done still consumes --maker-engine as a flag: %#v", out)
+	}
+}
+
+func TestParseExecArgsWitnessSentinel(t *testing.T) {
+	// The `--` sentinel is the CLI trust boundary for witness: everything after
+	// it is the checker argv, verbatim, and must NOT be consumed as flags. A flag
+	// name appearing after `--` (here --review) must survive as a literal token,
+	// not be interpreted.
+	out, flags, err := parseExecArgs([]string{
+		"witness", "slug", "001", "--review", "security", "--session", "sid-a",
+		"--", "codex", "exec", "--review", "review the diff",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(out, []string{"witness", "slug", "001"}) {
+		t.Fatalf("positional args = %#v", out)
+	}
+	if flags.Review != "security" || flags.Session != "sid-a" {
+		t.Fatalf("flags before -- not parsed: %#v", flags)
+	}
+	wantCmd := []string{"codex", "exec", "--review", "review the diff"}
+	if !reflect.DeepEqual(flags.CheckerCmd, wantCmd) {
+		t.Fatalf("checker cmd = %#v, want verbatim %#v", flags.CheckerCmd, wantCmd)
+	}
+}
+
+func TestParseExecArgsSentinelNilVsEmpty(t *testing.T) {
+	// No `--` at all: CheckerCmd is nil, so witness can tell "no sentinel" apart
+	// from "empty command after sentinel".
+	_, flags, err := parseExecArgs([]string{"witness", "slug", "001", "--review", "security"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flags.CheckerCmd != nil {
+		t.Fatalf("no sentinel should leave CheckerCmd nil, got %#v", flags.CheckerCmd)
+	}
+	// `--` with nothing after it: present-but-empty, distinguishable from nil.
+	_, flags, err = parseExecArgs([]string{"witness", "slug", "001", "--"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flags.CheckerCmd == nil || len(flags.CheckerCmd) != 0 {
+		t.Fatalf("empty sentinel should be non-nil empty slice, got %#v", flags.CheckerCmd)
 	}
 }

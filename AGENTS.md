@@ -96,16 +96,39 @@ distinct from the maker*, not its content. Depth comes from you; integrity comes
 authenticated. mint reads the maker's identity from write-once execution state (so a checker
 cannot forge the maker), validates every engine/vendor/locality claim against a registry
 compiled into the binary, and fails closed on missing, malformed, or self-matching provenance.
-What mint does **not** do is prove that the named engine actually *ran* — it trusts that the
-`--maker-engine` at init and the `byEngine`/`--by-engine` on a verdict name the context that
-truly produced the work. A single actor that declares one engine at init and a different one on
-the verdict can therefore still manufacture an apparent maker≠checker split without a second
-engine ever executing. mint raises the floor from "type the word `passed`" to "attach
-registry-valid, fail-closed, maker-distinct provenance"; it does not yet make that provenance
-unforgeable. Closing that gap requires authenticating execution (a signed attestation, or mint
-itself invoking the checker) — an open, deliberately-unshipped decision, because the latter
-collides with mint's rule that it is not a harness. Until then: the floor stops gaming and
-accident, not a determined actor forging identity against their own gate.
+What mint does **not** do on the *typed* path is prove that the named engine actually *ran* —
+it trusts that the `--maker-engine` at init and the `byEngine`/`--by-engine` on a verdict name
+the context that truly produced the work. A single actor that declares one engine at init and a
+different one on the verdict can therefore still manufacture an apparent maker≠checker split
+without a second engine ever executing. mint raises the floor from "type the word `passed`" to
+"attach registry-valid, fail-closed, maker-distinct provenance".
+
+**`mint exec witness` closes the typed-identity hole for reviews.** For a review lens you can
+run `mint exec witness <slug> <spec-id> --review <lens> -- <checker command…>`: mint spawns the
+checker process itself, reverse-resolves the engine identity from the binary it actually ran
+(`engine.ByBinary`, never a caller-typed `--by-engine`), and records the review verdict from
+that observed process — `passed` on exit 0, `failed` on non-zero, mint staying content-blind
+exactly like a gate. This inverts the cost gradient: running the real checker becomes the
+*laziest* path to a recorded review, which is the anti-gaming job. mint stays a **notary, not a
+harness** — the driver still chooses the checker and writes its prompt; mint only witnesses that
+a registry engine ran and grades its provenance, never its content (consistent with `verify`
+already spawning gate processes). It **coexists** with the typed `record-review` path, which
+stays valid for the common case and for reviews that can't be shell-spawned (e.g. an Agent-tool
+review); witness is the opt-in stronger tier a spec can require. Three honest limits remain, and
+witness does not paper over them: (a) it proves a *binary named* codex ran, not that the binary
+wasn't a renamed or wrapper spoof on `PATH` — same trust level as the registry itself; (b) a
+configurable chassis (`opencode`) binary proves the *chassis* ran, not which model behind it, so
+witness there still needs a caller-declared `--by-vendor`/`--by-model` it cannot observe; (c) a
+*rigged prompt* the driver feeds the real checker ("reply accepted") still passes — mint proves
+the engine ran, not that it saw the diff, and closing that would mean mint composing the prompt,
+which *is* harness territory and is deliberately not crossed. The maker side is still typed:
+authenticating the maker (a signed attestation, or minting through the same witnessed spawn)
+remains an open, deliberately-unshipped decision. Until then: the floor stops gaming and
+accident everywhere, and — for any review you witness — raises the checker bar from *typing an
+engine name that never ran* to *having a process by that binary name actually run and exit
+clean*. A determined actor can still defeat that by putting a renamed or wrapper binary named
+`codex` on `PATH` (limit (a)) — witness does not authenticate the process behind the name — so
+it closes the accidental and the lazy forgery, not the deliberate one.
 
 **When `done` FAILS, re-mint the spec — don't patch the work.** A failed `done` appends a note
 keyed to the spec (`done-fail-<slug>-<id>`) naming the clause that failed and why; retries
@@ -179,6 +202,9 @@ mint exec init harden-auth 001 --maker-engine codex        # codex/OpenAI is the
 mint exec record-review harden-auth 001 security passed \
   --by-engine claude --by-vendor anthropic --by-model claude --by-locality remote \
   --by-session <the-reviewer-session>
+#    STRONGER TIER — let mint spawn the checker and stamp the engine from the process
+#    it observed (identity comes from the binary, not the flag; verdict = exit code):
+# mint exec witness harden-auth 001 --review security -- claude -p "<review prompt over the diff>"
 
 # 5. Run the declared gates.
 mint verify harden-auth 001

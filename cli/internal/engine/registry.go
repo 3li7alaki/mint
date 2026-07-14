@@ -4,6 +4,8 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"unicode"
@@ -124,6 +126,54 @@ func ResolveExecutionProvenance(name, vendor, model, locality string) (Provenanc
 	return ResolveProvenance(name, vendor, model, locality)
 }
 
+// ByBinary reverse-resolves a checker command's program name to the registry
+// engine that owns it, by comparing the PATH-resolved absolute path of the
+// spawned name against each row's PATH-resolved Binary. This is how `mint exec
+// witness` learns *which engine actually ran* from the process it spawned,
+// instead of trusting a caller-typed --by-engine string. A bare name and an
+// absolute path to the same file agree because both are resolved through
+// exec.LookPath. Returns (Row{}, false) when the name resolves to no known
+// engine binary or cannot be resolved on PATH — witness must then record
+// nothing, so an unrecognized binary can never manufacture a verdict.
+func ByBinary(name string) (Row, bool) {
+	return byBinary(name, Registry, exec.LookPath)
+}
+
+// byBinary is the testable core: it resolves the spawned name and every row's
+// Binary through the same lookPath, so a bare name and an absolute path to the
+// same file agree, and an unresolvable name matches nothing.
+func byBinary(name string, registry map[string]Row, lookPath func(string) (string, error)) (Row, bool) {
+	if strings.TrimSpace(name) == "" {
+		return Row{}, false
+	}
+	resolved, err := resolveAbs(name, lookPath)
+	if err != nil {
+		return Row{}, false
+	}
+	for _, key := range sortedKeys(registry) {
+		row := registry[key]
+		rowPath, err := resolveAbs(row.Binary, lookPath)
+		if err != nil {
+			continue
+		}
+		if rowPath == resolved {
+			return row, true
+		}
+	}
+	return Row{}, false
+}
+
+func resolveAbs(name string, lookPath func(string) (string, error)) (string, error) {
+	resolved, err := lookPath(name)
+	if err != nil {
+		return "", err
+	}
+	if abs, absErr := filepath.Abs(resolved); absErr == nil {
+		return abs, nil
+	}
+	return resolved, nil
+}
+
 // ProvesLocal reports whether mint's fixed registry metadata, rather than a
 // verdict claim, establishes that this engine runs locally.
 func ProvesLocal(name string) bool {
@@ -195,6 +245,12 @@ func sortedKeys(registry map[string]Row) []string {
 func IsKnown(name string) bool {
 	_, ok := Registry[Canonical(name)]
 	return ok
+}
+
+// SameEngine reports whether two engine names canonicalize to the same
+// registry key, so a caller typing "CODEX" and a resolved "codex" agree.
+func SameEngine(a, b string) bool {
+	return Canonical(a) == Canonical(b)
 }
 
 func Canonical(name string) string {

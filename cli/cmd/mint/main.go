@@ -295,6 +295,22 @@ func parseExecArgs(args []string) ([]string, execcmd.Flags, error) {
 			}
 			flags.Commit = args[i+1]
 			i++
+		case "--review":
+			if i+1 >= len(args) {
+				return nil, flags, fmt.Errorf("--review requires a value")
+			}
+			flags.Review = args[i+1]
+			i++
+		case "--":
+			// Everything after -- is the checker command for `exec witness`,
+			// passed through verbatim (never shell-wrapped) so mint spawns and
+			// observes the exact binary. Present-but-empty ([]string{}) differs
+			// from absent (nil) so witness can require the sentinel.
+			flags.CheckerCmd = append([]string{}, args[i+1:]...)
+			if flags.CheckerCmd == nil {
+				flags.CheckerCmd = []string{}
+			}
+			return out, flags, nil
 		default:
 			out = append(out, args[i])
 		}

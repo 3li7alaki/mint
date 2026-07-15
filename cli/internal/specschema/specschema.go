@@ -20,6 +20,12 @@ type ValidationResult struct {
 	Warnings []string
 }
 
+type Parent struct {
+	System string `json:"system"`
+	ID     string `json:"id"`
+	URL    string `json:"url,omitempty"`
+}
+
 func Slugify(title string) string {
 	s := strings.ToLower(title)
 	s = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(s, "-")
@@ -33,7 +39,7 @@ func AllocateSpecID(dir string) string {
 		return "001"
 	}
 	maxID := 0
-	re := regexp.MustCompile(`^(\d+)-.*\.xml$`)
+	re := regexp.MustCompile(`^(\d+)(?:-|$)`)
 	for _, entry := range entries {
 		m := re.FindStringSubmatch(entry.Name())
 		if m == nil {
@@ -173,7 +179,12 @@ func Validate(xml string) ValidationResult {
 		if r == "" {
 			result.Warnings = append(result.Warnings, "empty <risk> — omit it or use <risk>safety</risk>")
 		} else if !regexp.MustCompile(`(?i)^safety$`).MatchString(r) {
-			result.Warnings = append(result.Warnings, fmt.Sprintf("unrecognized <risk> value '%s' — the only floor-recognized value is 'safety' (forces clause-3 cross-engine safety review); other values are ignored by the floor", r))
+			result.Warnings = append(result.Warnings, fmt.Sprintf("unrecognized <risk> value '%s' — the only floor-recognized value is 'safety' (forces a cross-vendor safety review); other values are ignored by the floor", r))
+		}
+	}
+	if parent, ok := ResolveParent(xml); ok {
+		if parent.System == "" || parent.ID == "" {
+			result.Errors = append(result.Errors, "<parent> requires non-empty <system> and <id>")
 		}
 	}
 	accept := acceptance.Parse(xml)
@@ -181,6 +192,21 @@ func Validate(xml string) ValidationResult {
 	result.Warnings = append(result.Warnings, accept.Warnings...)
 	result.Valid = len(result.Errors) == 0
 	return result
+}
+
+func ResolveParent(xml string) (Parent, bool) {
+	inner, ok := tag(xml, "parent")
+	if !ok {
+		return Parent{}, false
+	}
+	system, _ := tag(inner, "system")
+	id, _ := tag(inner, "id")
+	url, _ := tag(inner, "url")
+	return Parent{
+		System: unescapeXML(strings.TrimSpace(system)),
+		ID:     unescapeXML(strings.TrimSpace(id)),
+		URL:    unescapeXML(strings.TrimSpace(url)),
+	}, true
 }
 
 func tag(xml, name string) (string, bool) {

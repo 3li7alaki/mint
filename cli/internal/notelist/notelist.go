@@ -1,12 +1,6 @@
-// Package notelist is mint's scratchpad — the AI's reasoning-in-progress between turns.
-// A note is "what I've figured out / suspect / why I ruled X out": the thinking a fresh
-// context most needs and that dies on /clear today. Distinct from a hit (a discrete
-// INTENTION with a lifecycle) — a note is topic-keyed, APPEND-MOSTLY working memory with no
-// "done"/"dropped". Each topic accumulates timestamped entries into its own markdown file at
-// .mint/notes/<topic>.md; the JSONL row is a small index (topic, file refs, timestamps).
-//
-// This shares the row+body+files SHAPE with hitlist but NOT its semantics, so it's its own
-// package — forcing one model on both (lifecycle vs append, id vs topic) makes both worse.
+// Package notelist stores append-mostly, topic-keyed reasoning that supports
+// unit and floor decisions. Each topic accumulates timestamped entries in the
+// current worktree's private global state.
 package notelist
 
 import (
@@ -18,13 +12,15 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"mint/internal/statehome"
 )
 
-const relPath = ".mint/notes.jsonl"
-const bodyDir = ".mint/notes"
+const relPath = "notes/index.jsonl"
+const bodyDir = "notes"
 
 // topicRe constrains a topic to a safe, file-name-able slug (the topic IS the body filename),
-// so a topic can never escape .mint/notes/ via path traversal.
+// so a topic can never escape the notes directory via path traversal.
 var topicRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 
 // Note is one topic's index row. The accumulating reasoning lives in BodyPath's markdown
@@ -38,9 +34,9 @@ type Note struct {
 	Entries   int      `json:"entries"`
 }
 
-func path(root string) string { return filepath.Join(root, relPath) }
+func path(root string) string { return filepath.Join(statehome.Resolve(root).Dir, relPath) }
 func bodyAbs(root, topic string) string {
-	return filepath.Join(root, bodyDir, topic+".md")
+	return filepath.Join(statehome.Resolve(root).Dir, bodyDir, topic+".md")
 }
 
 // normalizeTopic lowercases + validates a topic. A topic with spaces is dashed; anything
@@ -83,7 +79,10 @@ func Read(root string) ([]Note, error) {
 
 func write(root string, notes []Note) error {
 	p := path(root)
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	if _, err := statehome.Ensure(root); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 		return err
 	}
 	var b strings.Builder
@@ -95,16 +94,11 @@ func write(root string, notes []Note) error {
 		b.Write(row)
 		b.WriteByte('\n')
 	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, []byte(b.String()), 0o644); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, p)
+	return statehome.Write(p, []byte(b.String()))
 }
 
 // Append adds an entry to a topic's reasoning, creating the topic on first use. The entry is
-// appended as a timestamped section to .mint/notes/<topic>.md (append-mostly — earlier
+// appended as a timestamped section to notes/<topic>.md (append-mostly — earlier
 // reasoning is never overwritten), and the index row's UpdatedAt/Entries advance. Empty text
 // AND empty files is rejected (nothing to record). now is injected for testability.
 func Append(root, topic, text string, files []string, now time.Time) (Note, error) {
@@ -126,11 +120,14 @@ func Append(root, topic, text string, files []string, now time.Time) (Note, erro
 
 	// Append the timestamped entry to the topic's markdown body.
 	if text != "" {
-		if err := os.MkdirAll(filepath.Join(root, bodyDir), 0o755); err != nil {
+		if _, err := statehome.Ensure(root); err != nil {
+			return Note{}, err
+		}
+		if err := os.MkdirAll(filepath.Join(statehome.Resolve(root).Dir, bodyDir), 0o700); err != nil {
 			return Note{}, err
 		}
 		section := fmt.Sprintf("## %s\n\n%s\n\n", stamp, text)
-		f, err := os.OpenFile(bodyAbs(root, t), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+		f, err := os.OpenFile(bodyAbs(root, t), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 		if err != nil {
 			return Note{}, err
 		}
@@ -186,7 +183,7 @@ func Body(root, topic string) (string, error) {
 	return string(b), nil
 }
 
-// Summary is the one-line resurfacing string for handoff/status, e.g.
+// Summary is a one-line topic summary for status consumers, e.g.
 // "🗒 2 note(s): loader-bug, scope-model". Empty when there are no notes.
 func Summary(root string) string {
 	notes, err := Read(root)

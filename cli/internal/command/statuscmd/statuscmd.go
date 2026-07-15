@@ -1,58 +1,142 @@
 package statuscmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"sort"
 
-	"mint/internal/hitlist"
-	"mint/internal/notelist"
-	"mint/internal/session"
-	"mint/internal/worktree"
+	"mint/internal/execstate"
+	"mint/internal/receipt"
+	"mint/internal/specschema"
+	"mint/internal/statehome"
+	"mint/internal/unitstore"
 )
 
-// Version is injected at build time via ldflags
-// (-X 'mint/internal/command/statuscmd.Version=vX.Y.Z'); "dev" for a plain `go build`.
 var Version = "dev"
 
-func Run(root string, stdout io.Writer) (int, error) {
-	fmt.Fprintf(stdout, "\n  mint v%s\n\n", Version)
+type Flags struct{ JSON bool }
 
-	sessions := session.List(root)
-	if len(sessions) > 0 {
-		fmt.Fprintln(stdout, "  Sessions")
-		for _, item := range sessions {
-			fmt.Fprintf(stdout, "    %s %s - %s\n", shortID(item.ID), stateString(item.State, "mode", "session"), stateString(item.State, "task", "unknown task"))
+type Report struct {
+	SchemaVersion int          `json:"schemaVersion"`
+	Version       string       `json:"version"`
+	RepositoryID  string       `json:"repositoryId"`
+	WorktreeID    string       `json:"worktreeId"`
+	WorktreeRoot  string       `json:"worktreeRoot"`
+	StateDir      string       `json:"stateDir"`
+	Units         []UnitStatus `json:"units"`
+}
+
+type UnitStatus struct {
+	Slug     string          `json:"slug"`
+	SpecID   string          `json:"specId"`
+	Attempts []AttemptStatus `json:"attempts"`
+	Receipts []ReceiptStatus `json:"receipts"`
+}
+
+type AttemptStatus struct {
+	AttemptID string   `json:"attemptId"`
+	Status    string   `json:"status"`
+	Missing   []string `json:"missingEvidence,omitempty"`
+}
+
+type ReceiptStatus struct {
+	ID      string `json:"id"`
+	Path    string `json:"path"`
+	Current bool   `json:"current"`
+	Valid   bool   `json:"valid"`
+}
+
+func Run(root string, flags Flags, stdout io.Writer) (int, error) {
+	report := Build(root)
+	if flags.JSON {
+		b, err := json.MarshalIndent(report, "", "  ")
+		if err != nil {
+			return 1, err
 		}
-	} else {
-		fmt.Fprintln(stdout, "  Sessions:   none active")
+		_, err = fmt.Fprintln(stdout, string(b))
+		return 0, err
 	}
-
-	worktrees := worktree.List(root)
-	if len(worktrees) > 0 {
-		fmt.Fprintf(stdout, "  Worktrees:  %d active\n", len(worktrees))
+	fmt.Fprintf(stdout, "mint %s\nworktree %s\nstate %s\n", report.Version, report.WorktreeRoot, report.StateDir)
+	if len(report.Units) == 0 {
+		fmt.Fprintln(stdout, "units: none")
+		return 0, nil
 	}
-	// Resurface the open agenda — a glanceable nudge so durable intentions don't rot in
-	// scrollback. Silent (prints nothing) when there are no open hits.
-	if summary := hitlist.Summary(root); summary != "" {
-		fmt.Fprintf(stdout, "  %s\n", summary)
+	for _, unit := range report.Units {
+		fmt.Fprintf(stdout, "%s/%s\n", unit.Slug, unit.SpecID)
+		for _, attempt := range unit.Attempts {
+			fmt.Fprintf(stdout, "  attempt %s: %s", attempt.AttemptID, attempt.Status)
+			if len(attempt.Missing) > 0 {
+				fmt.Fprintf(stdout, " (missing: %v)", attempt.Missing)
+			}
+			fmt.Fprintln(stdout)
+		}
+		for _, item := range unit.Receipts {
+			freshness := "stale"
+			if item.Valid && item.Current {
+				freshness = "current"
+			}
+			fmt.Fprintf(stdout, "  receipt %s: %s (%s)\n", item.ID, freshness, item.Path)
+		}
 	}
-	if summary := notelist.Summary(root); summary != "" {
-		fmt.Fprintf(stdout, "  %s\n", summary)
-	}
-	fmt.Fprintln(stdout)
 	return 0, nil
 }
 
-func shortID(id string) string {
-	if len(id) > 12 {
-		return id[:12] + "..."
+func Build(root string) Report {
+	loc := statehome.Resolve(root)
+	report := Report{SchemaVersion: 1, Version: Version, RepositoryID: loc.RepositoryID, WorktreeID: loc.WorktreeID, WorktreeRoot: loc.WorktreeRoot, StateDir: loc.Dir}
+	report.Units = []UnitStatus{}
+	for _, ref := range unitstore.List(root) {
+		unit := UnitStatus{Slug: ref.Slug, SpecID: ref.SpecID, Attempts: []AttemptStatus{}, Receipts: []ReceiptStatus{}}
+		specPath, _ := unitstore.ResolveSpec(root, ref.Slug, ref.SpecID)
+		specBytes, _ := os.ReadFile(specPath)
+		gates := specschema.ResolveSpecGates(string(specBytes))
+		reviews := specschema.ResolveSpecReviews(string(specBytes))
+		for _, attemptID := range unitstore.Attempts(root, ref.Slug, ref.SpecID) {
+			state, ok := execstate.Read(root, ref.Slug, ref.SpecID, attemptID)
+			if !ok {
+				continue
+			}
+			missing := missingEvidence(state, gates, reviews)
+			if _, err := os.Stat(unitstore.VerdictPath(root, ref.Slug, ref.SpecID, attemptID)); err != nil {
+				missing = append(missing, "acceptance-verdict")
+				sort.Strings(missing)
+			}
+			unit.Attempts = append(unit.Attempts, AttemptStatus{AttemptID: attemptID, Status: state.Status, Missing: missing})
+		}
+		for _, path := range receipt.List(root, ref.Slug, ref.SpecID) {
+			record, err := receipt.Read(path)
+			if err != nil {
+				unit.Receipts = append(unit.Receipts, ReceiptStatus{ID: filepath.Base(path), Path: path})
+				continue
+			}
+			validation := receipt.Validate(root, record)
+			unit.Receipts = append(unit.Receipts, ReceiptStatus{ID: record.ID, Path: path, Current: validation.Current, Valid: validation.Valid})
+		}
+		report.Units = append(report.Units, unit)
 	}
-	return id
+	return report
 }
 
-func stateString(state session.State, key, fallback string) string {
-	if value, ok := state[key].(string); ok && value != "" {
-		return value
+func missingEvidence(state *execstate.State, gates map[string]string, reviews []string) []string {
+	var missing []string
+	if state.Maker == nil {
+		missing = append(missing, "maker")
 	}
-	return fallback
+	if state.Gates["tier"] != "skip" {
+		for label := range gates {
+			if state.Gates[label] != "pass" {
+				missing = append(missing, "gate:"+label)
+			}
+		}
+		for _, lens := range reviews {
+			if state.Reviews[lens].Verdict != "passed" {
+				missing = append(missing, "review:"+lens)
+			}
+		}
+	}
+	sort.Strings(missing)
+	return missing
 }

@@ -9,6 +9,7 @@ import (
 func at() time.Time { return time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC) }
 
 func TestAppendAccumulates(t *testing.T) {
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	if _, err := Append(root, "loader-bug", "first finding", nil, at()); err != nil {
 		t.Fatal(err)
@@ -35,6 +36,7 @@ func TestAppendAccumulates(t *testing.T) {
 }
 
 func TestTopicNormalization(t *testing.T) {
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	// Spaces → dashes, case-folded; "Loader Bug" and "loader-bug" are the same topic.
 	Append(root, "Loader Bug", "x", nil, at())
@@ -46,6 +48,7 @@ func TestTopicNormalization(t *testing.T) {
 }
 
 func TestInvalidTopicRejected(t *testing.T) {
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	// Path-traversal attempt must be rejected (topic becomes a filename).
 	if _, err := Append(root, "../etc/passwd", "x", nil, at()); err == nil {
@@ -54,6 +57,7 @@ func TestInvalidTopicRejected(t *testing.T) {
 }
 
 func TestNothingToRecordRejected(t *testing.T) {
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	if _, err := Append(root, "topic", "   ", nil, at()); err == nil {
 		t.Fatal("expected error when no text and no files")
@@ -61,6 +65,7 @@ func TestNothingToRecordRejected(t *testing.T) {
 }
 
 func TestFilesMergeAcrossAppends(t *testing.T) {
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	Append(root, "bug", "a", []string{"x.go"}, at())
 	n, _ := Append(root, "bug", "b", []string{"x.go", "y.go"}, at())
@@ -70,6 +75,7 @@ func TestFilesMergeAcrossAppends(t *testing.T) {
 }
 
 func TestFilesOnlyEntry(t *testing.T) {
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	// A note with only file refs (no text) is valid and records the topic without bumping
 	// the entry count (no body section written).
@@ -83,6 +89,7 @@ func TestFilesOnlyEntry(t *testing.T) {
 }
 
 func TestSummaryEmptyAndPopulated(t *testing.T) {
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	if Summary(root) != "" {
 		t.Fatal("empty notes → empty summary")

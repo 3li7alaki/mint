@@ -10,32 +10,34 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
-	"mint/internal/atomic"
-	"mint/internal/execstate"
-	"mint/internal/gitignore"
-	"mint/internal/session"
 	"mint/internal/specschema"
+	"mint/internal/statehome"
+	"mint/internal/unitstore"
 )
 
 //go:embed template.xml
 var templateText string
 
 type Flags struct {
-	Session    string
-	Slug       string
-	Goal       string
-	Scope      string
-	Acceptance string
-	Steps      string
-	Commit     string
+	Slug         string
+	Goal         string
+	Scope        string
+	Acceptance   string
+	Steps        string
+	Commit       string
+	Gates        map[string]string
+	Reviews      []string
+	ParentSystem string
+	ParentID     string
+	ParentURL    string
 }
 
 type NewResult struct {
-	SpecPath string `json:"specPath"`
-	Branch   string `json:"branch"`
-	ID       string `json:"id"`
+	SchemaVersion int    `json:"schemaVersion"`
+	SpecPath      string `json:"specPath"`
+	Slug          string `json:"slug"`
+	ID            string `json:"id"`
 }
 
 func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int, error) {
@@ -46,7 +48,7 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 	switch args[0] {
 	case "new":
 		if len(args) < 2 {
-			return 1, fmt.Errorf("Usage: mint spec new \"<title>\" [--session <id>] [--slug <slug>] [--goal <text>] [--scope <paths>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
+			return 1, fmt.Errorf("Usage: mint spec new \"<title>\" [--slug <slug>] [--goal <text>] [--scope <paths>] [--acceptance <text>] [--gate 'label: command'] [--reviews <list>] [--parent-system <name> --parent-id <id>]")
 		}
 		result, err := New(root, args[1], flags)
 		if err != nil {
@@ -108,17 +110,6 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 }
 
 func New(root, title string, flags Flags) (NewResult, error) {
-	sessionID := strings.TrimSpace(flags.Session)
-	if sessionID == "" {
-		sessionID = session.ReadCapturedID(root)
-	}
-	if sessionID == "" {
-		id, err := session.GenerateID(time.Now())
-		if err != nil {
-			return NewResult{}, err
-		}
-		sessionID = id
-	}
 	slug := flags.Slug
 	if slug == "" {
 		slug = specschema.Slugify(title)
@@ -126,31 +117,57 @@ func New(root, title string, flags Flags) (NewResult, error) {
 	if slug == "" {
 		return NewResult{}, fmt.Errorf("Could not derive a slug from the title - pass --slug")
 	}
-	if !execstate.IsLiteralSegment(slug) {
+	if !unitstore.ValidSegment(slug) {
 		return NewResult{}, fmt.Errorf("invalid slug %q - must be a single path segment (no empty, '.', '..', or path separator)", slug)
 	}
-	if !execstate.IsLiteralSegment(sessionID) {
-		return NewResult{}, fmt.Errorf("invalid session %q - must be a single path segment (no empty, '.', '..', or path separator)", sessionID)
+	if err := unitstore.Ensure(root); err != nil {
+		return NewResult{}, err
 	}
-
-	dir := filepath.Join(root, ".mint", "tasks", sessionID, slug)
+	dir := unitstore.SpecsDir(root, slug)
 	id := specschema.AllocateSpecID(dir)
-	specPath := filepath.Join(dir, id+"-"+slug+".xml")
-	state, _ := session.ReadState(root, sessionID)
+	specPath := unitstore.SpecPath(root, slug, id)
+	gates := flags.Gates
+	reviews := flags.Reviews
 	fields := specschema.Fields{
 		ID:      id,
 		Title:   title,
-		Gates:   gatesFromState(state),
-		Reviews: reviewsFromState(state),
-	}
-	if _, err := gitignore.Ensure(root, nil); err != nil {
-		return NewResult{}, err
+		Gates:   gates,
+		Reviews: reviews,
 	}
 	scaffolded := applyFieldFlags(specschema.Scaffold(templateText, fields), flags)
-	if err := atomic.WriteString(specPath, scaffolded); err != nil {
+	scaffolded = applyParent(scaffolded, flags)
+	validation := specschema.Validate(scaffolded)
+	if len(validation.Errors) > 0 {
+		return NewResult{}, fmt.Errorf("spec validation failed: %s", strings.Join(validation.Errors, "; "))
+	}
+	if err := statehome.Write(specPath, []byte(scaffolded)); err != nil {
 		return NewResult{}, err
 	}
-	return NewResult{SpecPath: specPath, Branch: "feat/" + slug, ID: id}, nil
+	return NewResult{SchemaVersion: 1, SpecPath: specPath, Slug: slug, ID: id}, nil
+}
+
+func applyParent(xml string, flags Flags) string {
+	system := firstNonEmpty(flags.ParentSystem, os.Getenv("MINT_PARENT_SYSTEM"))
+	id := firstNonEmpty(flags.ParentID, os.Getenv("MINT_PARENT_ID"))
+	url := firstNonEmpty(flags.ParentURL, os.Getenv("MINT_PARENT_URL"))
+	if system == "" && id == "" && url == "" {
+		return xml
+	}
+	lines := []string{"  <parent>", "    <system>" + escapeXML(system) + "</system>", "    <id>" + escapeXML(id) + "</id>"}
+	if url != "" {
+		lines = append(lines, "    <url>"+escapeXML(url)+"</url>")
+	}
+	lines = append(lines, "  </parent>")
+	return regexp.MustCompile(`\n?</task>\s*$`).ReplaceAllString(xml, "\n\n"+strings.Join(lines, "\n")+"\n</task>\n")
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func Set(root, specPath string, flags Flags) error {
@@ -160,9 +177,6 @@ func Set(root, specPath string, flags Flags) error {
 		return fmt.Errorf("Spec not found: %s", specPath)
 	}
 	updated := applyFieldFlags(string(b), flags)
-	if err := atomic.WriteString(abs, updated); err != nil {
-		return err
-	}
 	result := specschema.Validate(updated)
 	if len(result.Errors) > 0 || len(result.Warnings) > 0 {
 		var lines []string
@@ -173,6 +187,9 @@ func Set(root, specPath string, flags Flags) error {
 			lines = append(lines, "warn   "+w)
 		}
 		return fmt.Errorf("spec validation failed:\n  %s", strings.Join(lines, "\n  "))
+	}
+	if err := statehome.Write(abs, []byte(updated)); err != nil {
+		return err
 	}
 	return nil
 }
@@ -237,58 +254,7 @@ func escapeXML(s string) string {
 }
 
 func printUsage(stdout io.Writer) {
-	fmt.Fprintln(stdout, "  Usage: mint spec new \"<title>\" [--session <id>] [--slug <slug>] [--goal <text>] [--scope <paths>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
+	fmt.Fprintln(stdout, "  Usage: mint spec new \"<title>\" [--slug <slug>] [--goal <text>] [--scope <paths>] [--acceptance <text>] [--gate 'label: command'] [--reviews <list>] [--parent-system <name> --parent-id <id>]")
 	fmt.Fprintln(stdout, "         mint spec set <spec-path> [--goal <text>] [--scope <paths>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
 	fmt.Fprintln(stdout, "         mint spec validate|scope <spec-path>")
-}
-
-func gatesFromState(state session.State) map[string]string {
-	raw, ok := state["gates"]
-	if !ok {
-		return nil
-	}
-	switch v := raw.(type) {
-	case map[string]string:
-		return v
-	case map[string]any:
-		out := map[string]string{}
-		for k, value := range v {
-			if s, ok := value.(string); ok && strings.TrimSpace(k) != "" && strings.TrimSpace(s) != "" {
-				out[k] = s
-			}
-		}
-		if len(out) > 0 {
-			return out
-		}
-	}
-	return nil
-}
-
-func reviewsFromState(state session.State) []string {
-	raw, ok := state["reviews"]
-	if !ok {
-		return nil
-	}
-	switch v := raw.(type) {
-	case []string:
-		return v
-	case []any:
-		out := []string{}
-		for _, value := range v {
-			if s, ok := value.(string); ok && strings.TrimSpace(s) != "" {
-				out = append(out, s)
-			}
-		}
-		return out
-	case string:
-		parts := strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' || r == '\n' })
-		out := []string{}
-		for _, part := range parts {
-			if strings.TrimSpace(part) != "" {
-				out = append(out, strings.TrimSpace(part))
-			}
-		}
-		return out
-	}
-	return nil
 }

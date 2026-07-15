@@ -9,15 +9,13 @@ import (
 	"mint/internal/command/cleancmd"
 	"mint/internal/command/donecmd"
 	"mint/internal/command/execcmd"
-	"mint/internal/command/handoffcmd"
-	"mint/internal/command/hitcmd"
 	"mint/internal/command/notecmd"
+	"mint/internal/command/receiptcmd"
 	"mint/internal/command/reviewcmd"
-	"mint/internal/command/sessioncmd"
 	"mint/internal/command/speccmd"
 	"mint/internal/command/statuscmd"
 	"mint/internal/command/verifycmd"
-	"mint/internal/session"
+	"mint/internal/statehome"
 )
 
 func main() {
@@ -32,450 +30,370 @@ func main() {
 
 func run(args []string) (int, error) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stdout, "Usage: mint <command> [args]")
-		return 1, nil
+		return usage()
 	}
+	if args[0] == "--help" || args[0] == "help" {
+		return help("")
+	}
+	if len(args) == 2 && args[1] == "--help" {
+		return help(args[0])
+	}
+	root := mustGetwd()
 	switch args[0] {
 	case "--version", "-v", "version":
 		fmt.Fprintln(os.Stdout, statuscmd.Version)
 		return 0, nil
-	case "done":
-		doneArgs, flags, err := parseDoneArgs(args[1:])
-		if err != nil {
-			return 1, err
-		}
-		return donecmd.Run(mustGetwd(), doneArgs, flags, os.Stdout, os.Stderr)
-	case "exec":
-		execArgs, flags, err := parseExecArgs(args[1:])
-		if err != nil {
-			return 1, err
-		}
-		return execcmd.Run(mustGetwd(), execArgs, flags, os.Stdout, os.Stderr)
-	case "review":
-		reviewArgs, flags, err := parseReviewArgs(args[1:])
-		if err != nil {
-			return 1, err
-		}
-		return reviewcmd.Run(reviewArgs, flags, os.Stdout, os.Stderr)
-	case "handoff":
-		handoffArgs, flags, err := parseHandoffArgs(args[1:])
-		if err != nil {
-			return 1, err
-		}
-		return handoffcmd.Run(mustGetwd(), handoffArgs, flags, os.Stdout)
-	case "hit":
-		hitArgs, flags, err := parseHitArgs(args[1:])
-		if err != nil {
-			return 1, err
-		}
-		root := mustGetwd()
-		if flags.Session == "" {
-			flags.Session = session.ReadCapturedID(root)
-		}
-		return hitcmd.Run(root, hitArgs, flags, time.Now(), os.Stdout)
-	case "note":
-		noteArgs, flags, err := parseNoteArgs(args[1:])
-		if err != nil {
-			return 1, err
-		}
-		return notecmd.Run(mustGetwd(), noteArgs, flags, time.Now(), os.Stdout)
-	case "clean":
-		flags, err := parseCleanArgs(args[1:])
-		if err != nil {
-			return 1, err
-		}
-		return cleancmd.Run(mustGetwd(), flags, os.Stdout)
-	case "status":
-		if len(args) > 1 {
-			return 1, fmt.Errorf("unknown status argument: %s", args[1])
-		}
-		return statuscmd.Run(mustGetwd(), os.Stdout)
-	case "session":
-		sessionArgs, flags, err := parseSessionArgs(args[1:])
-		if err != nil {
-			return 1, err
-		}
-		return sessioncmd.Run(mustGetwd(), sessionArgs, flags, os.Stdout)
 	case "spec":
-		specArgs, flags, err := parseSpecArgs(args[1:])
+		pos, flags, err := parseSpecArgs(args[1:])
 		if err != nil {
 			return 1, err
 		}
-		return speccmd.Run(mustGetwd(), specArgs, flags, os.Stdout, os.Stderr)
+		return speccmd.Run(root, pos, flags, os.Stdout, os.Stderr)
+	case "exec":
+		pos, flags, err := parseExecArgs(args[1:])
+		if err != nil {
+			return 1, err
+		}
+		return execcmd.Run(root, pos, flags, os.Stdout, os.Stderr)
 	case "verify":
-		verifyArgs, flags, err := parseVerifyArgs(args[1:])
+		pos, flags, err := parseVerifyArgs(args[1:])
 		if err != nil {
 			return 1, err
 		}
-		return verifycmd.Run(mustGetwd(), verifyArgs, flags, os.Stdout)
-	default:
-		fmt.Fprintln(os.Stdout, "Usage: mint <command> [args]")
-		return 1, nil
-	}
-}
-
-func parseCleanArgs(args []string) (cleancmd.Flags, error) {
-	var flags cleancmd.Flags
-	for _, arg := range args {
-		switch arg {
-		case "--yes":
+		return verifycmd.Run(root, pos, flags, os.Stdout)
+	case "done":
+		pos, flags, err := parseDoneArgs(args[1:])
+		if err != nil {
+			return 1, err
+		}
+		return donecmd.Run(root, pos, flags, os.Stdout, os.Stderr)
+	case "status":
+		flags := statuscmd.Flags{}
+		for _, arg := range args[1:] {
+			if arg != "--json" {
+				return 1, fmt.Errorf("unknown status argument: %s", arg)
+			}
+			flags.JSON = true
+		}
+		return statuscmd.Run(root, flags, os.Stdout)
+	case "receipt":
+		pos, flags, err := parseReceiptArgs(args[1:])
+		if err != nil {
+			return 1, err
+		}
+		return receiptcmd.Run(root, pos, flags, os.Stdout)
+	case "review":
+		pos, flags, err := parseReviewArgs(args[1:])
+		if err != nil {
+			return 1, err
+		}
+		return reviewcmd.Run(pos, flags, os.Stdout, os.Stderr)
+	case "note":
+		pos, flags, err := parseNoteArgs(args[1:])
+		if err != nil {
+			return 1, err
+		}
+		return notecmd.Run(root, pos, flags, time.Now(), os.Stdout)
+	case "clean":
+		flags := cleancmd.Flags{}
+		for _, arg := range args[1:] {
+			if arg != "--yes" {
+				return 1, fmt.Errorf("unknown clean argument: %s", arg)
+			}
 			flags.Yes = true
-		default:
-			return flags, fmt.Errorf("unknown clean argument: %s", arg)
 		}
+		return cleancmd.Run(root, flags, os.Stdout)
+	default:
+		return usage()
 	}
-	return flags, nil
 }
 
-func parseHandoffArgs(args []string) ([]string, handoffcmd.Flags, error) {
-	var flags handoffcmd.Flags
-	out := []string{}
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--session":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--session requires a value")
-			}
-			flags.Session = args[i+1]
-			i++
-		case "--note":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--note requires a value")
-			}
-			flags.Notes = append(flags.Notes, args[i+1])
-			i++
-		default:
-			out = append(out, args[i])
-		}
-	}
-	return out, flags, nil
-}
-
-func parseReviewArgs(args []string) ([]string, reviewcmd.Flags, error) {
-	var flags reviewcmd.Flags
-	out := []string{}
+func parseSpecArgs(args []string) ([]string, speccmd.Flags, error) {
+	flags := speccmd.Flags{Gates: map[string]string{}}
+	var out []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		switch {
-		case arg == "--list":
-			flags.List = true
-		case arg == "--focus":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--focus requires a value")
+		if arg == "--gate" {
+			value, err := next(args, &i, arg)
+			if err != nil {
+				return nil, flags, err
 			}
-			flags.Focus = args[i+1]
-			i++
-		case strings.HasPrefix(arg, "--"):
-			flags.Lens = strings.TrimPrefix(arg, "--")
-		default:
-			out = append(out, arg)
+			label, command, ok := strings.Cut(value, ":")
+			if !ok || strings.TrimSpace(label) == "" || strings.TrimSpace(command) == "" {
+				return nil, flags, fmt.Errorf("--gate requires 'label: command'")
+			}
+			flags.Gates[strings.TrimSpace(label)] = strings.TrimSpace(command)
+			continue
 		}
-	}
-	return out, flags, nil
-}
-
-func parseDoneArgs(args []string) ([]string, donecmd.Flags, error) {
-	var flags donecmd.Flags
-	out := []string{}
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--verdict":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--verdict requires a value")
+		if arg == "--reviews" {
+			value, err := next(args, &i, arg)
+			if err != nil {
+				return nil, flags, err
 			}
-			flags.Verdict = args[i+1]
-			i++
-		case "--terminal":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--terminal requires a value")
+			for _, lens := range strings.Split(value, ",") {
+				if lens = strings.TrimSpace(lens); lens != "" {
+					flags.Reviews = append(flags.Reviews, lens)
+				}
 			}
-			flags.Terminal = args[i+1]
-			i++
-		case "--session":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--session requires a value")
-			}
-			flags.Session = args[i+1]
-			i++
-		case "--spec":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--spec requires a value")
-			}
-			flags.Spec = args[i+1]
-			i++
-		case "--base":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--base requires a value")
-			}
-			flags.Base = args[i+1]
-			i++
-		case "--json":
-			flags.JSON = true
-		default:
-			out = append(out, args[i])
+			continue
 		}
-	}
-	return out, flags, nil
-}
-
-func parseVerifyArgs(args []string) ([]string, verifycmd.Flags, error) {
-	var flags verifycmd.Flags
-	out := []string{}
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--session":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--session requires a value")
-			}
-			flags.Session = args[i+1]
-			i++
-		case "--spec":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--spec requires a value")
-			}
-			flags.Spec = args[i+1]
-			i++
-		default:
-			out = append(out, args[i])
+		var target *string
+		switch arg {
+		case "--slug":
+			target = &flags.Slug
+		case "--goal":
+			target = &flags.Goal
+		case "--scope":
+			target = &flags.Scope
+		case "--acceptance":
+			target = &flags.Acceptance
+		case "--steps":
+			target = &flags.Steps
+		case "--commit":
+			target = &flags.Commit
+		case "--parent-system":
+			target = &flags.ParentSystem
+		case "--parent-id":
+			target = &flags.ParentID
+		case "--parent-url":
+			target = &flags.ParentURL
 		}
+		if target != nil {
+			value, err := next(args, &i, arg)
+			if err != nil {
+				return nil, flags, err
+			}
+			if arg == "--acceptance" && *target != "" {
+				*target += "\n" + value
+			} else {
+				*target = value
+			}
+			continue
+		}
+		if strings.HasPrefix(arg, "--") {
+			return nil, flags, fmt.Errorf("unknown spec flag: %s", arg)
+		}
+		out = append(out, arg)
 	}
 	return out, flags, nil
 }
 
 func parseExecArgs(args []string) ([]string, execcmd.Flags, error) {
 	var flags execcmd.Flags
-	out := []string{}
+	var out []string
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--session":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--session requires a value")
-			}
-			flags.Session = args[i+1]
-			i++
-		case "--maker-engine":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--maker-engine requires a value")
-			}
-			flags.MakerEngine = args[i+1]
-			i++
-		case "--by-engine":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--by-engine requires a value")
-			}
-			flags.ByEngine = args[i+1]
-			i++
-		case "--by-vendor":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--by-vendor requires a value")
-			}
-			flags.ByVendor = args[i+1]
-			i++
-		case "--by-model":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--by-model requires a value")
-			}
-			flags.ByModel = args[i+1]
-			i++
-		case "--by-locality":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--by-locality requires a value")
-			}
-			flags.ByLocality = args[i+1]
-			i++
-		case "--by-session":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--by-session requires a value")
-			}
-			flags.BySession = args[i+1]
-			i++
+		arg := args[i]
+		var target *string
+		switch arg {
+		case "--attempt":
+			target = &flags.Attempt
+		case "--executor":
+			target = &flags.Executor
+		case "--vendor":
+			target = &flags.Vendor
+		case "--model":
+			target = &flags.Model
+		case "--locality":
+			target = &flags.Locality
+		case "--execution-ref":
+			target = &flags.ExecutionRef
+		case "--observed-by":
+			target = &flags.ObservedBy
+		case "--attestation":
+			target = &flags.Attestation
 		case "--commit":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--commit requires a value")
-			}
-			flags.Commit = args[i+1]
-			i++
-		case "--review":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--review requires a value")
-			}
-			flags.Review = args[i+1]
-			i++
-		case "--":
-			// Everything after -- is the checker command for `exec witness`,
-			// passed through verbatim (never shell-wrapped) so mint spawns and
-			// observes the exact binary. Present-but-empty ([]string{}) differs
-			// from absent (nil) so witness can require the sentinel.
-			flags.CheckerCmd = append([]string{}, args[i+1:]...)
-			if flags.CheckerCmd == nil {
-				flags.CheckerCmd = []string{}
-			}
-			return out, flags, nil
-		default:
-			out = append(out, args[i])
+			target = &flags.Commit
 		}
+		if target != nil {
+			value, err := next(args, &i, arg)
+			if err != nil {
+				return nil, flags, err
+			}
+			*target = value
+			continue
+		}
+		if strings.HasPrefix(arg, "--") {
+			return nil, flags, fmt.Errorf("unknown exec flag: %s", arg)
+		}
+		out = append(out, arg)
 	}
 	return out, flags, nil
 }
 
-func parseHitArgs(args []string) ([]string, hitcmd.Flags, error) {
-	var flags hitcmd.Flags
-	out := []string{}
+func parseDoneArgs(args []string) ([]string, donecmd.Flags, error) {
+	var flags donecmd.Flags
+	var out []string
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--priority":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--priority requires a value")
-			}
-			flags.Priority = args[i+1]
-			i++
-		case "--session":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--session requires a value")
-			}
-			flags.Session = args[i+1]
-			i++
-		case "--body":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--body requires a file path")
-			}
-			flags.Body = args[i+1]
-			i++
-		case "--file":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--file requires a path")
-			}
-			flags.Files = append(flags.Files, args[i+1])
-			i++
-		case "--open":
-			flags.OpenOnly = true
-		default:
-			out = append(out, args[i])
+		arg := args[i]
+		if arg == "--json" {
+			flags.JSON = true
+			continue
 		}
+		var target *string
+		switch arg {
+		case "--attempt":
+			target = &flags.Attempt
+		case "--verdict":
+			target = &flags.Verdict
+		case "--terminal":
+			target = &flags.Terminal
+		case "--spec":
+			target = &flags.Spec
+		case "--base":
+			target = &flags.Base
+		}
+		if target != nil {
+			value, err := next(args, &i, arg)
+			if err != nil {
+				return nil, flags, err
+			}
+			*target = value
+			continue
+		}
+		if strings.HasPrefix(arg, "--") {
+			return nil, flags, fmt.Errorf("unknown done flag: %s", arg)
+		}
+		out = append(out, arg)
 	}
 	return out, flags, nil
 }
 
+func parseVerifyArgs(args []string) ([]string, verifycmd.Flags, error) {
+	var flags verifycmd.Flags
+	var out []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--json" {
+			flags.JSON = true
+			continue
+		}
+		var target *string
+		if arg == "--attempt" {
+			target = &flags.Attempt
+		}
+		if arg == "--spec" {
+			target = &flags.Spec
+		}
+		if target != nil {
+			value, err := next(args, &i, arg)
+			if err != nil {
+				return nil, flags, err
+			}
+			*target = value
+			continue
+		}
+		if strings.HasPrefix(arg, "--") {
+			return nil, flags, fmt.Errorf("unknown verify flag: %s", arg)
+		}
+		out = append(out, arg)
+	}
+	return out, flags, nil
+}
+
+func parseReceiptArgs(args []string) ([]string, receiptcmd.Flags, error) {
+	var flags receiptcmd.Flags
+	var out []string
+	for _, arg := range args {
+		if arg == "--json" {
+			flags.JSON = true
+		} else if strings.HasPrefix(arg, "--") {
+			return nil, flags, fmt.Errorf("unknown receipt flag: %s", arg)
+		} else {
+			out = append(out, arg)
+		}
+	}
+	return out, flags, nil
+}
+func parseReviewArgs(args []string) ([]string, reviewcmd.Flags, error) {
+	var flags reviewcmd.Flags
+	var out []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--list" {
+			flags.List = true
+			continue
+		}
+		if arg == "--focus" {
+			value, err := next(args, &i, arg)
+			if err != nil {
+				return nil, flags, err
+			}
+			flags.Focus = value
+			continue
+		}
+		if strings.HasPrefix(arg, "--") {
+			flags.Lens = strings.TrimPrefix(arg, "--")
+		} else {
+			out = append(out, arg)
+		}
+	}
+	return out, flags, nil
+}
 func parseNoteArgs(args []string) ([]string, notecmd.Flags, error) {
 	var flags notecmd.Flags
-	out := []string{}
+	var out []string
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--body":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--body requires a file path")
+		arg := args[i]
+		if arg == "--body" {
+			value, err := next(args, &i, arg)
+			if err != nil {
+				return nil, flags, err
 			}
-			flags.Body = args[i+1]
-			i++
-		case "--file":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--file requires a path")
-			}
-			flags.Files = append(flags.Files, args[i+1])
-			i++
-		default:
-			out = append(out, args[i])
+			flags.Body = value
+			continue
 		}
+		if arg == "--file" {
+			value, err := next(args, &i, arg)
+			if err != nil {
+				return nil, flags, err
+			}
+			flags.Files = append(flags.Files, value)
+			continue
+		}
+		if strings.HasPrefix(arg, "--") {
+			return nil, flags, fmt.Errorf("unknown note flag: %s", arg)
+		}
+		out = append(out, arg)
 	}
 	return out, flags, nil
 }
 
-func parseSessionArgs(args []string) ([]string, sessioncmd.Flags, error) {
-	var flags sessioncmd.Flags
-	out := []string{}
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--session":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--session requires a value")
-			}
-			flags.Session = args[i+1]
-			i++
-		case "--task":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--task requires a value")
-			}
-			flags.Task = args[i+1]
-			i++
-		case "--mode":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--mode requires a value")
-			}
-			flags.Mode = args[i+1]
-			i++
-		case "--no-commit":
-			flags.NoCommit = true
-		case "--commit":
-			flags.Commit = true
-		default:
-			out = append(out, args[i])
-		}
+func next(args []string, i *int, flag string) (string, error) {
+	if *i+1 >= len(args) {
+		return "", fmt.Errorf("%s requires a value", flag)
 	}
-	return out, flags, nil
+	*i++
+	return args[*i], nil
+}
+func usage() (int, error) {
+	fmt.Fprintln(os.Stdout, "Usage: mint spec|exec|verify|review|done|status|receipt|note|clean")
+	return 1, nil
 }
 
-func parseSpecArgs(args []string) ([]string, speccmd.Flags, error) {
-	var flags speccmd.Flags
-	out := []string{}
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--session":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--session requires a value")
-			}
-			flags.Session = args[i+1]
-			i++
-		case "--slug":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--slug requires a value")
-			}
-			flags.Slug = args[i+1]
-			i++
-		case "--goal":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--goal requires a value")
-			}
-			flags.Goal = args[i+1]
-			i++
-		case "--scope":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--scope requires a value")
-			}
-			flags.Scope = args[i+1]
-			i++
-		case "--acceptance":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--acceptance requires a value")
-			}
-			if flags.Acceptance == "" {
-				flags.Acceptance = args[i+1]
-			} else {
-				flags.Acceptance += "\n" + args[i+1]
-			}
-			i++
-		case "--steps":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--steps requires a value")
-			}
-			flags.Steps = args[i+1]
-			i++
-		case "--commit":
-			if i+1 >= len(args) {
-				return nil, flags, fmt.Errorf("--commit requires a value")
-			}
-			flags.Commit = args[i+1]
-			i++
-		default:
-			out = append(out, args[i])
-		}
+func help(command string) (int, error) {
+	lines := map[string]string{
+		"":        "Usage: mint <command> [args]\nCommands: spec, exec, verify, review, done, status, receipt, note, clean",
+		"spec":    "Usage: mint spec new \"<title>\" [--slug <slug>] --goal <text> --scope <paths> --acceptance <EARS> [--gate 'label: command'] [--reviews <list>]\n       mint spec set|validate|scope <spec-path>",
+		"exec":    "Usage: mint exec init <slug> <spec-id> [--attempt <id>] --executor <name> --vendor <name> --model <name> --locality <local|remote> [--execution-ref <ref>]\n       mint exec record-review|record-gate|set-status|show ...",
+		"verify":  "Usage: mint verify <slug> <spec-id> [--attempt <id>] [--spec <path>]",
+		"review":  "Usage: mint review --list | mint review --<lens> [--focus <text>]",
+		"done":    "Usage: mint done <slug> <spec-id> [--attempt <id>] [--verdict <path>] [--terminal <state>] [--base <ref>] [--json]",
+		"status":  "Usage: mint status [--json]",
+		"receipt": "Usage: mint receipt show|verify <path> [--json]",
+		"note":    "Usage: mint note add <topic> <text> [--body <path>] [--file <path>] | show <topic> | list",
+		"clean":   "Usage: mint clean [--yes]",
 	}
-	return out, flags, nil
+	text, ok := lines[command]
+	if !ok {
+		return 1, fmt.Errorf("unknown command: %s", command)
+	}
+	fmt.Fprintln(os.Stdout, text)
+	return 0, nil
 }
-
 func mustGetwd() string {
 	wd, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
-	return wd
+	return statehome.Resolve(wd).WorktreeRoot
 }

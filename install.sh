@@ -5,14 +5,14 @@
 #
 # mint is a single self-contained Go binary, distributed as a rolling `latest` release
 # (no version numbers — every push to main republishes the current build). This script
-# downloads the right one for your platform, drops it under ~/.mint/bin, and symlinks it
+# downloads the right one for your platform, stores it under XDG data, and symlinks it
 # onto your PATH at ~/.local/bin/mint. Re-run it any time to update in place.
 set -eu
 
 TOOL="mint"
 REPO="3li7alaki/mint"
 RELEASE="latest"          # rolling tag; there is no semver
-INSTALL_DIR="$HOME/.$TOOL"
+INSTALL_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/$TOOL"
 BIN_DIR="$INSTALL_DIR/bin"
 LINK_DIR="$HOME/.local/bin"
 
@@ -71,16 +71,6 @@ trap - EXIT INT TERM
 # Symlink onto PATH (no root, no copy — the link tracks updates in place).
 mkdir -p "$LINK_DIR"
 ln -sf "$BIN_DIR/$TOOL" "$LINK_DIR/$TOOL"
-
-# Install the opt-in Claude Code hook to a tool-owned XDG location, so other tooling
-# (a dotfiles setup) can bind to a stable path regardless of where mint was cloned.
-HOOK_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/$TOOL/hooks"
-mkdir -p "$HOOK_DIR"
-if curl -fsSL "https://raw.githubusercontent.com/$REPO/main/hooks/claude/mint-activate.sh" \
-     -o "$HOOK_DIR/mint-activate.sh" 2>/dev/null; then
-  chmod +x "$HOOK_DIR/mint-activate.sh"
-  say "  hook -> $HOOK_DIR/mint-activate.sh (opt-in; wire in your agent config)"
-fi
 
 # Add ~/.local/bin to PATH once, guarded against duplicates.
 if [ "$NO_PATH" != true ]; then

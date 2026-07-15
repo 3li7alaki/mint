@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"mint/internal/engine"
 	"mint/internal/execstate"
 )
 
@@ -146,12 +145,16 @@ func TestEnforceSafetyMilestoneRequiresAllStackedAttestations(t *testing.T) {
 	safe.Spec = specWith("cli/lib/auth.js", "cli/lib/floor-kernel.test.js")
 	safe.ChangedFiles = []string{"cli/lib/auth.js"}
 	safe.Patch = "+ const token = signIn(password);"
-	safe.MakerEngine = "claude"
-	safe.MakerSession = "sess-maker"
+	safe.MakerExecutor = "claude"
+	safe.MakerExecutionRef = "sess-maker"
 	safe.Verdict = map[string]any{
+		"schemaVersion":       float64(1),
 		"accepted":            true,
-		"byEngine":            "codex",
-		"bySession":           "sess-checker",
+		"executor":            "codex",
+		"vendor":              "openai",
+		"model":               "gpt",
+		"locality":            "remote",
+		"executionRef":        "sess-checker",
 		"safetyReviewed":      true,
 		"safetyReason":        "auth token handling reviewed for leakage",
 		"adversarialReviewed": true,
@@ -211,7 +214,7 @@ func TestClauseVerifiableCompletion(t *testing.T) {
 
 	input = passingInput()
 	input.RequiredReviews = []string{"security", "quality"}
-	input.Reviews = reviewMap("security", "passed", "codex", "reviewer", "quality", "passed", "claude", "fresh-session")
+	input.Reviews = reviewMap("security", "passed", "codex", "reviewer", "quality", "passed", "claude", "fresh-execution")
 	if c1 := clauseResult(t, Enforce(input), 1); !c1.Pass {
 		t.Fatalf("all declared reviews passed should satisfy clause 1: %#v", c1)
 	}
@@ -245,9 +248,9 @@ func TestClauseVerifiableCompletion(t *testing.T) {
 func TestDeclaredReviewRejectsMissingAndMakerProvenance(t *testing.T) {
 	for name, review := range map[string]execstate.Review{
 		"no provenance": {Verdict: "passed"},
-		"maker engine and session": {
+		"maker provenance": {
 			Verdict:    "passed",
-			Provenance: execstate.Provenance{Engine: "claude", Session: "sess-maker"},
+			Provenance: execstate.Provenance{Executor: "claude", ExecutionRef: "sess-maker"},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -265,11 +268,11 @@ func TestDeclaredReviewRejectsMissingAndMakerProvenance(t *testing.T) {
 func TestSafetyReviewRequiresDifferentVendor(t *testing.T) {
 	input := passingInput()
 	input.RequiredReviews = []string{"security"}
-	input.Reviews = reviewMap("security", "passed", "claude", "fresh-session")
+	input.Reviews = reviewMap("security", "passed", "claude", "fresh-execution")
 	if c1 := clauseResult(t, Enforce(input), 1); c1.Pass || !strings.Contains(reason(c1), "different model vendor") {
 		t.Fatalf("same-vendor safety review satisfied floor: %#v", c1)
 	}
-	input.Reviews = reviewMap("security", "passed", "codex", "fresh-session")
+	input.Reviews = reviewMap("security", "passed", "codex", "fresh-execution")
 	if c1 := clauseResult(t, Enforce(input), 1); !c1.Pass {
 		t.Fatalf("different-vendor safety review should satisfy floor: %#v", c1)
 	}
@@ -286,7 +289,9 @@ func TestClauseVerifiableCompletionAdversarialDefault(t *testing.T) {
 	input.Spec = specWith("cli/lib/calc.js")
 	input.ChangedFiles = []string{"cli/lib/calc.js"}
 	input.Patch = logicPatch
-	input.Verdict["byEngine"] = "codex"
+	input.Verdict["executor"] = "codex"
+	input.Verdict["vendor"] = "openai"
+	input.Verdict["model"] = "gpt"
 	c1 := clauseResult(t, Enforce(input), 1)
 	if c1.Pass || !strings.Contains(reason(c1), "logic/trust diff") || !strings.Contains(reason(c1), "adversarialReviewed") {
 		t.Fatalf("logic diff without adversarial attestation got %#v", c1)
@@ -334,7 +339,9 @@ func TestLogicTierTrivialDiffsDoNotRequireAdversarialAttestation(t *testing.T) {
 			input.Spec = specWith(tc.file)
 			input.ChangedFiles = []string{tc.file}
 			input.Patch = diffOf(tc.file, tc.lines)
-			input.Verdict["byEngine"] = "codex"
+			input.Verdict["executor"] = "codex"
+			input.Verdict["vendor"] = "openai"
+			input.Verdict["model"] = "gpt"
 			c1 := clauseResult(t, Enforce(input), 1)
 			if !c1.Pass {
 				t.Fatalf("trivial diff required adversarial attestation: %#v", c1)
@@ -348,7 +355,9 @@ func TestLogicTierBuildArtifactAnchorBoundaries(t *testing.T) {
 	input.Spec = specWith("src/build/calc.js")
 	input.ChangedFiles = []string{"src/build/calc.js"}
 	input.Patch = diffOf("src/build/calc.js", []string{"+if (a > b) return a * b;"})
-	input.Verdict["byEngine"] = "codex"
+	input.Verdict["executor"] = "codex"
+	input.Verdict["vendor"] = "openai"
+	input.Verdict["model"] = "gpt"
 	c1 := clauseResult(t, Enforce(input), 1)
 	if c1.Pass || !strings.Contains(reason(c1), "logic/trust diff") {
 		t.Fatalf("hand-written src/build file should not be skipped as generated artifact: %#v", c1)
@@ -371,7 +380,9 @@ func TestLogicTierInterpolationAndRegexDodgeClose(t *testing.T) {
 			input.Spec = specWith("cli/lib/calc.js")
 			input.ChangedFiles = []string{"cli/lib/calc.js"}
 			input.Patch = diffOf("cli/lib/calc.js", []string{tc.line})
-			input.Verdict["byEngine"] = "codex"
+			input.Verdict["executor"] = "codex"
+			input.Verdict["vendor"] = "openai"
+			input.Verdict["model"] = "gpt"
 			c1 := clauseResult(t, Enforce(input), 1)
 			if c1.Pass || !strings.Contains(reason(c1), "logic/trust diff") {
 				t.Fatalf("logic dodge did not trip clause 1: %#v", c1)
@@ -398,7 +409,9 @@ func TestLogicTierRegexAndInterpolationRound4Parity(t *testing.T) {
 			input.Spec = specWith("cli/lib/calc.js")
 			input.ChangedFiles = []string{"cli/lib/calc.js"}
 			input.Patch = diffOf("cli/lib/calc.js", []string{tc.line})
-			input.Verdict["byEngine"] = "codex"
+			input.Verdict["executor"] = "codex"
+			input.Verdict["vendor"] = "openai"
+			input.Verdict["model"] = "gpt"
 			c1 := clauseResult(t, Enforce(input), 1)
 			if c1.Pass || !strings.Contains(reason(c1), "logic/trust diff") {
 				t.Fatalf("expected logic-tier clause 1 failure for %q: %#v", tc.line, c1)
@@ -421,7 +434,9 @@ func TestLogicTierRegexAndInterpolationRound4Parity(t *testing.T) {
 			input.Spec = specWith("cli/lib/calc.js")
 			input.ChangedFiles = []string{"cli/lib/calc.js"}
 			input.Patch = diffOf("cli/lib/calc.js", []string{tc.line})
-			input.Verdict["byEngine"] = "codex"
+			input.Verdict["executor"] = "codex"
+			input.Verdict["vendor"] = "openai"
+			input.Verdict["model"] = "gpt"
 			c1 := clauseResult(t, Enforce(input), 1)
 			if !c1.Pass {
 				t.Fatalf("honest string/regex content required adversarial attestation for %q: %#v", tc.line, c1)
@@ -452,7 +467,9 @@ func TestLogicTierRegexQuoteDesyncRound5Parity(t *testing.T) {
 			input.Spec = specWith("cli/lib/calc.js")
 			input.ChangedFiles = []string{"cli/lib/calc.js"}
 			input.Patch = diffOf("cli/lib/calc.js", []string{line})
-			input.Verdict["byEngine"] = "codex"
+			input.Verdict["executor"] = "codex"
+			input.Verdict["vendor"] = "openai"
+			input.Verdict["model"] = "gpt"
 			c1 := clauseResult(t, Enforce(input), 1)
 			if c1.Pass || !strings.Contains(reason(c1), "logic/trust diff") {
 				t.Fatalf("expected logic-tier clause 1 failure for %q: %#v", line, c1)
@@ -464,7 +481,9 @@ func TestLogicTierRegexQuoteDesyncRound5Parity(t *testing.T) {
 	input.Spec = specWith("cli/lib/calc.js")
 	input.ChangedFiles = []string{"cli/lib/calc.js"}
 	input.Patch = diffOf("cli/lib/calc.js", []string{"+const slug = /[a-z]+-[0-9]+/;"})
-	input.Verdict["byEngine"] = "codex"
+	input.Verdict["executor"] = "codex"
+	input.Verdict["vendor"] = "openai"
+	input.Verdict["model"] = "gpt"
 	if c1 := clauseResult(t, Enforce(input), 1); !c1.Pass {
 		t.Fatalf("pure regex preceded by assignment should not trap: %#v", c1)
 	}
@@ -472,340 +491,48 @@ func TestLogicTierRegexQuoteDesyncRound5Parity(t *testing.T) {
 
 func TestClauseMakerChecker(t *testing.T) {
 	input := passingInput()
-	input.Verdict["bySession"] = input.MakerSession
-	c2 := clauseResult(t, Enforce(input), 2)
-	if c2.Pass || !strings.Contains(reason(c2), "maker's own engine+session") {
+	input.Verdict["executionRef"] = input.MakerExecutionRef
+	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "own execution") {
 		t.Fatalf("self verdict got %#v", c2)
 	}
-
 	input = passingInput()
-	input.Verdict["byEngine"] = "codex"
+	input.Verdict["vendor"] = "openai"
+	input.Verdict["executor"] = "codex"
+	input.Verdict["vendor"] = "openai"
+	input.Verdict["model"] = "gpt"
+	input.Verdict["model"] = "gpt"
 	if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
-		t.Fatalf("different engine should pass: %#v", c2)
-	}
-
-	input = passingInput()
-	input.MakerEngine = "phantom"
-	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "not a recognized engine") {
-		t.Fatalf("unknown maker engine got %#v", c2)
-	}
-
-	input = passingInput()
-	input.ChangedFiles = []string{"src/auth/login.go"}
-	input.Spec = specWith("src/auth/login.go")
-	input.Patch = "+ validate password token"
-	c2 = clauseResult(t, Enforce(input), 2)
-	if c2.Pass || !strings.Contains(reason(c2), "DIFFERENT engine") {
-		t.Fatalf("safety same-engine verdict got %#v", c2)
-	}
-	input.Verdict["byEngine"] = "codex"
-	if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
-		t.Fatalf("safety different-engine verdict should pass: %#v", c2)
+		t.Fatalf("different vendor should pass: %#v", c2)
 	}
 }
 
-func TestClauseMakerCheckerEngineIdentityNormalization(t *testing.T) {
-	for _, checker := range []string{"codex", "Codex", " CODEX ", "ｃｏｄｅｘ", "codex\u200e", "co\u200bdex"} {
-		input := passingInput()
-		input.Verdict["byEngine"] = checker
-		c2 := clauseResult(t, Enforce(input), 2)
-		if !c2.Pass {
-			t.Fatalf("checker engine variant %q should normalize to known cross-engine codex: %#v", checker, c2)
-		}
-	}
+func TestClauseMakerCheckerSameVendorPolicy(t *testing.T) {
 	input := passingInput()
-	input.Verdict["byEngine"] = "оpus"
-	c2 := clauseResult(t, Enforce(input), 2)
-	if c2.Pass || !strings.Contains(reason(c2), "not a recognized engine") {
-		t.Fatalf("confusable engine should fail closed: %#v", c2)
-	}
-}
-
-func TestClauseMakerCheckerIdentityAllowlistAndDisguises(t *testing.T) {
-	for _, checker := range engine.Keys() {
-		maker := "claude"
-		if checker == maker {
-			maker = "codex"
-		}
-		input := passingInput()
-		input.MakerEngine = maker
-		input.Verdict["byEngine"] = checker
-		if checker == "opencode" {
-			input.Verdict["byVendor"] = "independent-vendor"
-			input.Verdict["byModel"] = "independent-model"
-			input.Verdict["byLocality"] = "local"
-		}
-		c2 := clauseResult(t, Enforce(input), 2)
-		if !c2.Pass {
-			t.Fatalf("registered checker %q vs maker %q should pass: %#v", checker, maker, c2)
-		}
-	}
-
-	for _, byEngine := range []string{"claude ", " Claude", "\tclaude\t", "CLAUDE", "clau\u200dde", "\ufeffclaude"} {
-		input := passingInput()
-		input.MakerEngine = "claude"
-		input.MakerSession = "sess-maker"
-		input.Verdict["byEngine"] = byEngine
-		input.Verdict["bySession"] = "sess-maker"
-		c2 := clauseResult(t, Enforce(input), 2)
-		if c2.Pass || !strings.Contains(reason(c2), "maker's own engine+session") {
-			t.Fatalf("disguised same engine %q should fail as self-verdict: %#v", byEngine, c2)
-		}
-	}
-
-	input := passingInput()
-	input.MakerEngine = "claude"
-	input.MakerSession = "sess-maker"
-	input.Verdict["byEngine"] = "Claude "
-	input.Verdict["bySession"] = "sess-fresh"
+	input.Verdict["executionRef"] = "fresh"
 	if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
-		t.Fatalf("same normalized engine with genuinely fresh session should pass on non-safety diff: %#v", c2)
+		t.Fatalf("same executor with fresh execution should pass: %#v", c2)
 	}
-
-	input = passingInput()
-	input.MakerEngine = "claude"
-	input.MakerSession = "sess 1"
-	input.Verdict["byEngine"] = "claude"
-	input.Verdict["bySession"] = "sess  1"
-	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "maker's own engine+session") {
-		t.Fatalf("collapsed whitespace session should be treated as same provenance: %#v", c2)
-	}
-
-	for _, bad := range []string{"phantom-engine", "not-in-engine-map", "оpus"} {
-		input = passingInput()
-		input.MakerEngine = "claude"
-		input.Verdict["byEngine"] = bad
-		c2 := clauseResult(t, Enforce(input), 2)
-		if c2.Pass || !strings.Contains(reason(c2), "not a recognized engine") {
-			t.Fatalf("unknown/confusable checker %q should fail closed: %#v", bad, c2)
-		}
-	}
-
-	input = passingInput()
-	input.MakerEngine = "phantom"
-	input.Verdict["byEngine"] = "codex"
-	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "not a recognized engine") {
-		t.Fatalf("unknown maker engine should fail closed: %#v", c2)
+	input.Verdict["executor"] = "other-runner"
+	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "different executors") {
+		t.Fatalf("same-vendor different executor should fail: %#v", c2)
 	}
 }
 
-func TestClauseMakerCheckerUsesModelVendorNotChassis(t *testing.T) {
+func TestClauseMakerCheckerSafetyRequiresCrossVendor(t *testing.T) {
 	input := passingInput()
-	input.MakerEngine = "codex"
 	input.ChangedFiles = []string{"src/auth/login.go"}
 	input.Spec = specWith("src/auth/login.go")
 	input.Patch = "+ validate token"
-	input.Verdict["byEngine"] = "opencode"
-	input.Verdict["byVendor"] = "openai"
-	input.Verdict["byModel"] = "gpt-5"
-	input.Verdict["byLocality"] = "remote"
-	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "both resolve to vendor openai") {
-		t.Fatalf("different chassis with the same vendor must fail independence: %#v", c2)
+	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass {
+		t.Fatalf("same vendor safety verdict should fail: %#v", c2)
 	}
-
-	input.Verdict["byVendor"] = "local-lab"
-	input.Verdict["byModel"] = "llama-70b"
-	input.Verdict["byLocality"] = "local"
+	input.Verdict["vendor"] = "openai"
+	input.Verdict["executor"] = "codex"
+	input.Verdict["vendor"] = "openai"
+	input.Verdict["model"] = "gpt"
+	input.Verdict["model"] = "gpt"
 	if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
-		t.Fatalf("different vendor on configurable chassis should pass: %#v", c2)
-	}
-}
-
-func TestClauseMakerCheckerSameVendorDifferentChassisFailsForNormalWork(t *testing.T) {
-	input := passingInput()
-	input.MakerEngine = "codex"
-	input.Verdict["byEngine"] = "opencode"
-	input.Verdict["byVendor"] = "openai"
-	input.Verdict["byModel"] = "gpt-5"
-	input.Verdict["byLocality"] = "remote"
-	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "different chassis do not establish independence") {
-		t.Fatalf("normal unit accepted same vendor hidden behind another chassis: %#v", c2)
-	}
-}
-
-func TestClauseMakerCheckerConfigurableProvenanceFailsClosed(t *testing.T) {
-	for _, missing := range []string{"byVendor", "byModel", "byLocality"} {
-		input := passingInput()
-		input.Verdict["byEngine"] = "opencode"
-		input.Verdict["byVendor"] = "local-lab"
-		input.Verdict["byModel"] = "llama-70b"
-		input.Verdict["byLocality"] = "local"
-		delete(input.Verdict, missing)
-		if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "requires explicit vendor, model, and locality") {
-			t.Fatalf("missing %s did not fail closed: %#v", missing, c2)
-		}
-	}
-	input := passingInput()
-	input.Verdict["byVendor"] = 5
-	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "must be a non-empty string") {
-		t.Fatalf("malformed optional fixed provenance was silently ignored: %#v", c2)
-	}
-}
-
-func TestClauseMakerCheckerConfigurableMakerProvenanceComesFromExecutionInput(t *testing.T) {
-	input := passingInput()
-	input.MakerEngine = "opencode"
-	input.MakerVendor = "openai"
-	input.MakerModel = "gpt-5"
-	input.MakerLocality = "remote"
-	input.Verdict["byEngine"] = "claude"
-	if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
-		t.Fatalf("recorded configurable maker provenance should pass with another vendor: %#v", c2)
-	}
-	input.MakerModel = ""
-	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "requires explicit vendor, model, and locality") {
-		t.Fatalf("configurable maker without model did not fail closed: %#v", c2)
-	}
-}
-
-func TestClauseMakerCheckerIgnoresCheckerForgedMakerIdentity(t *testing.T) {
-	input := passingInput()
-	input.MakerEngine = "codex"
-	input.Verdict["byEngine"] = "opencode"
-	input.Verdict["byVendor"] = "openai"
-	input.Verdict["byModel"] = "gpt"
-	input.Verdict["byLocality"] = "remote"
-	input.Verdict["makerVendor"] = "anthropic"
-	input.Verdict["makerModel"] = "claude"
-	input.Verdict["makerLocality"] = "local"
-	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "different chassis do not establish independence") {
-		t.Fatalf("checker forged maker identity through verdict: %#v", c2)
-	}
-}
-
-func TestClauseMakerCheckerLocalityIsOptIn(t *testing.T) {
-	input := passingInput()
-	input.Verdict["byEngine"] = "codex" // registry proves remote
-	if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
-		t.Fatalf("remote checker should remain compatible without locality declaration: %#v", c2)
-	}
-	input.Spec = strings.Replace(input.Spec, "</task>", "  <locality>local</locality>\n</task>", 1)
-	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "requires local-only") {
-		t.Fatalf("declared local-only unit accepted remote checker: %#v", c2)
-	}
-	input.Verdict["byEngine"] = "opencode"
-	input.Verdict["byVendor"] = "zai"
-	input.Verdict["byModel"] = "glm"
-	input.Verdict["byLocality"] = "local"
-	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "cannot prove") {
-		t.Fatalf("self-asserted local configurable checker should fail closed: %#v", c2)
-	}
-}
-
-func TestClauseMakerCheckerSessionConfusableFreshness(t *testing.T) {
-	input := passingInput()
-	input.MakerEngine = "codex"
-	input.MakerSession = "sMaker"
-	input.Verdict["byEngine"] = "codex"
-	input.Verdict["bySession"] = "sMaker"
-	if c2 := clauseResult(t, Enforce(input), 2); c2.Pass || !strings.Contains(reason(c2), "maker's own engine+session") {
-		t.Fatalf("same engine same ASCII session should fail: %#v", c2)
-	}
-
-	input = passingInput()
-	input.MakerEngine = "codex"
-	input.MakerSession = "sMaker"
-	input.Verdict["byEngine"] = "codex"
-	input.Verdict["bySession"] = "ѕMaker"
-	c2 := clauseResult(t, Enforce(input), 2)
-	if c2.Pass || !strings.Contains(reason(c2), "not a valid session id") {
-		t.Fatalf("confusable checker session should not establish freshness: %#v", c2)
-	}
-
-	for _, session := range []string{
-		"otherSession",
-		"0195e3a1b2c0-a1b2c3d4",
-		"3dabc66c-862f-4c77-9c3f-f6bf050319e0",
-		"sMakerl",
-		"sMaker1",
-		"sMakerO",
-		"sMaker0",
-	} {
-		input = passingInput()
-		input.MakerEngine = "codex"
-		input.MakerSession = "sMaker"
-		input.Verdict["byEngine"] = "codex"
-		input.Verdict["bySession"] = session
-		if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
-			t.Fatalf("strict ASCII fresh session %q should pass: %#v", session, c2)
-		}
-	}
-
-	for _, session := range []string{"ѕMaker", "оtherodd", "sess fresh", "sess;rm -rf", "sess$(x)", "s#fresh", "sess\tfresh", "éfresh", "sess０１"} {
-		input = passingInput()
-		input.MakerEngine = "codex"
-		input.MakerSession = "sMaker"
-		input.Verdict["byEngine"] = "codex"
-		input.Verdict["bySession"] = session
-		c2 := clauseResult(t, Enforce(input), 2)
-		if c2.Pass || !strings.Contains(reason(c2), "not a valid session id") {
-			t.Fatalf("non-strict session %q should fail closed: %#v", session, c2)
-		}
-	}
-
-	for _, session := range []string{"", "   ", "\t\n"} {
-		input = passingInput()
-		input.MakerEngine = "codex"
-		input.MakerSession = "sMaker"
-		input.Verdict["byEngine"] = "codex"
-		input.Verdict["bySession"] = session
-		c2 := clauseResult(t, Enforce(input), 2)
-		if c2.Pass || !strings.Contains(reason(c2), "provenance") {
-			t.Fatalf("empty session %q should fail as missing provenance: %#v", session, c2)
-		}
-	}
-
-	input = passingInput()
-	input.MakerEngine = "codex"
-	input.MakerSession = "sMaker"
-	input.Verdict["byEngine"] = "claude"
-	input.Verdict["bySession"] = "ѕMaker"
-	if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
-		t.Fatalf("different known engine should pass even with confusable session: %#v", c2)
-	}
-}
-
-func TestClauseMakerCheckerSafetyAndOverrideComposition(t *testing.T) {
-	for _, bySession := range []string{"otherSession", "ѕMaker"} {
-		input := passingInput()
-		input.ChangedFiles = []string{"cli/lib/auth/login.js"}
-		input.Spec = specWith("cli/lib/auth/login.js")
-		input.MakerEngine = "codex"
-		input.MakerSession = "sMaker"
-		input.Verdict["byEngine"] = "codex"
-		input.Verdict["bySession"] = bySession
-		c2 := clauseResult(t, Enforce(input), 2)
-		if c2.Pass || !strings.Contains(reason(c2), "DIFFERENT engine") {
-			t.Fatalf("safety same-engine session %q should fail different-engine bar: %#v", bySession, c2)
-		}
-	}
-
-	input := passingInput()
-	input.ChangedFiles = []string{"cli/lib/auth/login.js"}
-	input.Spec = specWith("cli/lib/auth/login.js")
-	input.MakerEngine = "codex"
-	input.MakerSession = "sMaker"
-	input.Verdict["byEngine"] = "claude"
-	input.Verdict["bySession"] = "ѕMaker"
-	if c2 := clauseResult(t, Enforce(input), 2); !c2.Pass {
-		t.Fatalf("safety different-engine verdict should pass, sessions irrelevant: %#v", c2)
-	}
-
-	flaggedPatch := diffOf("cli/lib/x.test.js", []string{"-it('t', () => {});", "+it.skip('t', () => {});"})
-	input = passingInput()
-	input.Patch = flaggedPatch
-	input.MakerEngine = "claude"
-	input.MakerSession = "sess-maker"
-	input.Verdict["byEngine"] = "claude "
-	input.Verdict["bySession"] = "sess-maker"
-	input.Verdict["tamperingReviewed"] = true
-	input.Verdict["tamperingReason"] = "claims a review but is self attached"
-	result := Enforce(input)
-	if c4 := clauseResult(t, result, 4); !c4.Pass {
-		t.Fatalf("tampering override should pass clause 4: %#v", c4)
-	}
-	if c2 := clauseResult(t, result, 2); c2.Pass || !strings.Contains(reason(c2), "maker's own engine+session") {
-		t.Fatalf("tampering override must not bypass clause 2: %#v", c2)
+		t.Fatalf("cross-vendor safety verdict should pass: %#v", c2)
 	}
 }
 
@@ -814,7 +541,9 @@ func TestClauseSafetyCarveOut(t *testing.T) {
 	input.ChangedFiles = []string{"src/auth/login.go"}
 	input.Spec = specWith("src/auth/login.go")
 	input.Patch = "+ validate password token"
-	input.Verdict["byEngine"] = "codex"
+	input.Verdict["executor"] = "codex"
+	input.Verdict["vendor"] = "openai"
+	input.Verdict["model"] = "gpt"
 	c3 := clauseResult(t, Enforce(input), 3)
 	if c3.Pass || !strings.Contains(reason(c3), "safety carve-out") {
 		t.Fatalf("missing safety attestation got %#v", c3)
@@ -834,7 +563,9 @@ func TestAttestationsFailClosedOnNonStrictFlagsAndJunkReasons(t *testing.T) {
 			input.ChangedFiles = []string{"src/auth/login.go"}
 			input.Spec = specWith("src/auth/login.go")
 			input.Patch = "+ validate password token"
-			input.Verdict["byEngine"] = "codex"
+			input.Verdict["executor"] = "codex"
+			input.Verdict["vendor"] = "openai"
+			input.Verdict["model"] = "gpt"
 			input.Verdict["safetyReviewed"] = flag
 			input.Verdict["safetyReason"] = "auth token flow reviewed for leakage"
 			c3 := clauseResult(t, Enforce(input), 3)
@@ -850,7 +581,9 @@ func TestAttestationsFailClosedOnNonStrictFlagsAndJunkReasons(t *testing.T) {
 			input.Spec = specWith("cli/lib/calc.js")
 			input.ChangedFiles = []string{"cli/lib/calc.js"}
 			input.Patch = diffOf("cli/lib/calc.js", []string{"+if (a > b) return a;"})
-			input.Verdict["byEngine"] = "codex"
+			input.Verdict["executor"] = "codex"
+			input.Verdict["vendor"] = "openai"
+			input.Verdict["model"] = "gpt"
 			input.Verdict["adversarialReviewed"] = true
 			input.Verdict["adversarialReason"] = junk
 			c1 := clauseResult(t, Enforce(input), 1)
@@ -874,7 +607,9 @@ func TestSafetyTierStacksWithAdversarialDefault(t *testing.T) {
 	input.ChangedFiles = []string{"src/auth/login.go"}
 	input.Spec = specWith("src/auth/login.go")
 	input.Patch = "+ validate password token"
-	input.Verdict["byEngine"] = "codex"
+	input.Verdict["executor"] = "codex"
+	input.Verdict["vendor"] = "openai"
+	input.Verdict["model"] = "gpt"
 	input.Verdict["safetyReviewed"] = true
 	input.Verdict["safetyReason"] = "reviewed auth boundary"
 	result := Enforce(input)
@@ -1100,33 +835,35 @@ func TestClauseAntiGamingParserAndCompositionParity(t *testing.T) {
 		}
 	})
 
-	t.Run("cross-engine tampering override can make whole floor pass", func(t *testing.T) {
+	t.Run("cross-vendor tampering override can make whole floor pass", func(t *testing.T) {
 		input := withPatch(diffOf("cli/lib/x.test.js", []string{"-it('t', () => {});", "+it.skip('t', () => {});"}))
-		input.MakerEngine = "claude"
-		input.MakerSession = "sess-maker"
-		input.Verdict["byEngine"] = "codex"
-		input.Verdict["bySession"] = "sess-checker"
+		input.MakerExecutor = "claude"
+		input.MakerExecutionRef = "sess-maker"
+		input.Verdict["executor"] = "codex"
+		input.Verdict["vendor"] = "openai"
+		input.Verdict["model"] = "gpt"
+		input.Verdict["executionRef"] = "sess-checker"
 		input.Verdict["tamperingReviewed"] = true
 		input.Verdict["tamperingReason"] = "legit refactor independently reviewed"
 		result := Enforce(input)
 		if !result.Pass || len(result.Failed) != 0 {
-			t.Fatalf("cross-engine tampering override should satisfy full floor: %#v", result)
+			t.Fatalf("cross-vendor tampering override should satisfy full floor: %#v", result)
 		}
 	})
 
-	t.Run("same-engine same-session tampering override leaves clause 2 red", func(t *testing.T) {
+	t.Run("same-executor same-execution tampering override leaves clause 2 red", func(t *testing.T) {
 		input := withPatch(diffOf("cli/lib/x.test.js", []string{"-it('t', () => {});", "+it.skip('t', () => {});"}))
-		input.MakerEngine = "claude"
-		input.MakerSession = "sess-maker"
-		input.Verdict["byEngine"] = "claude"
-		input.Verdict["bySession"] = "sess-maker"
+		input.MakerExecutor = "claude"
+		input.MakerExecutionRef = "sess-maker"
+		input.Verdict["executor"] = "claude"
+		input.Verdict["executionRef"] = "sess-maker"
 		input.Verdict["tamperingReviewed"] = true
 		input.Verdict["tamperingReason"] = "claims a review but self attached"
 		result := Enforce(input)
 		if c4 := clauseResult(t, result, 4); !c4.Pass {
 			t.Fatalf("clause 4 should honor local override: %#v", c4)
 		}
-		if c2 := clauseResult(t, result, 2); c2.Pass || !strings.Contains(reason(c2), "maker's own engine+session") {
+		if c2 := clauseResult(t, result, 2); c2.Pass || !strings.Contains(reason(c2), "maker's own execution") {
 			t.Fatalf("clause 2 should still reject self-attached override: %#v", c2)
 		}
 		if !reflect.DeepEqual(result.Failed, []int{2}) {
@@ -1395,6 +1132,17 @@ func TestIsSafetyTier(t *testing.T) {
 	}
 }
 
+func TestIsSafetyTierDoesNotPromoteDocumentationVocabulary(t *testing.T) {
+	input := Input{ChangedFiles: []string{"docs/security.md"}, Patch: "+ security trust-boundary authentication"}
+	if IsSafetyTier(input) {
+		t.Fatal("documentation vocabulary alone promoted a docs-only diff to safety tier")
+	}
+	input.Spec = "<task><risk>safety</risk></task>"
+	if !IsSafetyTier(input) {
+		t.Fatal("explicit safety risk declaration was ignored for docs-only work")
+	}
+}
+
 func TestIsSafetyTierResidualSecurityMatrix(t *testing.T) {
 	residuals := []struct {
 		label string
@@ -1428,11 +1176,11 @@ func TestIsSafetyTierResidualSecurityMatrix(t *testing.T) {
 			input.ChangedFiles = []string{tc.path}
 			input.Spec = specWith(tc.path)
 			input.Patch = tc.patch
-			input.Verdict["byEngine"] = "claude"
-			input.Verdict["bySession"] = "sess-fresh"
+			input.Verdict["executor"] = "claude"
+			input.Verdict["executionRef"] = "sess-fresh"
 			result := Enforce(input)
-			if c2 := clauseResult(t, result, 2); c2.Pass || !strings.Contains(reason(c2), "DIFFERENT engine") {
-				t.Fatalf("risky safety path should require different engine, got %#v", c2)
+			if c2 := clauseResult(t, result, 2); c2.Pass || !strings.Contains(reason(c2), "different model vendor") {
+				t.Fatalf("risky safety path should require a different vendor, got %#v", c2)
 			}
 			if c3 := clauseResult(t, result, 3); c3.Pass || !strings.Contains(reason(c3), "safety carve-out") {
 				t.Fatalf("risky safety path should require safety review, got %#v", c3)
@@ -1473,13 +1221,13 @@ func TestIsSafetyTierDangerousSinkMarkers(t *testing.T) {
 			input.ChangedFiles = []string{tc.file}
 			input.Spec = specWith(tc.file)
 			input.Patch = tc.patch
-			input.MakerEngine = "claude"
-			input.MakerSession = "sess-maker"
-			input.Verdict["byEngine"] = "claude"
-			input.Verdict["bySession"] = "sess-fresh"
+			input.MakerExecutor = "claude"
+			input.MakerExecutionRef = "sess-maker"
+			input.Verdict["executor"] = "claude"
+			input.Verdict["executionRef"] = "sess-fresh"
 			c2 := clauseResult(t, Enforce(input), 2)
-			if c2.Pass || !strings.Contains(reason(c2), "DIFFERENT engine") {
-				t.Fatalf("same-engine safety sink should fail different-engine bar: %#v", c2)
+			if c2.Pass || !strings.Contains(reason(c2), "different model vendor") {
+				t.Fatalf("same-vendor safety sink should fail cross-vendor bar: %#v", c2)
 			}
 		})
 	}
@@ -1538,22 +1286,35 @@ func passingInput() Input {
 		ChangedFiles: []string{"cli/lib/floor-kernel.js"},
 		Gates:        &GateResult{OK: true},
 		Verdict: map[string]any{
-			"accepted":  true,
-			"byEngine":  "claude",
-			"bySession": "sess-checker",
+			"schemaVersion": float64(1),
+			"accepted":      true,
+			"executor":      "claude",
+			"vendor":        "anthropic",
+			"model":         "claude",
+			"locality":      "remote",
+			"executionRef":  "sess-checker",
 		},
-		MakerEngine:   "claude",
-		MakerSession:  "sess-maker",
-		TerminalState: "done-verified",
+		MakerExecutor:     "claude",
+		MakerVendor:       "anthropic",
+		MakerModel:        "claude",
+		MakerLocality:     "remote",
+		MakerExecutionRef: "sess-maker",
+		TerminalState:     "done-verified",
 	}
 }
 
 func reviewMap(entries ...string) map[string]execstate.Review {
 	reviews := map[string]execstate.Review{}
 	for i := 0; i+3 < len(entries); i += 4 {
+		vendor := entries[i+2]
+		if vendor == "codex" {
+			vendor = "openai"
+		} else if vendor == "claude" {
+			vendor = "anthropic"
+		}
 		reviews[entries[i]] = execstate.Review{
 			Verdict:    entries[i+1],
-			Provenance: execstate.Provenance{Engine: entries[i+2], Session: entries[i+3]},
+			Provenance: execstate.Provenance{Executor: entries[i+2], Vendor: vendor, Model: entries[i+2], Locality: "remote", ExecutionRef: entries[i+3]},
 		}
 	}
 	return reviews

@@ -3,57 +3,40 @@ package cleancmd
 import (
 	"fmt"
 	"io"
-	"time"
+	"os"
+	"path/filepath"
+	"strings"
 
-	"mint/internal/session"
-	"mint/internal/worktree"
+	"mint/internal/receipt"
+	"mint/internal/statehome"
 )
 
-type Flags struct {
-	Yes bool
-}
+type Flags struct{ Yes bool }
 
 func Run(root string, flags Flags, stdout io.Writer) (int, error) {
-	fmt.Fprintln(stdout, "mint clean")
-
-	sessionsCleaned := session.CleanStale(root, 24*time.Hour, time.Now())
-	if sessionsCleaned > 0 {
-		fmt.Fprintf(stdout, "Removed %d stale session%s\n", sessionsCleaned, plural(sessionsCleaned))
-	}
-
-	orphansReclaimed := session.ReclaimOrphaned(root, time.Hour, time.Now())
-	if orphansReclaimed > 0 {
-		fmt.Fprintf(stdout, "Reclaimed %d orphaned session%s\n", orphansReclaimed, plural(orphansReclaimed))
-	}
-
-	worktrees := worktree.List(root)
-	if len(worktrees) == 0 {
-		if sessionsCleaned == 0 && orphansReclaimed == 0 {
-			fmt.Fprintln(stdout, "Nothing to clean.")
+	dir := statehome.Resolve(root).Dir
+	var locks []string
+	_ = filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+		if err == nil && !entry.IsDir() && strings.HasSuffix(entry.Name(), ".lock") {
+			locks = append(locks, path)
 		}
-		fmt.Fprintln(stdout, "Clean")
+		return nil
+	})
+	claims := receipt.OrphanClaims(root)
+	if len(locks) == 0 && len(claims) == 0 {
+		fmt.Fprintln(stdout, "nothing to clean")
 		return 0, nil
 	}
-
-	fmt.Fprintf(stdout, "Found %d worktree%s:\n", len(worktrees), plural(len(worktrees)))
-	for _, wt := range worktrees {
-		fmt.Fprintf(stdout, "  %s -> %s\n", wt.Slug, wt.Path)
-	}
+	fmt.Fprintf(stdout, "%d orphanable lock file(s) and %d incomplete completion claim(s) in this worktree state\n", len(locks), len(claims))
 	if !flags.Yes {
-		fmt.Fprintf(stdout, "%d worktree%s found - re-run `mint clean --yes` to remove.\n", len(worktrees), plural(len(worktrees)))
-		fmt.Fprintln(stdout, "Clean")
+		fmt.Fprintln(stdout, "re-run with --yes after confirming no mint process is writing this worktree")
 		return 0, nil
 	}
-
-	count := worktree.CleanAll(root)
-	fmt.Fprintf(stdout, "Removed %d worktree%s\n", count, plural(count))
-	fmt.Fprintln(stdout, "Clean")
-	return 0, nil
-}
-
-func plural(n int) string {
-	if n == 1 {
-		return ""
+	for _, path := range append(locks, claims...) {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return 1, err
+		}
 	}
-	return "s"
+	fmt.Fprintf(stdout, "removed %d orphanable state file(s)\n", len(locks)+len(claims))
+	return 0, nil
 }

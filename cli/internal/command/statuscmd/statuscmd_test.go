@@ -1,45 +1,40 @@
 package statuscmd
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"mint/internal/session"
+	"mint/internal/execstate"
+	"mint/internal/statehome"
+	"mint/internal/unitstore"
 )
 
-func TestStatusNoSessions(t *testing.T) {
-	var out bytes.Buffer
-	code, err := Run(t.TempDir(), &out)
-	if err != nil || code != 0 {
-		t.Fatalf("Run code=%d err=%v", code, err)
-	}
-	// Assert against the Version var (not a literal) so this survives ldflags injection.
-	if !strings.Contains(out.String(), "mint v"+Version) || !strings.Contains(out.String(), "none active") {
-		t.Fatalf("stdout = %q", out.String())
-	}
-}
-
-func TestStatusShowsSessionsAndWorktrees(t *testing.T) {
+func TestBuildReportsVersionedWorktreeLedgerAndMissingEvidence(t *testing.T) {
 	root := t.TempDir()
-	if err := session.WriteState(root, "1234567890abcdef", session.State{"task": "ship", "mode": "full"}); err != nil {
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
+	if err := unitstore.Ensure(root); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, ".mint", "worktrees", "feat"), 0o755); err != nil {
+	spec := unitstore.SpecPath(root, "unit", "001")
+	if err := os.MkdirAll(filepath.Dir(spec), 0o700); err != nil {
 		t.Fatal(err)
 	}
-
-	var out bytes.Buffer
-	code, err := Run(root, &out)
-	if err != nil || code != 0 {
-		t.Fatalf("Run code=%d err=%v", code, err)
+	xml := `<task><id>001</id><title>x</title><goal>x</goal><scope><can-modify>**</can-modify></scope><acceptance>WHEN x, THE system SHALL y</acceptance><gates>tests: true</gates><reviews>quality</reviews></task>`
+	if err := os.WriteFile(spec, []byte(xml), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	text := out.String()
-	for _, want := range []string{"Sessions", "1234567890ab...", "full - ship", "Worktrees:  1 active"} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("stdout missing %q:\n%s", want, text)
-		}
+	maker := &execstate.Maker{Executor: "codex", Vendor: "openai", Model: "gpt", Locality: "remote", ExecutionRef: "maker"}
+	if _, err := execstate.Init(root, "unit", "001", "a1", maker); err != nil {
+		t.Fatal(err)
+	}
+	report := Build(root)
+	loc := statehome.Resolve(root)
+	if report.SchemaVersion != 1 || report.RepositoryID != loc.RepositoryID || report.WorktreeID != loc.WorktreeID || len(report.Units) != 1 {
+		t.Fatalf("report=%#v", report)
+	}
+	missing := report.Units[0].Attempts[0].Missing
+	if len(missing) != 3 {
+		t.Fatalf("missing=%v", missing)
 	}
 }

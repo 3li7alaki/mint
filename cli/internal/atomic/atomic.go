@@ -11,10 +11,9 @@ import (
 
 // IsLiteralSegment reports whether s is a single, in-place path segment — not
 // empty, ".", "..", nor containing a separator. Callers that join a
-// caller-controlled identifier (slug, spec-id, session-id) into a filesystem
+// caller-controlled identifier (slug, spec-id, attempt-id) into a filesystem
 // path use this to fail closed rather than let a crafted value traverse out of
-// the intended directory. It lives here because both execstate and session
-// build paths from untrusted identifiers and neither imports the other.
+// the intended directory.
 func IsLiteralSegment(s string) bool {
 	return s != "" && s != "." && s != ".." && !strings.ContainsRune(s, '/') && !strings.ContainsRune(s, filepath.Separator)
 }

@@ -22,9 +22,9 @@
 
   <!-- Optional. Add a <gates> block (one "label: command" per line, e.g.
        "tests: go test ./...") and/or a <reviews> line ("security, quality") to declare
-       what this unit must pass. Omit them to inherit the session's declared gates/
-       reviews - `mint spec new` bakes those in at creation. (Kept as prose, not a
+       what this unit must pass. `mint spec new` bakes declared policy into the unit
+       at creation. (Kept as prose, not a
        sample <gates> tag, so an unfilled spec resolves to no required gates.) -->
 
-  <!-- Optional. <risk>safety</risk> forces a clause-3 cross-engine safety review. -->
+  <!-- Optional. <risk>safety</risk> forces a clause-3 cross-vendor safety review. -->
 </task>

@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,44 +11,54 @@ import (
 	"mint/internal/execstate"
 	"mint/internal/floor"
 	"mint/internal/notelist"
-	"mint/internal/session"
+	"mint/internal/receipt"
+	"mint/internal/snapshot"
+	"mint/internal/statehome"
+	"mint/internal/unitstore"
 )
 
 type Flags struct {
 	Verdict  string
 	Terminal string
-	Session  string
+	Attempt  string
 	Spec     string
 	Base     string
 	JSON     bool
 }
 
+var captureSnapshot = snapshot.Capture
+
 func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int, error) {
 	if len(args) < 2 {
-		return 1, fmt.Errorf("Usage: mint done <slug> <spec-id> [--verdict <path>] [--terminal <state>] [--session <id>] [--spec <path>] [--base <ref>] [--json]")
-	}
-	if _, err := os.Stat(filepath.Join(root, ".mint")); err != nil {
-		return 1, fmt.Errorf("No mint session here - run `mint session new` first")
+		return 1, fmt.Errorf("Usage: mint done <slug> <spec-id> [--attempt <id>] [--verdict <path>] [--terminal <state>] [--base <ref>] [--json]")
 	}
 	slug, specID := args[0], args[1]
 	if !execstate.IsLiteralSegment(slug) || !execstate.IsLiteralSegment(specID) {
 		return 1, fmt.Errorf("invalid slug/spec-id %q/%q — each must be a single path segment (no empty, '.', '..', or path separator)", slug, specID)
 	}
-	sessionID, err := resolveSessionID(root, slug, specID, flags.Session)
+	attemptID, err := resolveAttemptID(root, slug, specID, flags.Attempt)
 	if err != nil {
 		return 1, err
 	}
-	specPath, err := ResolveSpecPath(root, slug, specID, sessionID, flags.Spec)
+	specPath, err := ResolveSpecPath(root, slug, specID, flags.Spec)
 	if err != nil {
 		return 1, err
 	}
 	verdictPath := flags.Verdict
 	if verdictPath == "" {
-		verdictPath = filepath.Join(root, ".mint", "verdicts", slug+"-"+specID+".json")
+		verdictPath = unitstore.VerdictPath(root, slug, specID, attemptID)
 	} else if !filepath.IsAbs(verdictPath) {
 		verdictPath = filepath.Join(root, verdictPath)
 	}
 	terminalState := flags.Terminal
+	if terminalState == "" {
+		terminalState = "done-verified"
+	}
+	before, err := captureSnapshot(root, flags.Base)
+	if err != nil {
+		fmt.Fprintln(stderr, "snapshot:", err)
+		return 1, nil
+	}
 
 	input, err := floor.BuildInput(root, floor.BuildOptions{
 		SpecPath:      specPath,
@@ -57,7 +66,7 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		SpecID:        specID,
 		VerdictPath:   verdictPath,
 		TerminalState: terminalState,
-		SessionID:     sessionID,
+		AttemptID:     attemptID,
 		Base:          flags.Base,
 	})
 	if err != nil {
@@ -65,6 +74,44 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		return 1, nil
 	}
 	result := floor.Enforce(input)
+	var issued *receipt.Record
+	var receiptPath string
+	if result.Pass {
+		after, snapshotErr := captureSnapshot(root, flags.Base)
+		if snapshotErr != nil {
+			fmt.Fprintln(stderr, "snapshot:", snapshotErr)
+			return 1, nil
+		}
+		if before.Digest != after.Digest {
+			fmt.Fprintln(stderr, "source changed while mint done was evaluating the floor; retry against a stable snapshot")
+			return 1, nil
+		}
+		defaultVerdictPath := unitstore.VerdictPath(root, slug, specID, attemptID)
+		if verdictPath != defaultVerdictPath {
+			if err := statehome.WriteJSON(defaultVerdictPath, input.Verdict); err != nil {
+				fmt.Fprintln(stderr, "verdict:", err)
+				return 1, nil
+			}
+		}
+		record, receiptErr := receipt.New(receipt.NewOptions{
+			Slug: slug, SpecID: specID, AttemptID: attemptID, Terminal: terminalState,
+			Snapshot: before, Result: result, Input: input, IssuedAt: time.Now(),
+		})
+		if receiptErr != nil {
+			fmt.Fprintln(stderr, "receipt:", receiptErr)
+			return 1, nil
+		}
+		receiptPath, receiptErr = receipt.Store(root, record)
+		if receiptErr != nil {
+			fmt.Fprintln(stderr, "receipt:", receiptErr)
+			return 1, nil
+		}
+		issued = &record
+		if _, statusErr := execstate.SetStatus(root, slug, specID, terminalState, attemptID, nil); statusErr != nil {
+			fmt.Fprintln(stderr, "attempt:", statusErr)
+			return 1, nil
+		}
+	}
 	if !result.Pass {
 		topic := failNoteTopic(slug, specID)
 		if _, err := notelist.Append(root, topic, failNoteText(result), nil, time.Now()); err != nil {
@@ -72,13 +119,27 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		}
 	}
 	if flags.JSON {
-		b, err := json.MarshalIndent(result, "", "  ")
+		output := struct {
+			SchemaVersion int                  `json:"schemaVersion"`
+			Pass          bool                 `json:"pass"`
+			Clauses       []floor.ClauseResult `json:"clauses"`
+			Failed        []int                `json:"failed"`
+			Receipt       *receipt.Record      `json:"receipt,omitempty"`
+			ReceiptPath   string               `json:"receiptPath,omitempty"`
+		}{
+			SchemaVersion: 1, Pass: result.Pass, Clauses: result.Clauses, Failed: result.Failed,
+			Receipt: issued, ReceiptPath: relativePath(root, receiptPath),
+		}
+		b, err := json.MarshalIndent(output, "", "  ")
 		if err != nil {
 			return 1, err
 		}
 		fmt.Fprintln(stdout, string(b))
 	} else {
 		fmt.Fprintln(stdout, FormatReport(result))
+		if receiptPath != "" {
+			fmt.Fprintln(stdout, "  receipt:", relativePath(root, receiptPath))
+		}
 	}
 	if result.Pass {
 		return 0, nil
@@ -86,28 +147,28 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 	return 1, nil
 }
 
-func ResolveSpecPath(root, slug, specID, sessionID, explicit string) (string, error) {
+func relativePath(root, path string) string {
+	if path == "" {
+		return ""
+	}
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return path
+	}
+	return filepath.ToSlash(rel)
+}
+
+func ResolveSpecPath(root, slug, specID, explicit string) (string, error) {
 	if explicit != "" {
 		if filepath.IsAbs(explicit) {
 			return explicit, nil
 		}
 		return filepath.Join(root, explicit), nil
 	}
-	dir := filepath.Join(root, ".mint", "tasks", sessionID, slug)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		entries = nil
+	if path, ok := unitstore.ResolveSpec(root, slug, specID); ok {
+		return path, nil
 	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".xml") {
-			continue
-		}
-		if name == specID+".xml" || strings.HasPrefix(name, specID+"-") {
-			return filepath.Join(dir, name), nil
-		}
-	}
-	return "", fmt.Errorf("Could not resolve a spec for %s/%s under %s - pass --spec <path>", slug, specID, dir)
+	return "", fmt.Errorf("Could not resolve unit %s/%s - pass --spec <path>", slug, specID)
 }
 
 func FormatReport(result floor.Result) string {
@@ -130,36 +191,21 @@ func FormatReport(result floor.Result) string {
 	return strings.Join(lines, "\n")
 }
 
-// resolveSessionID resolves the session that OWNS this unit. done re-checks an
-// existing execution.json, so an explicit --session wins, then the session that
-// actually holds the unit's execution.json (survives a worktree cwd or a missing
-// current-session pin), then the pinned id, and only a genuinely new unit falls
-// through to a generated id. Minting a fresh id for an existing unit was the bug:
-// done targeted an empty execution.json and clause-1 (declared reviews) could
-// never be satisfied.
-func resolveSessionID(root, slug, specID, explicit string) (string, error) {
+func resolveAttemptID(root, slug, specID, explicit string) (string, error) {
 	if id := strings.TrimSpace(explicit); id != "" {
 		if !execstate.IsLiteralSegment(id) {
-			return "", fmt.Errorf("invalid session %q — must be a single path segment (no empty, '.', '..', or path separator)", id)
+			return "", fmt.Errorf("invalid attempt %q", id)
 		}
 		return id, nil
 	}
-	switch owners := execstate.OwningSessions(root, slug, specID); len(owners) {
+	switch owners := execstate.Attempts(root, slug, specID); len(owners) {
 	case 1:
 		return owners[0], nil
 	case 0:
-		// no execution.json yet — fall through to pin/generate (new unit)
+		return "", fmt.Errorf("no attempt for %s/%s; run mint exec init", slug, specID)
 	default:
-		return "", fmt.Errorf("multiple sessions own %s/%s (%s) — pass --session <id> to pick one", slug, specID, strings.Join(owners, ", "))
+		return "", fmt.Errorf("multiple attempts exist for %s/%s (%s); pass --attempt <id>", slug, specID, strings.Join(owners, ", "))
 	}
-	if id := session.ReadCapturedID(root); id != "" {
-		return id, nil
-	}
-	generated, err := session.GenerateID(time.Now())
-	if err != nil {
-		return "", err
-	}
-	return generated, nil
 }
 
 // failNoteTopic keys a done-fail note to the spec so retries accumulate under

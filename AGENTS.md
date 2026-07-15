@@ -1,251 +1,125 @@
-# mint — the discipline contract
+# mint — atomic completion ledger contract
 
-mint is the engine that guarantees a unit of work is actually done properly — the same way
-no matter which agent runs it, how many run, or whether a human is watching. It is not a
-harness, scheduler, plugin, or loop runner. **You own the shape of the work; mint owns the
-completion floor.**
+> Drivers organize and execute work. mint records why an atomic unit is allowed to be called done.
 
-You are the driver. mint is the floor you can't fall through. Run `mint <command> --help` for
-exact commands and flags — this file is the contract, not the manual.
+mint is driver-, agent-, and user-agnostic. A human shell, CI job, SlayZone card, or any other
+driver uses the same commands and clears the same floor. mint never launches agents, manages
+tickets, owns terminals, or creates and removes Git worktrees.
 
-## The unit of work
+## One unit, one claim
 
-One unit = one spec: `{ goal, scope, acceptance }`.
+A unit contains one goal, an explicit `can-modify` scope, observable EARS acceptance criteria,
+and its declared gates and review lenses. Create it through the CLI:
 
-- **goal** — what outcome the unit must produce.
-- **scope** — what may and may not be modified (`can-modify`).
-- **acceptance** — testable criteria for done, in EARS form
-  (`WHEN <trigger> THE <system> SHALL <observable response>`).
+```bash
+mint spec new "harden token validation" --slug harden-token \
+  --goal "Reject empty tokens" --scope "src/auth/**,tests/auth/**" \
+  --acceptance "WHEN an empty token is supplied, THE system SHALL reject it" \
+  --gate "tests: go test ./..." --reviews "security,adversarial"
+```
 
-A commit, PR, push, or deploy is the *output* of a unit, not the unit — each inherits the
-unit's `mint done` verdict. Create and edit specs through mint's CLI, not by hand-writing the
-file; check `mint spec --help` for the current interface. State observable behavior in
-acceptance, not the gates — deterministic gates run through mint, so acceptance should
-describe what the change does, not restate gate checks.
+The JSON response contains the unit ID and absolute spec path. Specs are operational state,
+not repository files.
 
-## You own the shape — call the primitives the diff needs
+## State and worktrees
 
-You're already smart and already in a loop. mint doesn't run a pipeline; it gives you verbs
-to call à la carte. The exact names live in `mint --help`; the judgment is yours:
+mint writes no `.mint` directory and never edits `.gitignore`. State lives at:
 
-| When the diff… | reach for |
-|---|---|
-| changed files | a scope check — confirm you stayed in your `can-modify` lane |
-| needs a quality / perf / convention pass | a review on that dimension |
-| touches security, trust boundaries, accessibility, or data-loss handling | the matching safety check, plus adversarial probing where it fits |
-| might be gamed or fragile | adversarial probing — try to break it |
-| **is finished** | `mint done` — **always; this is the gate** |
+```text
+$MINT_STATE_HOME/repos/<repo-id>/worktrees/<worktree-id>/{units,attempts,receipts,notes}
+```
 
-A typo runs straight to `done`. An auth change runs review → adversarial → `done`. You pick
-the shape; mint enforces the floor at `done`, no matter what shape you chose.
+Without `MINT_STATE_HOME`, the base is `$XDG_STATE_HOME/mint`, or
+`~/.local/state/mint`. Repository identity comes from the canonical common Git directory.
+Worktree identity comes from the canonical worktree root and worktree Git directory. Linked
+worktrees therefore aggregate under one repository while keeping all mutable evidence isolated.
+There is no repo-local compatibility reader or migration path.
 
-## Capture the work that spawns work — `mint hit`
+## Attempts and provenance
 
-Mid-task, work spawns work: fixing X you notice Y is broken, Z should be refactored, the user
-asks for W "later". That agenda dies in scrollback or your head. **When you notice a discrete
-follow-up that won't be done in the current unit, capture it yourself** —
-`mint hit add "<text>" --priority now|next|later` — and **say so visibly** in one line
-(`📌 noted: …`) so the user can correct or drop it. Never capture silently (silent capture
-breeds distrust and junk); never wait to be told (that's the pain this removes). It's your
-judgment, not a regex: capture a real intention, not every passing thought. Open hits resurface
-on their own at `mint status` and ride into the `mint handoff` seed, so they survive `/clear`.
-`mint hit done <id>` / `drop <id>` when one is handled or abandoned. A hit with a substantial
-write-up takes `--body <file>`; one about specific files takes `--file <path>`.
+An attempt is one bounded effort against a unit. Initialize it with generic provenance:
 
-Likewise, when you work something out that a fresh context would need — a diagnosis, what you
-tried, why you ruled an approach out — record it with `mint note add <topic> "<reasoning>"`
-(append-mostly, topic-keyed; big analysis via `--body <file>`). A hit is *what to do*; a note
-is *what you've figured out*. Both ride into the `mint handoff` seed, so the next session
-inherits your agenda and your reasoning instead of re-deriving them.
+```bash
+mint exec init harden-token 001 --attempt maker-1 \
+  --executor codex --vendor openai --model gpt-5 \
+  --locality remote --execution-ref driver-run-42
+```
 
-## The floor — what `mint done` enforces
+`executor`, `vendor`, `model`, `locality`, and `executionRef` are opaque attributable claims.
+A driver may add `--observed-by` and `--attestation`; mint stores them but owns no executor
+registry, binary adapter, default executor, or process lifecycle. Typed provenance is declared
+evidence, not authenticated identity. `observedBy` and `attestation` improve attribution only to
+the strength of the supplying driver's trust boundary.
 
-`mint done` is the choke point. It re-checks the **actual produced diff** — never your
-"I'm done" — and clears a unit only when all seven clauses hold:
+Attempt evidence is immutable after a terminal outcome. All read-modify-write evidence updates
+are serialized by an attempt lock. If a unit has multiple attempts, commands require
+`--attempt`; mint never guesses which effort should receive evidence.
 
-1. **Completion is proven, not declared.** Deterministic gates pass, an independent
-   acceptance verdict is attached, and — on a code diff — every review lens you declared
-   (`mint session set-reviews` / spec `<reviews>`) has a registry-validated, independently
-   attributable passing verdict. A bare pass string is not evidence. A self-made claim is
-   an input to verification, never the verdict.
-2. **Maker ≠ checker, graded by risk.** The verdict's independence is verified by its
-   provenance. Normal work needs a **fresh independent context** — a separate session with
-   none of the maker's state. The safety carve-out needs a checker backed by a **different
-   model vendor** than the maker; changing only the runner/chassis is not independence.
-   Maker provenance comes from the maker's recorded execution state, never fields supplied
-   by the checker. Multi-model chassis must report registry-validated vendor and model
-   provenance, and local-only work fails closed unless mint can prove locality from trusted
-   execution or fixed-registry evidence rather than a verdict claim.
-3. **Safety carve-out is never minimized or skipped.** Security, trust-boundary validation,
-   **accessibility**, and **data-loss** handling are floor. A diff that touches any of the
-   four cannot reach done without the matching independent check.
-4. **Nothing gamed.** A green is not trusted if the diff weakened, deleted, or skipped
-   verifiers, assertions, coverage, or scoring. A tampered green is a FAIL.
-5. **Scope respected.** Every changed file is inside the unit's declared `can-modify`.
-6. **Bounded and terminating.** The unit ends in one hard terminal state:
-   `done-verified | budget-exhausted | stuck-escalated | external-stop`.
-7. **Every consequential action is gated.** Commit, merge, push, and deploy require the same
-   full floor as any other done claim. No privileged path.
+## Verification and reviews
 
-mint checks the deterministic clauses itself and **never calls a model**. The semantic
-judgment — "does this diff satisfy acceptance" — is yours to supply as the attached verdict;
-mint verifies that the provenance of that judgment is *well-formed, registry-valid, and
-distinct from the maker*, not its content. Depth comes from you; integrity comes from mint.
+Run only the gates declared in the unit:
 
-**What "independent" means here, precisely — and its limit.** Provenance is declared, not
-authenticated. mint reads the maker's identity from write-once execution state (so a checker
-cannot forge the maker), validates every engine/vendor/locality claim against a registry
-compiled into the binary, and fails closed on missing, malformed, or self-matching provenance.
-What mint does **not** do on the *typed* path is prove that the named engine actually *ran* —
-it trusts that the `--maker-engine` at init and the `byEngine`/`--by-engine` on a verdict name
-the context that truly produced the work. A single actor that declares one engine at init and a
-different one on the verdict can therefore still manufacture an apparent maker≠checker split
-without a second engine ever executing. mint raises the floor from "type the word `passed`" to
-"attach registry-valid, fail-closed, maker-distinct provenance".
+```bash
+mint verify harden-token 001 --attempt maker-1
+```
 
-**`mint exec witness` closes the typed-identity hole for reviews.** For a review lens you can
-run `mint exec witness <slug> <spec-id> --review <lens> -- <checker command…>`: mint spawns the
-checker process itself, reverse-resolves the engine identity from the binary it actually ran
-(`engine.ByBinary`, never a caller-typed `--by-engine`), and records the review verdict from
-that observed process — `passed` on exit 0, `failed` on non-zero, mint staying content-blind
-exactly like a gate. This inverts the cost gradient: running the real checker becomes the
-*laziest* path to a recorded review, which is the anti-gaming job. mint stays a **notary, not a
-harness** — the driver still chooses the checker and writes its prompt; mint only witnesses that
-a registry engine ran and grades its provenance, never its content (consistent with `verify`
-already spawning gate processes). It **coexists** with the typed `record-review` path, which
-stays valid for the common case and for reviews that can't be shell-spawned (e.g. an Agent-tool
-review); witness is the opt-in stronger tier a spec can require. Three honest limits remain, and
-witness does not paper over them: (a) it proves a *binary named* codex ran, not that the binary
-wasn't a renamed or wrapper spoof on `PATH` — same trust level as the registry itself; (b) a
-configurable chassis (`opencode`) binary proves the *chassis* ran, not which model behind it, so
-witness there still needs a caller-declared `--by-vendor`/`--by-model` it cannot observe; (c) a
-*rigged prompt* the driver feeds the real checker ("reply accepted") still passes — mint proves
-the engine ran, not that it saw the diff, and closing that would mean mint composing the prompt,
-which *is* harness territory and is deliberately not crossed.
+mint never guesses stack commands. Record independently produced review results:
 
-**`mint exec init-witnessed` does the same for the maker.** The maker is typed by default at
-`mint exec init --maker-engine <X>`, but a driver that wants maker identity to be *observed*
-rather than declared runs `mint exec init-witnessed <slug> <spec-id> -- <maker command…>`: mint
-spawns that one command, reverse-resolves the maker engine from the binary that ran, and records
-it into write-once execution state — never from a typed `--maker-engine` (a conflicting flag is
-rejected). It is the maker-side mirror of witness and keeps mint a **notary, not a harness**:
-mint runs the single command the driver names to *establish identity*, not the maker's iterative
-work-loop — the harness still drives the real work. This holds mint to the rule that it is a tool
-harnesses use, never a harness itself; the strong-fix alternative (mint owning the maker's loop)
-is deliberately not built. The same three limits apply: it proves a *binary named* codex ran
-(not a renamed/wrapper spoof); a configurable chassis still needs caller-declared
-`--by-vendor`/`--by-model`; and because mint spawns only the identity-establishing command, a
-driver can run the real work elsewhere — closing *that* would again mean mint owning the loop.
+```bash
+mint exec record-review harden-token 001 security passed --attempt maker-1 \
+  --executor opencode --vendor zai --model glm-5.2 --locality remote \
+  --execution-ref reviewer-run-9
+```
 
-Until a signed attestation exists, the floor stops gaming and accident everywhere, and — for any
-review you witness or maker you init-witnessed — raises the identity bar from *typing an engine
-name that never ran* to *having a process by that binary name actually run and exit clean*. A
-determined actor can still defeat that by putting a renamed or wrapper binary named `codex` on
-`PATH` (limit (a)) — mint does not authenticate the process behind the name — so witnessing
-closes the accidental and the lazy forgery, not the deliberate one.
+Normal work may be checked by the same executor/vendor only from a distinct execution reference.
+A different executor under the same vendor does not establish independence. Safety reviews and
+safety-tier acceptance require a different vendor from the maker.
 
-**When `done` FAILS, re-mint the spec — don't patch the work.** A failed `done` appends a note
-keyed to the spec (`done-fail-<slug>-<id>`) naming the clause that failed and why; retries
-accumulate under that topic. Read the failure as evidence the *spec* was underspecified, not
-that the code needs a patch. Work is disposable; the spec is the asset. mint won't block a
-patch — but the cheaper, correct move is almost always to sharpen the spec and re-fire.
+## Acceptance verdict and done
 
-## If the floor blocks you, there's always a way forward
+An independent checker supplies a versioned JSON verdict:
 
-The floor catches gaming — it never traps honest work. If `done` blocks you, you are never
-dead-ended into patching code or inventing a workaround. There is always an in-band path:
+```json
+{
+  "schemaVersion": 1,
+  "accepted": true,
+  "executor": "opencode",
+  "vendor": "zai",
+  "model": "glm-5.2",
+  "locality": "remote",
+  "executionRef": "acceptance-run-10",
+  "adversarialReviewed": true,
+  "adversarialReason": "exercised malformed and boundary inputs",
+  "safetyReviewed": true,
+  "safetyReason": "checked authentication bypass and leakage paths"
+}
+```
 
-- **scope was genuinely too narrow** → widen it through mint's spec-change interface, with
-  the reason recorded, before the edit is part of a done claim. If you already touched the
-  file, revert it or record an independently-checked scope change before proceeding — the
-  recovery path is in-band, but it can't be a silent post-hoc widening to cover a violation.
-- **needs a verdict or safety review** → attach it (a fresh context; a different engine for
-  the safety carve-out).
-- **a declared review lens hasn't run** → run it (`mint review --<lens>`) and record the
-  result (`mint exec record-review`); the in-band path is to actually run the review you
-  declared, never to drop the declaration to get past the gate.
-- **an honest refactor got flagged as gaming** → acknowledge with a reason; the acknowledgment
-  is independence-checked, so you can't wave your own violation through.
-- **genuinely stuck** → escalate; the unit terminates honestly as `stuck-escalated` and says why.
+The adversarial and safety fields are required only when the floor classifies the diff into
+those tiers. Then run:
 
-The rule is firm about one thing — *was this actually, independently done?* — and gets out of
-your way everywhere else.
+```bash
+mint done harden-token 001 --attempt maker-1 --verdict /tmp/verdict.json --json
+```
 
-## What mint will not do
+`done` runs the declared gates, evaluates all seven clauses, captures the source before and
+after evaluation, rejects a race, terminates the attempt, and writes an immutable receipt for
+that exact source digest. `mint receipt verify <path>` reports whether it is still current.
 
-It won't run your loop, hold a schedule, or be a harness — that's the driver's job. It won't
-grade your work with a model — it checks integrity, you supply judgment. It won't privilege
-any caller — every agent, raw loop, or human driver loads this contract and clears the
-identical floor.
+The seven clauses remain fixed: verifiable completion; maker/checker independence; safety
+carve-out; anti-gaming; scope; bounded terminal state; and floor-gated consequential action.
+Only `done-verified`, `budget-exhausted`, `stuck-escalated`, and `external-stop` are hard terminal
+outcomes.
 
 ## Operating rule
 
-For each unit:
+1. Define or load the atomic unit.
+2. Initialize an explicit attempt with honest provenance.
+3. Work only inside scope.
+4. Run declared gates and required independent reviews.
+5. Attach an independent acceptance verdict.
+6. Run `mint done` and treat only its receipt as proof.
+7. Use `mint status --json` to inspect units, attempts, missing evidence, receipts, and freshness.
 
-1. Make or load a spec — goal, scope, acceptance.
-2. Shape the work with the primitives this diff needs.
-3. Produce the change, inside scope.
-4. Obtain the required independent acceptance verdict.
-5. Run `mint done`.
-6. Treat only a floor-clear terminal verdict as done.
-
-The shape flexes. The floor does not.
-
-## Worked example — clearing the floor on a real diff
-
-Abstract steps become concrete here. This is a safety-tier change (touches a trust
-boundary), made by one engine and independently verified by a *different vendor* — the
-clause-2/clause-3 bar. Exact flags live in `mint <cmd> --help`; what's fixed here is the
-*shape* and the verdict contract.
-
-```bash
-# 1. Define the unit. Bake gates/reviews from the session (or pass --scope/--acceptance).
-mint spec new "harden token check" --slug harden-auth \
-  --scope "src/auth/**" --acceptance "WHEN a token is empty, THE system SHALL reject it"
-
-# 2. Record WHO is making the diff. Maker identity is written once, here, from the
-#    maker's own context — never supplied later on the verdict a checker writes.
-mint exec init harden-auth 001 --maker-engine codex        # codex/OpenAI is the maker
-#    STRONGER TIER — let mint observe the maker engine from the process instead of
-#    trusting the flag (identity comes from the spawned binary, not --maker-engine):
-# mint exec init-witnessed harden-auth 001 -- codex exec "<establish maker identity>"
-
-# 3. Do the work inside scope. Then get an INDEPENDENT verdict from a DIFFERENT context —
-#    and, for the safety carve-out, a different model VENDOR than the maker. (Here: a
-#    Claude/Anthropic reviewer verifies OpenAI's diff.) The reviewer adversarially checks
-#    the diff and hands back its judgment; you attach it, you do not author its verdict.
-
-# 4. Record each declared review lens with the reviewer's registry-valid provenance.
-mint exec record-review harden-auth 001 security passed \
-  --by-engine claude --by-vendor anthropic --by-model claude --by-locality remote \
-  --by-session <the-reviewer-session>
-#    STRONGER TIER — let mint spawn the checker and stamp the engine from the process
-#    it observed (identity comes from the binary, not the flag; verdict = exit code):
-# mint exec witness harden-auth 001 --review security -- claude -p "<review prompt over the diff>"
-
-# 5. Run the declared gates.
-mint verify harden-auth 001
-
-# 6. Route the done-decision through the floor with the acceptance verdict attached.
-mint done harden-auth 001 --verdict verdict.json --terminal done-verified
-```
-
-The **acceptance verdict** (`--verdict <path>`, default `.mint/verdicts/<slug>-<id>.json`)
-is the independent judgment mint checks for *provenance*, never content. Its contract:
-
-| field | when | meaning |
-|---|---|---|
-| `accepted` | always | `true` only if the diff meets acceptance. `false`/absent fails clause 1. |
-| `byEngine` | always | the engine that produced the verdict. Must be present and registry-known (`engine.IsKnown`); resolved against the compiled registry. |
-| `bySession` | always | the session that produced the verdict. Must be present; *not* registry-backed. It only matters in one clause-2 path: when checker and maker are the **same vendor and same engine**, a `bySession` that differs from the maker's (and is strict-ASCII) is what establishes independence. It does nothing when the checker is a different vendor (that already passes) — and a same-vendor *different-engine* verdict fails regardless of `bySession`. The precise decision tree is `clauseMakerChecker`; the safe reading is: a genuinely different vendor is the clean path, and re-using the maker's own engine needs a real fresh session. |
-| `byVendor`, `byModel`, `byLocality` | optional | resolved by engine *type*: for a **fixed** engine (e.g. `codex`, `claude`) they may be omitted, and if supplied must match the registry-pinned values; for a **configurable** chassis (e.g. `opencode`) they must be present and structurally valid (visible-ASCII vendor/model, locality `local`\|`remote`) but are *not* checked against a registry of allowed values. |
-| `adversarialReviewed` + `adversarialReason` | logic / trust / safety diff | attests someone tried to *break* the behavior; the reason must be substantive. |
-| `safetyReviewed` + `safetyReason` | safety carve-out (security / trust-boundary / accessibility / data-loss) | the matching independent safety review. |
-| `tamperingReviewed` + `tamperingReason` | only if a green looks gamed | acknowledges a flagged verifier/assertion change with a reason. |
-
-A *substantive* reason is at least 8 characters and contains a letter — a bare `"ok"` or
-`"true"` does not clear it. Provenance names the context that produced the work; mint
-registry-validates the *engine* (`byEngine`, and the vendor/model/locality of a fixed engine),
-checks maker-distinctness by comparing that resolved provenance against the maker's, and — as
-the **What "independent" means here** paragraph states — trusts that the named engine truly ran
-(identity is *declared*, not authenticated).
+If work spawns a separate future task, give it to the external driver. `mint note` is only for
+unit/floor reasoning; mint has no backlog, handoff, session, project, or retry-loop ownership.

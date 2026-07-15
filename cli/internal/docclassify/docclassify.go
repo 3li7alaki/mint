@@ -12,7 +12,7 @@ var DocPatterns = []string{
 	".gitignore", ".gitattributes",
 	"*.png", "*.jpg", "*.jpeg", "*.gif", "*.svg", "*.ico",
 	"*.woff", "*.woff2", "*.ttf", "*.eot",
-	"docs/**", ".mint/**",
+	"docs/**",
 }
 
 func IsDocPath(path string) bool {

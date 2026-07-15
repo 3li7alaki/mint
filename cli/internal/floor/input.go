@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -22,7 +21,7 @@ type BuildOptions struct {
 	SpecID        string
 	VerdictPath   string
 	TerminalState string
-	SessionID     string
+	AttemptID     string
 	Base          string
 }
 
@@ -50,24 +49,28 @@ func BuildInput(root string, opts BuildOptions) (Input, error) {
 		return Input{}, err
 	}
 
-	gates := verify.Run(root, opts.Slug, opts.SpecID, opts.SessionID, opts.SpecPath)
+	gates := verify.Run(root, opts.Slug, opts.SpecID, opts.AttemptID, opts.SpecPath)
+	if gates.Error != "" {
+		return Input{}, fmt.Errorf("verify: %s", gates.Error)
+	}
+	verdict := ReadVerdict(opts.VerdictPath)
 
 	input := Input{
 		Spec:            string(specBytes),
 		ChangedFiles:    changed,
 		Patch:           patch,
 		Gates:           &GateResult{OK: gates.OK},
-		Verdict:         ReadVerdict(opts.VerdictPath),
+		Verdict:         verdict,
 		TerminalState:   opts.TerminalState,
-		RequiredReviews: resolveRequiredReviews(root, opts.SpecPath, opts.SessionID),
-		Reviews:         attachedReviews(root, opts.Slug, opts.SpecID, opts.SessionID),
+		RequiredReviews: resolveRequiredReviews(opts.SpecPath),
+		Reviews:         attachedReviews(root, opts.Slug, opts.SpecID, opts.AttemptID),
 	}
-	if state, ok := execstate.Read(root, opts.Slug, opts.SpecID, opts.SessionID); ok && state.Maker != nil {
-		input.MakerEngine = state.Maker.Engine
+	if state, ok := execstate.Read(root, opts.Slug, opts.SpecID, opts.AttemptID); ok && state.Maker != nil {
+		input.MakerExecutor = state.Maker.Executor
 		input.MakerVendor = state.Maker.Vendor
 		input.MakerModel = state.Maker.Model
 		input.MakerLocality = state.Maker.Locality
-		input.MakerSession = state.Maker.Session
+		input.MakerExecutionRef = state.Maker.ExecutionRef
 	}
 	return input, nil
 }
@@ -88,13 +91,14 @@ func ReadVerdict(path string) map[string]any {
 	if !ok {
 		return nil
 	}
+	version, ok := obj["schemaVersion"].(float64)
+	if !ok || version != 1 {
+		return nil
+	}
 	if _, ok := obj["accepted"].(bool); !ok {
 		return nil
 	}
-	if _, ok := obj["byEngine"].(string); !ok {
-		return nil
-	}
-	if _, ok := obj["bySession"].(string); !ok {
+	if _, ok := verdictProvenance(obj); !ok {
 		return nil
 	}
 	return obj
@@ -166,7 +170,7 @@ func gitOutput(root string, args ...string) (string, error) {
 	return string(out), nil
 }
 
-func resolveRequiredReviews(root, specPath, sessionID string) []string {
+func resolveRequiredReviews(specPath string) []string {
 	if specPath != "" {
 		if b, err := os.ReadFile(specPath); err == nil {
 			if reviews := specschema.ResolveSpecReviews(string(b)); len(reviews) > 0 {
@@ -174,49 +178,32 @@ func resolveRequiredReviews(root, specPath, sessionID string) []string {
 			}
 		}
 	}
-	session, ok := readJSONObject(sessionPath(root, sessionID))
-	if !ok {
-		return nil
-	}
-	raw, ok := session["reviews"].([]any)
-	if !ok {
-		return nil
-	}
-	var reviews []string
-	for _, item := range raw {
-		if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
-			reviews = append(reviews, s)
-		}
-	}
-	return reviews
+	return nil
 }
 
-func attachedReviews(root, slug, specID, sessionID string) map[string]execstate.Review {
-	state, ok := execstate.Read(root, slug, specID, sessionID)
+func attachedReviews(root, slug, specID, attemptID string) map[string]execstate.Review {
+	state, ok := execstate.Read(root, slug, specID, attemptID)
 	if !ok || state.Reviews == nil {
 		return map[string]execstate.Review{}
 	}
 	return state.Reviews
 }
 
-func readJSONObject(path string) (map[string]any, bool) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, false
+func verdictProvenance(verdict map[string]any) (execstate.Provenance, bool) {
+	if verdict == nil {
+		return execstate.Provenance{}, false
 	}
-	var v any
-	if err := json.Unmarshal(b, &v); err != nil {
-		return nil, false
+	stringField := func(key string) string {
+		value, _ := verdict[key].(string)
+		return value
 	}
-	obj, ok := v.(map[string]any)
-	return obj, ok
-}
-
-func sessionPath(root, sessionID string) string {
-	if sessionID == "" {
-		return filepath.Join(root, ".mint", "sessions", ".json")
-	}
-	return filepath.Join(root, ".mint", "sessions", sessionID+".json")
+	p, err := execstate.ValidateProvenance(execstate.Provenance{
+		Executor: stringField("executor"), Vendor: stringField("vendor"),
+		Model: stringField("model"), Locality: stringField("locality"),
+		ExecutionRef: stringField("executionRef"), ObservedBy: stringField("observedBy"),
+		Attestation: stringField("attestation"),
+	})
+	return p, err == nil
 }
 
 func IsInvalidBaseError(err error) bool {

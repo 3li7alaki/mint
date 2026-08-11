@@ -13,9 +13,8 @@ import (
 	"mint/internal/specschema"
 	"mint/internal/statehome"
 	"mint/internal/unitstore"
+	"mint/internal/version"
 )
-
-var Version = "dev"
 
 type Flags struct{ JSON bool }
 
@@ -86,7 +85,7 @@ func Run(root string, flags Flags, stdout io.Writer) (int, error) {
 
 func Build(root string) Report {
 	loc := statehome.Resolve(root)
-	report := Report{SchemaVersion: 1, Version: Version, RepositoryID: loc.RepositoryID, WorktreeID: loc.WorktreeID, WorktreeRoot: loc.WorktreeRoot, StateDir: loc.Dir}
+	report := Report{SchemaVersion: 1, Version: version.Version, RepositoryID: loc.RepositoryID, WorktreeID: loc.WorktreeID, WorktreeRoot: loc.WorktreeRoot, StateDir: loc.Dir}
 	report.Units = []UnitStatus{}
 	for _, ref := range unitstore.List(root) {
 		unit := UnitStatus{Slug: ref.Slug, SpecID: ref.SpecID, Attempts: []AttemptStatus{}, Receipts: []ReceiptStatus{}}

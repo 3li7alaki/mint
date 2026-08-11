@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// IsLiteralSegment reports whether s is a single, in-place path segment — not
+// IsLiteralSegment reports whether s is a single, in-place path segment, not
 // empty, ".", "..", nor containing a separator. Callers that join a
 // caller-controlled identifier (slug, spec-id, attempt-id) into a filesystem
 // path use this to fail closed rather than let a crafted value traverse out of

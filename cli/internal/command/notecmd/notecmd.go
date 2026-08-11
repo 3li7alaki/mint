@@ -1,4 +1,4 @@
-// Package notecmd is the `mint note` CLI surface over internal/notelist — mint's scratchpad
+// Package notecmd is the `mint note` CLI surface over internal/notelist, mint's scratchpad
 // for the AI's reasoning-in-progress. Verbs:
 //
 //	mint note add <topic> "<text>" [--body <file>] [--file <path>]
@@ -85,7 +85,7 @@ func Run(root string, args []string, flags Flags, now time.Time, stdout io.Write
 		for _, n := range notes {
 			line := fmt.Sprintf("  %s (%d)", n.Topic, n.Entries)
 			if len(n.Files) > 0 {
-				line += " — " + strings.Join(n.Files, ", ")
+				line += " - " + strings.Join(n.Files, ", ")
 			}
 			fmt.Fprintln(stdout, line)
 		}

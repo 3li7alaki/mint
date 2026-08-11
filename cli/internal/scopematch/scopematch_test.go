@@ -40,7 +40,7 @@ func TestMatchesAllowedTable(t *testing.T) {
 func TestMatchesAllowedHardening(t *testing.T) {
 	// ReDoS-resistance is STRUCTURAL: MatchesAllowed walks path segments (no backtracking
 	// regex), so a pathological glob-heavy lane is bounded by construction. Assert the
-	// CORRECT result on each pathological input — if the matcher ever regressed into
+	// CORRECT result on each pathological input, if the matcher ever regressed into
 	// catastrophic backtracking it would hang here and the test would time out (go test's
 	// own deadline), and a wrong answer fails outright. No wall-clock assertion (flaky under
 	// load); the expected bool encodes the contract.
@@ -83,7 +83,7 @@ func TestMatchesAllowedScopeEscapeRejection(t *testing.T) {
 // assertTerminatesCorrectly checks a pathological input both TERMINATES (a catastrophic-
 // backtracking regression would hang and trip go test's deadline rather than return) and
 // yields the CONTRACTUAL result. Replaces a wall-clock "< 1s" assertion that flaked under
-// CPU load — the segment-walk's linearity is the real guarantee, not a measured duration.
+// CPU load, the segment-walk's linearity is the real guarantee, not a measured duration.
 func assertTerminatesCorrectly(t *testing.T, file, lane string, want bool) {
 	t.Helper()
 	if got := MatchesAllowed(file, lane); got != want {

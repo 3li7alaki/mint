@@ -1,4 +1,4 @@
-# mint — atomic completion ledger contract
+# mint: atomic completion ledger contract
 
 > Drivers organize and execute work. mint records why an atomic unit is allowed to be called done.
 

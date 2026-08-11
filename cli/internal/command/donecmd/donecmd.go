@@ -34,7 +34,7 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 	}
 	slug, specID := args[0], args[1]
 	if !execstate.IsLiteralSegment(slug) || !execstate.IsLiteralSegment(specID) {
-		return 1, fmt.Errorf("invalid slug/spec-id %q/%q — each must be a single path segment (no empty, '.', '..', or path separator)", slug, specID)
+		return 1, fmt.Errorf("invalid slug/spec-id %q/%q: each must be a single path segment (no empty, '.', '..', or path separator)", slug, specID)
 	}
 	attemptID, err := resolveAttemptID(root, slug, specID, flags.Attempt)
 	if err != nil {

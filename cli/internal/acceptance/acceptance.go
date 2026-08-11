@@ -62,7 +62,7 @@ func Parse(xml string) ParseResult {
 			continue
 		}
 		result.Criteria = append(result.Criteria, Criterion{Raw: line, Pattern: "prose", Response: line})
-		result.Warnings = append(result.Warnings, fmt.Sprintf(`acceptance criterion is free prose, not EARS — not machine-structured: "%s"`, line))
+		result.Warnings = append(result.Warnings, fmt.Sprintf(`acceptance criterion is free prose, not EARS, not machine-structured: "%s"`, line))
 	}
 
 	if len(result.Criteria) == 0 {

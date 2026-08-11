@@ -171,15 +171,15 @@ func Validate(xml string) ValidationResult {
 	if deps, ok := tag(xml, "depends-on"); ok {
 		d := strings.TrimSpace(deps)
 		if d != "" && d != "none" && len(compact(strings.Split(d, ","))) == 0 {
-			result.Warnings = append(result.Warnings, `<depends-on> is non-empty but lists no ids — use "none" if there are no dependencies`)
+			result.Warnings = append(result.Warnings, `<depends-on> is non-empty but lists no ids: use "none" if there are no dependencies`)
 		}
 	}
 	if risk, ok := tag(xml, "risk"); ok {
 		r := strings.TrimSpace(risk)
 		if r == "" {
-			result.Warnings = append(result.Warnings, "empty <risk> — omit it or use <risk>safety</risk>")
+			result.Warnings = append(result.Warnings, "empty <risk>: omit it or use <risk>safety</risk>")
 		} else if !regexp.MustCompile(`(?i)^safety$`).MatchString(r) {
-			result.Warnings = append(result.Warnings, fmt.Sprintf("unrecognized <risk> value '%s' — the only floor-recognized value is 'safety' (forces a cross-vendor safety review); other values are ignored by the floor", r))
+			result.Warnings = append(result.Warnings, fmt.Sprintf("unrecognized <risk> value '%s': the only floor-recognized value is 'safety' (forces a cross-vendor safety review); other values are ignored by the floor", r))
 		}
 	}
 	if parent, ok := ResolveParent(xml); ok {

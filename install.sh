@@ -1,10 +1,10 @@
 #!/bin/sh
-# mint installer — slim, no runtime deps, no root, idempotent (also acts as updater).
+# mint installer, slim, no runtime deps, no root, idempotent (also acts as updater).
 #   curl -fsSL https://raw.githubusercontent.com/3li7alaki/mint/main/install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- --uninstall
 #
 # mint is a single self-contained Go binary, distributed as a rolling `latest` release
-# (no version numbers — every push to main republishes the current build). This script
+# (no version numbers: every push to main republishes the current build). This script
 # downloads the right one for your platform, stores it under XDG data, and symlinks it
 # onto your PATH at ~/.local/bin/mint. Re-run it any time to update in place.
 set -eu
@@ -33,7 +33,7 @@ need() { command -v "$1" >/dev/null 2>&1 || err "missing required tool: $1"; }
 if [ "$UNINSTALL" = true ]; then
   rm -rf "$INSTALL_DIR"
   rm -f "$LINK_DIR/$TOOL"
-  say "uninstalled $TOOL (left your PATH line in shell rc — harmless)"
+  say "uninstalled $TOOL (left your PATH line in shell rc, harmless)"
   exit 0
 fi
 
@@ -54,7 +54,7 @@ case "$ARCH" in
 esac
 TARGET="${OS}-${ARCH}"
 
-# Rolling release: the asset lives under the fixed `latest` tag — no API call needed.
+# Rolling release: the asset lives under the fixed `latest` tag, no API call needed.
 URL="https://github.com/$REPO/releases/download/$RELEASE/${TOOL}-${TARGET}"
 say "installing $TOOL ($TARGET) ..."
 
@@ -68,7 +68,7 @@ chmod +x "$TMP"
 mv -f "$TMP" "$BIN_DIR/$TOOL"
 trap - EXIT INT TERM
 
-# Symlink onto PATH (no root, no copy — the link tracks updates in place).
+# Symlink onto PATH (no root, no copy, the link tracks updates in place).
 mkdir -p "$LINK_DIR"
 ln -sf "$BIN_DIR/$TOOL" "$LINK_DIR/$TOOL"
 
@@ -85,7 +85,7 @@ fi
 # Verify against the binary we just installed (not a stale PATH entry).
 INSTALLED=$("$BIN_DIR/$TOOL" --version 2>/dev/null || echo "installed")
 if command -v "$TOOL" >/dev/null 2>&1; then
-  say "✓ $TOOL $INSTALLED installed — run: mint --help"
+  say "✓ $TOOL $INSTALLED installed, run: mint --help"
 else
   say "✓ $TOOL $INSTALLED installed to $BIN_DIR/$TOOL"
   say "  open a new shell, or run: export PATH=\"$LINK_DIR:\$PATH\""

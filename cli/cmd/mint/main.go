@@ -16,6 +16,7 @@ import (
 	"mint/internal/command/statuscmd"
 	"mint/internal/command/verifycmd"
 	"mint/internal/statehome"
+	"mint/internal/version"
 )
 
 func main() {
@@ -32,7 +33,7 @@ func run(args []string) (int, error) {
 	if len(args) == 0 {
 		return usage()
 	}
-	if args[0] == "--help" || args[0] == "help" {
+	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
 		return help("")
 	}
 	if len(args) == 2 && args[1] == "--help" {
@@ -41,7 +42,7 @@ func run(args []string) (int, error) {
 	root := mustGetwd()
 	switch args[0] {
 	case "--version", "-v", "version":
-		fmt.Fprintln(os.Stdout, statuscmd.Version)
+		fmt.Fprintln(os.Stdout, version.Version)
 		return 0, nil
 	case "spec":
 		pos, flags, err := parseSpecArgs(args[1:])

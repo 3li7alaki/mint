@@ -138,7 +138,7 @@ func clauseVerifiableCompletion(input Input) clauseVerdict {
 		return fail("attached verdict did not accept (verdict.accepted !== true)")
 	}
 	if isLogicTier(input) && !hasSubstantiveAttestation(input.Verdict, "adversarialReviewed", "adversarialReason") {
-		return fail("this is a logic/trust diff (control-flow/arithmetic/parsing, or safety-tier) — a code-read acceptance verdict is not enough; it needs an attested INDEPENDENT adversarial check that someone tried to BREAK the behavior; attach an adversarial review to the verdict (adversarialReviewed: true + a substantive adversarialReason) and re-attach")
+		return fail("this is a logic/trust diff (control-flow/arithmetic/parsing, or safety-tier), a code-read acceptance verdict is not enough; it needs an attested INDEPENDENT adversarial check that someone tried to BREAK the behavior; attach an adversarial review to the verdict (adversarialReviewed: true + a substantive adversarialReason) and re-attach")
 	}
 	if reason := missingDeclaredReviews(input); reason != "" {
 		return fail(reason)
@@ -196,7 +196,7 @@ func clauseSafetyCarveOut(input Input) clauseVerdict {
 	if hasSubstantiveAttestation(input.Verdict, "safetyReviewed", "safetyReason") {
 		return pass()
 	}
-	return fail("this diff touches the safety carve-out (security/trust-boundary/data-loss) — it cannot reach done without an attested safety review; attach an INDEPENDENT safety review to the verdict (safetyReviewed: true + a substantive safetyReason) and re-attach")
+	return fail("this diff touches the safety carve-out (security/trust-boundary/data-loss), it cannot reach done without an attested safety review; attach an INDEPENDENT safety review to the verdict (safetyReviewed: true + a substantive safetyReason) and re-attach")
 }
 
 func clauseAntiGaming(input Input) clauseVerdict {
@@ -234,7 +234,7 @@ func clauseScope(input Input) clauseVerdict {
 		if allowedText == "" {
 			allowedText = "(none)"
 		}
-		return fail(fmt.Sprintf("out-of-lane file(s): %s — allowed: %s", strings.Join(offending, ", "), allowedText))
+		return fail(fmt.Sprintf("out-of-lane file(s): %s, allowed: %s", strings.Join(offending, ", "), allowedText))
 	}
 	return pass()
 }
@@ -294,7 +294,7 @@ func missingDeclaredReviews(input Input) string {
 	if len(unmet) == 0 {
 		return ""
 	}
-	return "declared review(s) not satisfied: " + strings.Join(unmet, ", ") + " — each lens requires a passing verdict with independent generic provenance"
+	return "declared review(s) not satisfied: " + strings.Join(unmet, ", ") + ", each lens requires a passing verdict with independent generic provenance"
 }
 
 func reviewIndependenceFailure(input Input, lens string, review execstate.Review) string {

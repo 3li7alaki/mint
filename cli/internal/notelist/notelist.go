@@ -98,7 +98,7 @@ func write(root string, notes []Note) error {
 }
 
 // Append adds an entry to a topic's reasoning, creating the topic on first use. The entry is
-// appended as a timestamped section to notes/<topic>.md (append-mostly — earlier
+// appended as a timestamped section to notes/<topic>.md (append-mostly, earlier
 // reasoning is never overwritten), and the index row's UpdatedAt/Entries advance. Empty text
 // AND empty files is rejected (nothing to record). now is injected for testability.
 func Append(root, topic, text string, files []string, now time.Time) (Note, error) {

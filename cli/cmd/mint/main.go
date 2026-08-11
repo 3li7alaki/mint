@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"mint/internal/base"
 	"mint/internal/command/cleancmd"
 	"mint/internal/command/donecmd"
 	"mint/internal/command/execcmd"
@@ -33,17 +34,18 @@ func run(args []string) (int, error) {
 	if len(args) == 0 {
 		return usage()
 	}
-	if args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
+	if base.Command(args) == "help" {
 		return help("")
 	}
 	if len(args) == 2 && args[1] == "--help" {
 		return help(args[0])
 	}
-	root := mustGetwd()
-	switch args[0] {
-	case "--version", "-v", "version":
+	if base.Command(args) == "version" {
 		fmt.Fprintln(os.Stdout, version.Version)
 		return 0, nil
+	}
+	root := mustGetwd()
+	switch args[0] {
 	case "spec":
 		pos, flags, err := parseSpecArgs(args[1:])
 		if err != nil {

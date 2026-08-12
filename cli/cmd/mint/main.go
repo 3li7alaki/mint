@@ -368,8 +368,12 @@ func next(args []string, i *int, flag string) (string, error) {
 	*i++
 	return args[*i], nil
 }
+
+// usage is the wrong-arguments path, so it goes to stderr and exits non-zero. help() is
+// the explicit request and keeps stdout with exit 0, because install.sh ends by telling
+// the user to run `mint --help`.
 func usage() (int, error) {
-	fmt.Fprintln(os.Stdout, "Usage: mint spec|exec|verify|review|done|status|receipt|note|clean")
+	fmt.Fprintln(os.Stderr, "Usage: mint spec|exec|verify|review|done|status|receipt|note|clean")
 	return 1, nil
 }
 

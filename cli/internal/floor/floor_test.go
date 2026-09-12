@@ -1421,3 +1421,151 @@ func reason(clause ClauseResult) string {
 	}
 	return *clause.Reason
 }
+
+// unifiedPatch builds a patch git would actually emit, so the classifier walks
+// real hunks instead of the raw-scan fallback.
+func unifiedPatch(file string, lines ...string) string {
+	var b strings.Builder
+	b.WriteString("diff --git a/" + file + " b/" + file + "\n")
+	b.WriteString("--- a/" + file + "\n+++ b/" + file + "\n")
+	b.WriteString("@@ -1,0 +1," + strconv.Itoa(len(lines)) + " @@\n")
+	for _, line := range lines {
+		b.WriteString("+" + line + "\n")
+	}
+	return b.String()
+}
+
+// Scanning the raw patch text made 59% of real commits safety tier: prose in a
+// markdown file, "Co-Authored-By", and a usage string all tripped it.
+func TestSafetyTierIgnoresProseAndStringLiterals(t *testing.T) {
+	cases := []struct {
+		name  string
+		file  string
+		lines []string
+	}{
+		{"english where", "cli/list.go", []string{"// returns the rows where a filter matched"}},
+		{"authored trailer", "cli/meta.go", []string{`trailer := "Co-Authored-By: someone"`}},
+		{"author field", "cli/meta.go", []string{"entry.Author = commit.Author"}},
+		{"tokenizer", "cli/count.go", []string{"n := tokenizer.Count(body)"}},
+		{"usage string", "cli/usage.go", []string{`fmt.Println("  Usage: tool spec validate|scope <path>")`}},
+		{"prose update", "cli/sync.go", []string{`log.Print("update the cache from the remote")`}},
+		{"markdown prose", "notes.md", []string{"the auth token validation rule where secrets live"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			input := Input{ChangedFiles: []string{tc.file}, Patch: unifiedPatch(tc.file, tc.lines...)}
+			if IsSafetyTier(input) {
+				t.Fatalf("prose promoted to safety tier: %q", tc.lines)
+			}
+		})
+	}
+}
+
+func TestSafetyTierStillCatchesCode(t *testing.T) {
+	cases := []struct {
+		name  string
+		file  string
+		lines []string
+	}{
+		{"camel identifier", "cli/session.go", []string{"h.Set(name, authToken)"}},
+		{"embedded identifier", "cli/guard.go", []string{"if !isAuthenticated(user) {"}},
+		{"acronym hump", "cli/guard.go", []string{"v := parseHTTPToken(raw)"}},
+		{"snake identifier", "scripts/run.sh", []string{"pinchtab_token() {"}},
+		{"crypto import", "cli/id.go", []string{`	"crypto/rand"`}},
+		{"declared func", "cli/input.go", []string{"func validateSegments(raw string) error {"}},
+		{"sql statement", "cli/store.go", []string{"q := `SELECT id FROM accounts WHERE name = ` + name"}},
+		{"request sink", "cli/handler.go", []string{"el.innerHTML = req.body.name"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			input := Input{ChangedFiles: []string{tc.file}, Patch: unifiedPatch(tc.file, tc.lines...)}
+			if !IsSafetyTier(input) {
+				t.Fatalf("safety-relevant code fell out of the tier: %q", tc.lines)
+			}
+		})
+	}
+}
+
+// An unwalkable patch must not fall out of a safety gate by accident.
+func TestSafetyTierScansUnparseablePatchRaw(t *testing.T) {
+	if !IsSafetyTier(Input{Patch: "authToken = rotate()"}) {
+		t.Fatal("a patch with no hunk headers silently left the safety tier")
+	}
+}
+
+func TestVendorDiversityWaiver(t *testing.T) {
+	// One vendor on the box: maker and checker are both anthropic.
+	base := func() Input {
+		input := passingInput()
+		input.ChangedFiles = []string{"cli/lib/floor-kernel.js"}
+		input.Patch = unifiedPatch("cli/lib/floor-kernel.js", "const t = authToken(req)")
+		input.Verdict["adversarialReviewed"] = true
+		input.Verdict["adversarialReason"] = "drove malformed tokens through the boundary"
+		input.Verdict["safetyReviewed"] = true
+		input.Verdict["safetyReason"] = "checked bypass and leakage paths"
+		return input
+	}
+
+	if got := clauseMakerChecker(base()); got.pass {
+		t.Fatal("same-vendor safety-tier verdict passed without a waiver")
+	}
+
+	waived := base()
+	waived.Verdict["vendorDiversityWaived"] = true
+	waived.Verdict["vendorDiversityReason"] = "only one model vendor is configured on this box"
+	if got := clauseMakerChecker(waived); !got.pass {
+		t.Fatalf("waived single-vendor verdict still failed: %s", got.reason)
+	}
+
+	// Waiving drops to normal independence, it does not remove it.
+	self := waived
+	self.Verdict["executionRef"] = self.MakerExecutionRef
+	if got := clauseMakerChecker(self); got.pass {
+		t.Fatal("waiver let the maker accept its own execution")
+	}
+
+	declared := waived
+	declared.Spec = "<task><risk>safety</risk></task>" + declared.Spec
+	if got := clauseMakerChecker(declared); got.pass {
+		t.Fatal("waiver covered a safety tier the spec declared by hand")
+	}
+
+	thin := base()
+	thin.Verdict["vendorDiversityWaived"] = true
+	thin.Verdict["vendorDiversityReason"] = "  "
+	if got := clauseMakerChecker(thin); got.pass {
+		t.Fatal("waiver accepted without a substantive reason")
+	}
+}
+
+// In a config file a quote delimits a key, not a string literal. Suppressing
+// there would let a security setting switch off without a safety review.
+func TestSafetyTierReadsQuotedKeysInConfigFiles(t *testing.T) {
+	for _, file := range []string{"config/app.json", "deploy/values.yaml", "settings.toml"} {
+		t.Run(file, func(t *testing.T) {
+			input := Input{ChangedFiles: []string{file}, Patch: unifiedPatch(file, `  "authentication": false`)}
+			if !IsSafetyTier(input) {
+				t.Fatalf("%s: a disabled security setting left the safety tier", file)
+			}
+		})
+	}
+	// The same text in a Go usage string stays out.
+	code := "cli/usage.go"
+	input := Input{ChangedFiles: []string{code}, Patch: unifiedPatch(code, `fmt.Println("  authentication: off")`)}
+	if IsSafetyTier(input) {
+		t.Fatal("a usage string was promoted to safety tier")
+	}
+}
+
+// The corpus case that keeps validate* in safetyTerms: a path-traversal guard
+// in a file no path pattern or sink marker covers.
+func TestSafetyTierCatchesPathTraversalGuard(t *testing.T) {
+	file := "cli/internal/execstate/execstate.go"
+	input := Input{
+		ChangedFiles: []string{file},
+		Patch:        unifiedPatch(file, "func validateSegments(slug, specID, sessionID string) error {"),
+	}
+	if !IsSafetyTier(input) {
+		t.Fatal("a path-traversal guard left the safety tier")
+	}
+}

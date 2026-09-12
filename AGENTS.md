@@ -75,6 +75,15 @@ Normal work may be checked by the same executor/vendor only from a distinct exec
 A different executor under the same vendor does not establish independence. Safety reviews and
 safety-tier acceptance require a different vendor from the maker.
 
+Safety tier is either declared or inferred. A spec carrying `<risk>safety</risk>` declared it,
+and its vendor requirement is absolute. Everything else the floor classified by reading the
+diff, and a classifier can be wrong, so a box with one model vendor is not locked out of its
+own work: the checker may attest `vendorDiversityWaived` with a substantive
+`vendorDiversityReason` in the verdict. Waiving drops that unit to normal independence rather
+than removing it, so the maker still cannot accept its own execution, and the receipt records
+`vendorDiverse: false` for anyone reading the evidence later. The waiver is the checker's
+claim, never a maker flag, and it never covers a declared tier.
+
 ## Acceptance verdict and done
 
 An independent checker supplies a versioned JSON verdict:
@@ -96,7 +105,8 @@ An independent checker supplies a versioned JSON verdict:
 ```
 
 The adversarial and safety fields are required only when the floor classifies the diff into
-those tiers. Then run:
+those tiers. `vendorDiversityWaived` plus `vendorDiversityReason` are optional, and read only
+on an inferred safety tier. Then run:
 
 ```bash
 mint done harden-token 001 --attempt maker-1 --verdict /tmp/verdict.json --json

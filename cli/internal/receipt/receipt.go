@@ -36,13 +36,18 @@ type Evidence struct {
 }
 
 type Record struct {
-	SchemaVersion int                  `json:"schemaVersion"`
-	ID            string               `json:"id"`
-	Unit          UnitRef              `json:"unit"`
-	AttemptID     string               `json:"attemptId"`
-	Terminal      string               `json:"terminal"`
-	Accepted      bool                 `json:"accepted"`
-	Snapshot      snapshot.Source      `json:"snapshot"`
+	SchemaVersion int             `json:"schemaVersion"`
+	ID            string          `json:"id"`
+	Unit          UnitRef         `json:"unit"`
+	AttemptID     string          `json:"attemptId"`
+	Terminal      string          `json:"terminal"`
+	Accepted      bool            `json:"accepted"`
+	Snapshot      snapshot.Source `json:"snapshot"`
+	// VendorDiverse records whether the checker came from a different model
+	// vendor than the maker. A receipt issued on a single-vendor box is still a
+	// receipt, it just carries weaker independence, and a reader can tell. Nil
+	// means the receipt holds no provenance to answer from, never false.
+	VendorDiverse *bool                `json:"vendorDiverse,omitempty"`
 	Clauses       []floor.ClauseResult `json:"clauses"`
 	Evidence      Evidence             `json:"evidence"`
 	IssuedAt      string               `json:"issuedAt"`
@@ -99,6 +104,7 @@ func New(opts NewOptions) (Record, error) {
 		Terminal:      opts.Terminal,
 		Accepted:      true,
 		Snapshot:      opts.Snapshot,
+		VendorDiverse: vendorDiverse(maker, checker),
 		Clauses:       append([]floor.ClauseResult(nil), opts.Result.Clauses...),
 		Evidence: Evidence{
 			Maker: maker, Checker: checker, Acceptance: opts.Input.Verdict,
@@ -186,6 +192,12 @@ func Read(path string) (Record, error) {
 	if record.SchemaVersion != SchemaVersion || !atomic.IsLiteralSegment(record.ID) || !atomic.IsLiteralSegment(record.AttemptID) || record.Snapshot.Digest == "" {
 		return Record{}, fmt.Errorf("unsupported or malformed receipt")
 	}
+	// Receipts written before this field still carry both provenances, so the
+	// answer is derivable. Leaving the zero value would report every one of them
+	// as weaker evidence than it actually holds.
+	if record.VendorDiverse == nil {
+		record.VendorDiverse = vendorDiverse(record.Evidence.Maker, record.Evidence.Checker)
+	}
 	return record, nil
 }
 
@@ -247,6 +259,14 @@ func Validate(root string, record Record) Validation {
 		result.Reason = "source snapshot changed after receipt issuance"
 	}
 	return result
+}
+
+func vendorDiverse(maker *execstate.Maker, checker execstate.Provenance) *bool {
+	if maker == nil || strings.TrimSpace(maker.Vendor) == "" || strings.TrimSpace(checker.Vendor) == "" {
+		return nil
+	}
+	diverse := !strings.EqualFold(strings.TrimSpace(maker.Vendor), strings.TrimSpace(checker.Vendor))
+	return &diverse
 }
 
 func generateID(now time.Time) (string, error) {

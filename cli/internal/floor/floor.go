@@ -96,35 +96,151 @@ func Enforce(input Input) Result {
 }
 
 func IsSafetyTier(input Input) bool {
-	declared := regexp.MustCompile(`(?i)<risk>\s*safety\s*</risk>`).MatchString(input.Spec)
+	hit, _ := safetyTier(input)
+	return hit
+}
+
+// safetyTier reports whether the diff is safety tier, and whether the spec
+// declared it by hand. A declared tier is absolute. An inferred one is a
+// classifier guess, so it can be waived by an attesting checker.
+func safetyTier(input Input) (hit bool, declared bool) {
+	if declaredSafetyRE.MatchString(input.Spec) {
+		return true, true
+	}
 	if len(input.ChangedFiles) > 0 && docclassify.IsDocsOnly(input.ChangedFiles) {
-		return declared
+		return false, false
 	}
-	files := input.ChangedFiles
-	haystack := strings.ToLower(input.Patch)
-	for _, f := range files {
-		haystack += "\n" + strings.ToLower(f)
-	}
-	for _, term := range safetyTerms {
-		if strings.Contains(haystack, term) {
-			return true
-		}
-	}
-	for _, marker := range safetySinkMarkers {
-		if strings.Contains(haystack, marker) {
-			return true
-		}
-	}
-	for _, file := range files {
+	for _, file := range input.ChangedFiles {
 		for _, segment := range strings.Split(strings.ToLower(file), "/") {
 			for _, pattern := range safetyPathPatterns {
 				if strings.Contains(segment, pattern) {
-					return true
+					return true, false
 				}
 			}
 		}
 	}
-	return declared
+	// Scan code lines only. Scanning the raw patch made every commit that wrote
+	// the word "where" or "Co-Authored-By" in prose a safety-tier diff.
+	seen := 0
+	for _, line := range walkPatch(input.Patch) {
+		if line.Sign != "+" && line.Sign != "-" {
+			continue
+		}
+		seen++
+		file := line.File
+		if file == "" {
+			file = line.PreFile
+		}
+		if file == "" || docclassify.IsDocPath(file) || isLogicScanSkip(file) || isCommentLine(line.Content) {
+			continue
+		}
+		if safetyCodeLine(file, line.Content) {
+			return true, false
+		}
+	}
+	// A patch this parser cannot walk must not fall out of the tier by accident.
+	// Scan it raw: over-classifying is the safe direction for a safety gate.
+	if seen == 0 && strings.TrimSpace(input.Patch) != "" {
+		for _, line := range strings.Split(input.Patch, "\n") {
+			if safetyCodeLine("", line) {
+				return true, false
+			}
+		}
+	}
+	return false, false
+}
+
+func safetyCodeLine(file, content string) bool {
+	lower := strings.ToLower(content)
+	// A term inside a string literal is usage text, a test fixture or an error
+	// message, not the code doing the security work. Import paths are the one
+	// string that still counts.
+	//
+	// This holds only where a quote marks a string literal. In a config or data
+	// file every key is quoted, so suppressing there would let "authentication":
+	// false walk straight out of the safety tier. Same for a line whose file the
+	// patch parser could not name.
+	inString := stringMap(content, true)
+	literalQuotes := file != "" && !isDataFile(file)
+	imported := isImportOnlyLine(strings.TrimSpace(content)) || goImportLineRE.MatchString(content)
+	quoted := func(at int) bool {
+		return literalQuotes && !imported && at < len(inString) && inString[at]
+	}
+	for _, phrase := range safetyPhrases {
+		for at := 0; ; {
+			next := strings.Index(lower[at:], phrase)
+			if next < 0 {
+				break
+			}
+			if !quoted(at + next) {
+				return true
+			}
+			at += next + len(phrase)
+		}
+	}
+	for _, marker := range safetySinkMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	if sqlStatementRE.MatchString(content) {
+		return true
+	}
+	for _, seg := range identifierSegments(content) {
+		if safetyTerms[seg.Text] && !quoted(seg.At) {
+			return true
+		}
+	}
+	return false
+}
+
+// identifierSegments splits a line on non-alphanumerics and camelCase humps,
+// lowercasing each piece and keeping its byte offset, so "isAuthenticated(req.body)"
+// yields is, authenticated, req, body. Matching whole segments is what separates
+// authToken from author.
+func identifierSegments(content string) []segment {
+	var out []segment
+	var cur strings.Builder
+	start := 0
+	flush := func() {
+		if cur.Len() > 0 {
+			out = append(out, segment{Text: strings.ToLower(cur.String()), At: start})
+			cur.Reset()
+		}
+	}
+	isLower := func(b byte) bool { return b >= 'a' && b <= 'z' }
+	isUpper := func(b byte) bool { return b >= 'A' && b <= 'Z' }
+	isDigit := func(b byte) bool { return b >= '0' && b <= '9' }
+	for i := 0; i < len(content); i++ {
+		b := content[i]
+		switch {
+		case isLower(b), isDigit(b):
+			if cur.Len() == 0 {
+				start = i
+			}
+			cur.WriteByte(b)
+		case isUpper(b):
+			// Split both humps: authToken, and the acronym edge in HTTPToken.
+			if i > 0 && (isLower(content[i-1]) || isDigit(content[i-1])) {
+				flush()
+			} else if i > 0 && isUpper(content[i-1]) && i+1 < len(content) && isLower(content[i+1]) {
+				flush()
+			}
+			if cur.Len() == 0 {
+				start = i
+			}
+			cur.WriteByte(b)
+		default:
+			flush()
+		}
+	}
+	flush()
+	return out
+}
+
+type segment struct {
+	Text string
+	At   int
 }
 
 func clauseVerifiableCompletion(input Input) clauseVerdict {
@@ -162,11 +278,11 @@ func clauseMakerChecker(input Input) clauseVerdict {
 		return fail(fmt.Sprintf("unit requires local checking, but checker declared locality %s", checker.Locality))
 	}
 
-	if IsSafetyTier(input) {
+	if IsSafetyTier(input) && !vendorDiversityWaived(input) {
 		if !sameProvenance(checker.Vendor, maker.Vendor) {
 			return pass()
 		}
-		return fail(fmt.Sprintf("safety-tier diff requires a checker from a different model vendor; checker and maker both declare %s", checker.Vendor))
+		return fail(fmt.Sprintf("safety-tier diff requires a checker from a different model vendor; checker and maker both declare %s; if this box has one vendor and the tier was inferred rather than declared, the checker may attest vendorDiversityWaived: true with a substantive vendorDiversityReason", checker.Vendor))
 	}
 	if !sameProvenance(checker.Vendor, maker.Vendor) {
 		return pass()
@@ -178,6 +294,18 @@ func clauseMakerChecker(input Input) clauseVerdict {
 		return pass()
 	}
 	return fail(fmt.Sprintf("verdict came from the maker's own execution (%s/%s)", maker.Executor, maker.ExecutionRef))
+}
+
+// vendorDiversityWaived lets a single-vendor box finish a unit the classifier
+// inferred into the safety tier. The checker attests it in the verdict, never
+// the maker on the command line, and it never covers a tier a human declared.
+// Waiving drops safety-tier checking to normal independence, not to none: the
+// maker still cannot accept its own execution.
+func vendorDiversityWaived(input Input) bool {
+	if _, declared := safetyTier(input); declared {
+		return false
+	}
+	return hasSubstantiveAttestation(input.Verdict, "vendorDiversityWaived", "vendorDiversityReason")
 }
 
 func requiredLocality(spec string) string {
@@ -313,7 +441,7 @@ func reviewIndependenceFailure(input Input, lens string, review execstate.Review
 	if requiredLocality(input.Spec) == "local" && checker.Locality != "local" {
 		return "reviewer did not declare local execution"
 	}
-	if isSafetyReviewLens(lens) {
+	if isSafetyReviewLens(lens) && !vendorDiversityWaived(input) {
 		if sameProvenance(checker.Vendor, maker.Vendor) {
 			return "safety review requires a different model vendor"
 		}
@@ -495,6 +623,17 @@ func isLogicScanSkip(file string) bool {
 		return true
 	}
 	return regexp.MustCompile(`^tsconfig[^/]*\.json$`).MatchString(base)
+}
+
+// isDataFile reports a config or serialization format, where quotation marks
+// delimit keys and values rather than code string literals.
+func isDataFile(file string) bool {
+	switch strings.ToLower(filepath.Ext(file)) {
+	case ".json", ".jsonc", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf",
+		".properties", ".plist", ".xml", ".env", ".tfvars", ".hcl":
+		return true
+	}
+	return strings.HasPrefix(filepath.Base(file), ".env")
 }
 
 func isTestFile(file string) bool {
@@ -944,20 +1083,42 @@ func sameProvenance(a, b string) bool {
 	return normalizeProvenance(a) == normalizeProvenance(b)
 }
 
-var safetyTerms = []string{
-	"security",
+// A member of a Go import block is a bare quoted path, which isImportOnlyLine
+// does not see. "crypto/rand" is signal, not a string literal.
+var goImportLineRE = regexp.MustCompile(`^\s*(?:[\w.]+\s+)?"[\w./-]+"\s*$`)
+
+var declaredSafetyRE = regexp.MustCompile(`(?i)<risk>\s*safety\s*</risk>`)
+
+// A SQL statement needs statement shape. The bare fragments this replaced made
+// any line containing " where " or "update " a safety-tier diff.
+var sqlStatementRE = regexp.MustCompile(`(?i)\b(select\s+[\w*].*\s+from\s|insert\s+into\s|delete\s+from\s|update\s+\S+\s+set\s|drop\s+table\s)`)
+
+// Matched against whole identifier segments, never as substrings, so each
+// concept carries its own morphology.
+var safetyTerms = map[string]bool{
+	"auth": true, "authn": true, "authz": true,
+	"authenticate": true, "authenticated": true, "authenticating": true, "authentication": true,
+	"authorize": true, "authorized": true, "authorizing": true, "authorization": true,
+	"security": true, "secure": true, "secured": true,
+	"crypto": true, "cryptography": true,
+	"encrypt": true, "encrypted": true, "encryption": true, "decrypt": true, "decrypted": true,
+	"token": true, "tokens": true,
+	"password": true, "passwords": true, "passwd": true,
+	"secret": true, "secrets": true,
+	"credential": true, "credentials": true, "creds": true,
+	// validate* stays despite firing on schema and snapshot validation: on the
+	// real corpus the one genuine diff only it catches is a path-traversal guard
+	// (validateSegments), which no path pattern or sink marker sees.
+	"validate": true, "validates": true, "validated": true, "validating": true, "validation": true,
+	"sanitize": true, "sanitizes": true, "sanitized": true, "sanitizing": true, "sanitization": true,
+	"accessibility": true, "a11y": true,
+	"cors": true,
+}
+
+// Hyphenated and spaced concepts that segment matching would split apart.
+var safetyPhrases = []string{
 	"trust-boundary",
-	"validation",
-	"accessibility",
 	"data-loss",
-	"auth",
-	"crypto",
-	"token",
-	"password",
-	"secret",
-	"credential",
-	"validate",
-	"sanitize",
 }
 
 var safetySinkMarkers = []string{
@@ -982,13 +1143,6 @@ var safetySinkMarkers = []string{
 	"httponly",
 	"samesite",
 	"access-control-allow-origin",
-	"cors",
-	"select ",
-	"insert into",
-	"delete from",
-	"update ",
-	"drop table",
-	" where ",
 	".redirect(",
 	"location.href",
 	"res.redirect",

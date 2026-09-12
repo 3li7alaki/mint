@@ -66,11 +66,17 @@ func TestCaptureWorksFromLinkedWorktree(t *testing.T) {
 	gitRun(t, root, "commit", "-m", "base")
 	worktree := filepath.Join(t.TempDir(), "linked")
 	gitRun(t, root, "worktree", "add", "-b", "feature", worktree)
-	source := capture(t, worktree)
-	if source.WorktreeRoot != worktree {
-		t.Fatalf("worktreeRoot=%q want %q", source.WorktreeRoot, worktree)
+	// Capture canonicalizes, and on macOS t.TempDir() hands back a /var symlink
+	// into /private/var, so the expectation has to be resolved too.
+	want, err := filepath.EvalSymlinks(worktree)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if source.CommonGitDir == "" || source.CommonGitDir == filepath.Join(worktree, ".git") {
+	source := capture(t, worktree)
+	if source.WorktreeRoot != want {
+		t.Fatalf("worktreeRoot=%q want %q", source.WorktreeRoot, want)
+	}
+	if source.CommonGitDir == "" || source.CommonGitDir == filepath.Join(want, ".git") {
 		t.Fatalf("commonGitDir not resolved for linked worktree: %q", source.CommonGitDir)
 	}
 }

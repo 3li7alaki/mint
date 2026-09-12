@@ -95,6 +95,13 @@ from a distinct execution reference; a different executor under the same vendor
 does not establish it. Safety reviews and safety-tier acceptance require a
 different vendor from the maker.
 
+A spec that declares `<risk>safety</risk>` means that absolutely. Where the floor
+inferred the tier by reading the diff instead, a single-vendor box is not locked
+out: the checker attests `vendorDiversityWaived` and a substantive
+`vendorDiversityReason` in the verdict, the unit drops to normal independence
+rather than none, and the receipt carries `vendorDiverse: false` so the weaker
+evidence is visible rather than hidden.
+
 Provenance is a declared record. `executor`, `vendor`, `model`, `locality` and
 `executionRef` are opaque attributable claims. mint stores them and owns no
 executor registry, no binary adapters and no process lifecycle. It does not

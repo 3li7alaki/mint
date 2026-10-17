@@ -2,6 +2,7 @@ package statuscmd
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -12,6 +13,11 @@ import (
 
 func TestBuildReportsVersionedWorktreeLedgerAndMissingEvidence(t *testing.T) {
 	root := t.TempDir()
+	cmd := exec.Command("git", "init", "-q")
+	cmd.Dir = root
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
 	t.Setenv("MINT_STATE_HOME", t.TempDir())
 	if err := unitstore.Ensure(root); err != nil {
 		t.Fatal(err)

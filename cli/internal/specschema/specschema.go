@@ -14,6 +14,19 @@ import (
 
 var required = []string{"id", "title", "goal", "scope", "steps", "acceptance", "commit"}
 
+// DefaultProtected paths change what checks run or which hooks fire, not what the code does.
+var DefaultProtected = []string{
+	".github/workflows",
+	".gitlab-ci.yml",
+	".husky",
+	".pre-commit-config.yaml",
+	"lefthook.yml",
+	".claude/settings.json",
+	".claude/settings.local.json",
+	".claude/hooks",
+	".codex",
+}
+
 type ValidationResult struct {
 	Valid    bool
 	Errors   []string
@@ -98,6 +111,24 @@ func ResolveCanModify(xml string) []string {
 	if !ok {
 		return nil
 	}
+	return parsePaths(inner)
+}
+
+func ResolveProtected(xml string) []string {
+	inner, _ := tag(xml, "protected")
+	paths := append(parsePaths(inner), DefaultProtected...)
+	seen := map[string]bool{}
+	var protected []string
+	for _, path := range paths {
+		if !seen[path] {
+			seen[path] = true
+			protected = append(protected, path)
+		}
+	}
+	return protected
+}
+
+func parsePaths(inner string) []string {
 	pathRE := regexp.MustCompile(`<path>([\s\S]*?)</path>`)
 	matches := pathRE.FindAllStringSubmatch(inner, -1)
 	var paths []string
@@ -131,6 +162,11 @@ func ResolveSpecGates(xml string) map[string]string {
 		}
 	}
 	return gates
+}
+
+func ResolvePrepare(xml string) string {
+	inner, _ := tag(xml, "prepare")
+	return unescapeXML(strings.TrimSpace(inner))
 }
 
 func ResolveSpecReviews(xml string) []string {

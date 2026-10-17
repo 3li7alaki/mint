@@ -38,7 +38,9 @@ type Input struct {
 }
 
 type GateResult struct {
-	OK bool
+	OK       bool
+	GateMode string   `json:"gateMode,omitempty"`
+	Reverted []string `json:"reverted,omitempty"`
 }
 
 type ClauseResult struct {
@@ -328,10 +330,16 @@ func clauseSafetyCarveOut(input Input) clauseVerdict {
 }
 
 func clauseAntiGaming(input Input) clauseVerdict {
-	if strings.TrimSpace(input.Patch) == "" {
-		return pass()
-	}
 	signals := antiGamingSignals(input.Patch)
+	protected := specschema.ResolveProtected(input.Spec)
+	for _, file := range input.ChangedFiles {
+		for _, path := range protected {
+			if scopematch.MatchesAllowed(file, path) {
+				signals = append(signals, tamperSignal{"h:protected-path-modified", file, "protected path modified: " + file})
+				break
+			}
+		}
+	}
 	if len(signals) > 0 {
 		summary := signalSummary(signals)
 		if hasSubstantiveAttestation(input.Verdict, "tamperingReviewed", "tamperingReason") {

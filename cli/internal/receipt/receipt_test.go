@@ -26,7 +26,10 @@ func TestStoreIsImmutableAndValidationDetectsStaleness(t *testing.T) {
 	result := floor.Result{Pass: true, Clauses: []floor.ClauseResult{{Clause: 1, Name: "completion", Pass: true}}}
 	record, err := New(NewOptions{
 		Slug: "unit", SpecID: "001", AttemptID: "a1", Terminal: "done-verified", Snapshot: source,
-		Result: result, Input: floor.Input{Verdict: map[string]any{"executor": "codex", "vendor": "openai", "model": "gpt", "locality": "remote", "executionRef": "checker"}},
+		Result: result, Input: floor.Input{
+			Verdict: map[string]any{"executor": "codex", "vendor": "openai", "model": "gpt", "locality": "remote", "executionRef": "checker"},
+			Gates:   &floor.GateResult{OK: true, GateMode: "replay", Reverted: []string{"scripts/gate.txt"}},
+		},
 		IssuedAt: time.Unix(1, 0),
 	})
 	if err != nil {
@@ -42,6 +45,9 @@ func TestStoreIsImmutableAndValidationDetectsStaleness(t *testing.T) {
 	loaded, err := Read(path)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if loaded.Evidence.GateMode != "replay" || len(loaded.Evidence.Reverted) != 1 || loaded.Evidence.Reverted[0] != "scripts/gate.txt" {
+		t.Fatalf("gate evidence=%#v", loaded.Evidence)
 	}
 	if got := Validate(root, loaded); !got.Valid || !got.Current {
 		t.Fatalf("fresh validation = %#v", got)

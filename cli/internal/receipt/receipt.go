@@ -33,6 +33,8 @@ type Evidence struct {
 	Acceptance      map[string]any              `json:"acceptance"`
 	RequiredReviews []string                    `json:"requiredReviews,omitempty"`
 	Reviews         map[string]execstate.Review `json:"reviews,omitempty"`
+	GateMode        string                      `json:"gateMode,omitempty"`
+	Reverted        []string                    `json:"reverted,omitempty"`
 }
 
 type Record struct {
@@ -42,6 +44,7 @@ type Record struct {
 	AttemptID     string          `json:"attemptId"`
 	Terminal      string          `json:"terminal"`
 	Accepted      bool            `json:"accepted"`
+	VerdictSource string          `json:"verdictSource,omitempty"`
 	Snapshot      snapshot.Source `json:"snapshot"`
 	// VendorDiverse records whether the checker came from a different model
 	// vendor than the maker. A receipt issued on a single-vendor box is still a
@@ -96,6 +99,13 @@ func New(opts NewOptions) (Record, error) {
 			ExecutionRef: opts.Input.MakerExecutionRef,
 		}
 	}
+	var gateMode string
+	verdictSource, _ := opts.Input.Verdict["source"].(string)
+	var reverted []string
+	if opts.Input.Gates != nil {
+		gateMode = opts.Input.Gates.GateMode
+		reverted = append([]string(nil), opts.Input.Gates.Reverted...)
+	}
 	return Record{
 		SchemaVersion: SchemaVersion,
 		ID:            id,
@@ -103,6 +113,7 @@ func New(opts NewOptions) (Record, error) {
 		AttemptID:     opts.AttemptID,
 		Terminal:      opts.Terminal,
 		Accepted:      true,
+		VerdictSource: verdictSource,
 		Snapshot:      opts.Snapshot,
 		VendorDiverse: vendorDiverse(maker, checker),
 		Clauses:       append([]floor.ClauseResult(nil), opts.Result.Clauses...),
@@ -110,6 +121,8 @@ func New(opts NewOptions) (Record, error) {
 			Maker: maker, Checker: checker, Acceptance: opts.Input.Verdict,
 			RequiredReviews: append([]string(nil), opts.Input.RequiredReviews...),
 			Reviews:         opts.Input.Reviews,
+			GateMode:        gateMode,
+			Reverted:        reverted,
 		},
 		IssuedAt: opts.IssuedAt.UTC().Format(time.RFC3339Nano),
 	}, nil

@@ -3,7 +3,9 @@ package execstate
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -12,6 +14,11 @@ import (
 
 func TestAttemptProvenanceIsImmutableAndWritesAreSerialized(t *testing.T) {
 	root := t.TempDir()
+	cmd := exec.Command("git", "init", "-q")
+	cmd.Dir = root
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
 	t.Setenv("MINT_STATE_HOME", t.TempDir())
 	if err := unitstore.Ensure(root); err != nil {
 		t.Fatal(err)
@@ -52,8 +59,42 @@ func TestAttemptProvenanceIsImmutableAndWritesAreSerialized(t *testing.T) {
 	if !ok || len(state.Gates) != 20 || state.Maker.Executor != "codex" {
 		t.Fatalf("state=%#v", state)
 	}
+	if state.BaselineTree == nil || *state.BaselineTree == "" {
+		t.Fatalf("baseline tree not persisted: %#v", state)
+	}
 	if info, err := os.Stat(Path(root, "unit", "001", "a1")); err != nil || info.Mode().Perm() != 0o600 {
 		t.Fatalf("mode=%v err=%v", info.Mode(), err)
+	}
+}
+
+func TestInitCaptureFailureWritesNoAttempt(t *testing.T) {
+	for _, gitRepo := range []bool{false, true} {
+		t.Run(fmt.Sprintf("gitRepo=%v", gitRepo), func(t *testing.T) {
+			root := t.TempDir()
+			t.Setenv("MINT_STATE_HOME", t.TempDir())
+			if gitRepo {
+				cmd := exec.Command("git", "init", "-q")
+				cmd.Dir = root
+				if out, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("git init: %v\n%s", err, out)
+				}
+				t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
+			}
+			spec := unitstore.SpecPath(root, "unit", "001")
+			if err := os.MkdirAll(filepath.Dir(spec), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(spec, []byte("<task/>"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			maker := &Maker{Executor: "codex", Vendor: "openai", Model: "gpt", Locality: "remote", ExecutionRef: "maker"}
+			if _, err := Init(root, "unit", "001", "a1", maker); err == nil || !strings.Contains(err.Error(), "Capture baseline tree") {
+				t.Fatalf("capture failure not returned: %v", err)
+			}
+			if _, err := os.Stat(Path(root, "unit", "001", "a1")); !os.IsNotExist(err) {
+				t.Fatalf("failed init wrote attempt: %v", err)
+			}
+		})
 	}
 }
 

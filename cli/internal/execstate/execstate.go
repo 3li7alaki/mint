@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"mint/internal/atomic"
+	"mint/internal/snapshot"
 	"mint/internal/statehome"
 	"mint/internal/unitstore"
 )
@@ -27,6 +28,7 @@ type State struct {
 	Reviews       map[string]Review `json:"reviews"`
 	Commit        *string           `json:"commit,omitempty"`
 	Maker         *Maker            `json:"maker,omitempty"`
+	BaselineTree  *string           `json:"baselineTree,omitempty"`
 }
 
 type Provenance struct {
@@ -98,6 +100,10 @@ func Init(root, slug, specID, attemptID string, maker *Maker) (*State, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid maker provenance: %w", err)
 	}
+	baseline, err := snapshot.CaptureTree(root)
+	if err != nil {
+		return nil, fmt.Errorf("Capture baseline tree: %w", err)
+	}
 	unlock, err := lockAttempt(root, slug, specID, attemptID)
 	if err != nil {
 		return nil, err
@@ -114,6 +120,7 @@ func Init(root, slug, specID, attemptID string, maker *Maker) (*State, error) {
 		Gates:         map[string]string{},
 		Reviews:       map[string]Review{},
 		Maker:         &resolved,
+		BaselineTree:  &baseline,
 	}
 	if err := writeNew(root, slug, specID, attemptID, state); err != nil {
 		return nil, err

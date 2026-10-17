@@ -74,6 +74,54 @@ func TestResolveCanModify(t *testing.T) {
 	}
 }
 
+func TestResolvePrepare(t *testing.T) {
+	for _, tc := range []struct{ xml, want string }{
+		{`<task></task>`, ""},
+		{`<task><prepare> </prepare></task>`, ""},
+		{`<task><!-- <prepare>false</prepare> --></task>`, ""},
+		{`<task><!-- <prepare>false</prepare> --><prepare> cp &quot;$MINT_SOURCE_ROOT/.env&quot; . &amp;&amp; true </prepare></task>`, `cp "$MINT_SOURCE_ROOT/.env" . && true`},
+	} {
+		if got := ResolvePrepare(tc.xml); got != tc.want {
+			t.Fatalf("ResolvePrepare(%q)=%q want %q", tc.xml, got, tc.want)
+		}
+	}
+}
+
+func TestResolveProtected(t *testing.T) {
+	defaults := []string{
+		".github/workflows", ".gitlab-ci.yml", ".husky", ".pre-commit-config.yaml",
+		"lefthook.yml", ".claude/settings.json", ".claude/settings.local.json", ".claude/hooks", ".codex",
+	}
+	cases := []struct {
+		name string
+		xml  string
+		want []string
+	}{
+		{"path children", `<task><protected><path> scripts/gate.sh </path><path>tests/gates/**</path></protected></task>`, append([]string{"scripts/gate.sh", "tests/gates/**"}, defaults...)},
+		{"comma list", `<task><protected> scripts/gate.sh, tests/gates/**, , </protected></task>`, append([]string{"scripts/gate.sh", "tests/gates/**"}, defaults...)},
+		{"no block", `<task></task>`, defaults},
+		{"empty block", `<task><protected></protected></task>`, defaults},
+		{"duplicates", `<task><protected>.codex, scripts/gate.sh, .github/workflows, scripts/gate.sh, .codex</protected></task>`, append([]string{".codex", "scripts/gate.sh"}, defaults[:len(defaults)-1]...)},
+		{"commented block", `<task><!-- <protected>ignored</protected> --></task>`, defaults},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ResolveProtected(tc.xml); !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("ResolveProtected = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateOptionalProtected(t *testing.T) {
+	for _, block := range []string{"", "<protected></protected>", "<protected>scripts/gate.sh</protected>"} {
+		xml := strings.Replace(validSpec, "</task>", block+"</task>", 1)
+		if result := Validate(xml); !result.Valid {
+			t.Fatalf("Validate(protected %q) = %#v", block, result)
+		}
+	}
+}
+
 func TestRiskAndAcceptanceValidation(t *testing.T) {
 	for _, inner := range []string{"safety", " Safety ", "SAFETY"} {
 		result := Validate(withRisk(inner))

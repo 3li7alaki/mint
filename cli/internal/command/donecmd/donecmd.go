@@ -18,19 +18,52 @@ import (
 )
 
 type Flags struct {
-	Verdict  string
-	Terminal string
-	Attempt  string
-	Spec     string
-	Base     string
-	JSON     bool
+	Verdict             string
+	Checker             string
+	CheckerExecutor     string
+	CheckerVendor       string
+	CheckerModel        string
+	CheckerLocality     string
+	CheckerExecutionRef string
+	CheckerTimeout      time.Duration
+	Terminal            string
+	Attempt             string
+	Spec                string
+	Base                string
+	JSON                bool
 }
+
+const Usage = "Usage: mint done <slug> <spec-id> [--attempt <id>] [--verdict <path> | --checker <command>] [--checker-executor <name> --checker-vendor <name> --checker-model <name> --checker-locality <local|remote> --checker-execution-ref <ref>] [--checker-timeout <duration>] [--terminal <state>] [--base <ref>] [--json]"
 
 var captureSnapshot = snapshot.Capture
 
 func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int, error) {
 	if len(args) < 2 {
-		return 1, fmt.Errorf("Usage: mint done <slug> <spec-id> [--attempt <id>] [--verdict <path>] [--terminal <state>] [--base <ref>] [--json]")
+		return 1, fmt.Errorf("%s", Usage)
+	}
+	var checker execstate.Provenance
+	if flags.Checker != "" {
+		if flags.Verdict != "" {
+			return 1, fmt.Errorf("--checker and --verdict are mutually exclusive")
+		}
+		if strings.TrimSpace(flags.Checker) == "" {
+			return 1, fmt.Errorf("--checker requires a non-empty command")
+		}
+		var err error
+		checker, err = execstate.ValidateProvenance(execstate.Provenance{
+			Executor: flags.CheckerExecutor, Vendor: flags.CheckerVendor,
+			Model: flags.CheckerModel, Locality: flags.CheckerLocality,
+			ExecutionRef: flags.CheckerExecutionRef,
+		})
+		if err != nil {
+			return 1, fmt.Errorf("checker provenance: %w", err)
+		}
+		if flags.CheckerTimeout == 0 {
+			flags.CheckerTimeout = DefaultCheckerTimeout
+		}
+		if flags.CheckerTimeout < 0 {
+			return 1, fmt.Errorf("--checker-timeout must be positive")
+		}
 	}
 	slug, specID := args[0], args[1]
 	if !execstate.IsLiteralSegment(slug) || !execstate.IsLiteralSegment(specID) {
@@ -73,6 +106,16 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		fmt.Fprintln(stderr, err)
 		return 1, nil
 	}
+	if flags.Checker != "" {
+		input.Verdict = runChecker(root, flags.Checker, checker, flags.CheckerTimeout, input)
+		if accepted, _ := input.Verdict["accepted"].(bool); !accepted {
+			fmt.Fprintln(stderr, "checker:", input.Verdict["checkerReason"])
+		}
+	} else if input.Verdict != nil {
+		if _, exists := input.Verdict["source"]; !exists {
+			input.Verdict["source"] = "declared"
+		}
+	}
 	result := floor.Enforce(input)
 	var issued *receipt.Record
 	var receiptPath string
@@ -87,7 +130,7 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 			return 1, nil
 		}
 		defaultVerdictPath := unitstore.VerdictPath(root, slug, specID, attemptID)
-		if verdictPath != defaultVerdictPath {
+		if flags.Checker != "" || verdictPath != defaultVerdictPath {
 			if err := statehome.WriteJSON(defaultVerdictPath, input.Verdict); err != nil {
 				fmt.Fprintln(stderr, "verdict:", err)
 				return 1, nil

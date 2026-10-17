@@ -148,6 +148,10 @@ func parseSpecArgs(args []string) ([]string, speccmd.Flags, error) {
 			target = &flags.Goal
 		case "--scope":
 			target = &flags.Scope
+		case "--protected":
+			target = &flags.Protected
+		case "--prepare":
+			target = &flags.Prepare
 		case "--acceptance":
 			target = &flags.Acceptance
 		case "--steps":
@@ -224,7 +228,8 @@ func parseExecArgs(args []string) ([]string, execcmd.Flags, error) {
 }
 
 func parseDoneArgs(args []string) ([]string, donecmd.Flags, error) {
-	var flags donecmd.Flags
+	flags := donecmd.Flags{CheckerTimeout: donecmd.DefaultCheckerTimeout}
+	var checkerSet, verdictSet bool
 	var out []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -232,12 +237,37 @@ func parseDoneArgs(args []string) ([]string, donecmd.Flags, error) {
 			flags.JSON = true
 			continue
 		}
+		if arg == "--checker-timeout" {
+			value, err := next(args, &i, arg)
+			if err != nil {
+				return nil, flags, err
+			}
+			flags.CheckerTimeout, err = time.ParseDuration(value)
+			if err != nil || flags.CheckerTimeout <= 0 {
+				return nil, flags, fmt.Errorf("--checker-timeout requires a positive Go duration")
+			}
+			continue
+		}
 		var target *string
 		switch arg {
 		case "--attempt":
 			target = &flags.Attempt
 		case "--verdict":
+			verdictSet = true
 			target = &flags.Verdict
+		case "--checker":
+			checkerSet = true
+			target = &flags.Checker
+		case "--checker-executor":
+			target = &flags.CheckerExecutor
+		case "--checker-vendor":
+			target = &flags.CheckerVendor
+		case "--checker-model":
+			target = &flags.CheckerModel
+		case "--checker-locality":
+			target = &flags.CheckerLocality
+		case "--checker-execution-ref":
+			target = &flags.CheckerExecutionRef
 		case "--terminal":
 			target = &flags.Terminal
 		case "--spec":
@@ -250,6 +280,9 @@ func parseDoneArgs(args []string) ([]string, donecmd.Flags, error) {
 			if err != nil {
 				return nil, flags, err
 			}
+			if arg == "--checker" && strings.TrimSpace(value) == "" {
+				return nil, flags, fmt.Errorf("--checker requires a non-empty command")
+			}
 			*target = value
 			continue
 		}
@@ -257,6 +290,9 @@ func parseDoneArgs(args []string) ([]string, donecmd.Flags, error) {
 			return nil, flags, fmt.Errorf("unknown done flag: %s", arg)
 		}
 		out = append(out, arg)
+	}
+	if checkerSet && verdictSet {
+		return nil, flags, fmt.Errorf("--checker and --verdict are mutually exclusive")
 	}
 	return out, flags, nil
 }
@@ -380,11 +416,11 @@ func usage() (int, error) {
 func help(command string) (int, error) {
 	lines := map[string]string{
 		"":        "Usage: mint <command> [args]\nCommands: spec, exec, verify, review, done, status, receipt, note, clean",
-		"spec":    "Usage: mint spec new \"<title>\" [--slug <slug>] --goal <text> --scope <paths> --acceptance <EARS> [--gate 'label: command'] [--reviews <list>]\n       mint spec set|validate|scope <spec-path>",
+		"spec":    "Usage: mint spec new \"<title>\" [--slug <slug>] --goal <text> --scope <paths> [--protected <paths>] [--prepare <command>] --acceptance <EARS> [--gate 'label: command'] [--reviews <list>]\n       mint spec set <spec-path> [--protected <paths>] [--prepare <command>]\n       mint spec validate|scope <spec-path>",
 		"exec":    "Usage: mint exec init <slug> <spec-id> [--attempt <id>] --executor <name> --vendor <name> --model <name> --locality <local|remote> [--execution-ref <ref>]\n       mint exec record-review|record-gate|set-status|show ...",
 		"verify":  "Usage: mint verify <slug> <spec-id> [--attempt <id>] [--spec <path>]",
 		"review":  "Usage: mint review --list | mint review --<lens> [--focus <text>]",
-		"done":    "Usage: mint done <slug> <spec-id> [--attempt <id>] [--verdict <path>] [--terminal <state>] [--base <ref>] [--json]",
+		"done":    donecmd.Usage + "\nChecker: receives floor JSON on stdin after gates; stdout starts with ALLOW: <reason> or BLOCK: <reason>.\nOptional ATTEST adversarial|safety|tampering|vendorDiversity: <reason> lines supply attestations.\n--checker-timeout defaults to 15m. Checker provenance flags are required with --checker.",
 		"status":  "Usage: mint status [--json]",
 		"receipt": "Usage: mint receipt show|verify <path> [--json]",
 		"note":    "Usage: mint note add <topic> <text> [--body <path>] [--file <path>] | show <topic> | list",

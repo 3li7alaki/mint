@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"mint/internal/execstate"
+	"mint/internal/snapshot"
 	"mint/internal/specschema"
 	"mint/internal/verify"
 )
@@ -40,11 +41,18 @@ func BuildInput(root string, opts BuildOptions) (Input, error) {
 	if err != nil {
 		return Input{}, err
 	}
-	changed, err := changedFilePaths(root, base)
-	if err != nil {
-		return Input{}, err
+	state, _ := execstate.Read(root, opts.Slug, opts.SpecID, opts.AttemptID)
+	var changed []string
+	var patch string
+	if opts.Base == "" && state != nil && state.BaselineTree != nil {
+		changed, patch, _, err = snapshot.ChangedSince(root, *state.BaselineTree)
+	} else {
+		changed, err = changedFilePaths(root, base)
+		if err != nil {
+			return Input{}, err
+		}
+		patch, err = changedPatch(root, base)
 	}
-	patch, err := changedPatch(root, base)
 	if err != nil {
 		return Input{}, err
 	}
@@ -59,13 +67,13 @@ func BuildInput(root string, opts BuildOptions) (Input, error) {
 		Spec:            string(specBytes),
 		ChangedFiles:    changed,
 		Patch:           patch,
-		Gates:           &GateResult{OK: gates.OK},
+		Gates:           &GateResult{OK: gates.OK, GateMode: gates.Mode, Reverted: gates.Reverted},
 		Verdict:         verdict,
 		TerminalState:   opts.TerminalState,
 		RequiredReviews: resolveRequiredReviews(opts.SpecPath),
 		Reviews:         attachedReviews(root, opts.Slug, opts.SpecID, opts.AttemptID),
 	}
-	if state, ok := execstate.Read(root, opts.Slug, opts.SpecID, opts.AttemptID); ok && state.Maker != nil {
+	if state != nil && state.Maker != nil {
 		input.MakerExecutor = state.Maker.Executor
 		input.MakerVendor = state.Maker.Vendor
 		input.MakerModel = state.Maker.Model

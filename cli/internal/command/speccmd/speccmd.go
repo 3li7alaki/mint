@@ -23,6 +23,8 @@ type Flags struct {
 	Slug         string
 	Goal         string
 	Scope        string
+	Protected    string
+	Prepare      string
 	Acceptance   string
 	Steps        string
 	Commit       string
@@ -48,7 +50,7 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 	switch args[0] {
 	case "new":
 		if len(args) < 2 {
-			return 1, fmt.Errorf("Usage: mint spec new \"<title>\" [--slug <slug>] [--goal <text>] [--scope <paths>] [--acceptance <text>] [--gate 'label: command'] [--reviews <list>] [--parent-system <name> --parent-id <id>]")
+			return 1, fmt.Errorf("Usage: mint spec new \"<title>\" [--slug <slug>] [--goal <text>] [--scope <paths>] [--protected <paths>] [--prepare <command>] [--acceptance <text>] [--gate 'label: command'] [--reviews <list>] [--parent-system <name> --parent-id <id>]")
 		}
 		result, err := New(root, args[1], flags)
 		if err != nil {
@@ -62,7 +64,7 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		return 0, nil
 	case "set":
 		if len(args) < 2 {
-			return 1, fmt.Errorf("Usage: mint spec set <spec-path> [--goal <text>] [--scope <paths>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
+			return 1, fmt.Errorf("Usage: mint spec set <spec-path> [--goal <text>] [--scope <paths>] [--protected <paths>] [--prepare <command>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
 		}
 		if err := Set(root, args[1], flags); err != nil {
 			return 1, err
@@ -218,6 +220,22 @@ func applyFieldFlags(xml string, flags Flags) string {
 	if flags.Scope != "" {
 		out = replaceElementContent(out, "can-modify", renderScope(flags.Scope))
 	}
+	if flags.Protected != "" {
+		content := renderScope(flags.Protected)
+		if strings.Contains(out, "<protected>") {
+			out = replaceElementContent(out, "protected", content)
+		} else {
+			out = strings.Replace(out, "</task>", "  <protected>"+content+"</protected>\n</task>", 1)
+		}
+	}
+	if flags.Prepare != "" {
+		content := escapeXML(flags.Prepare)
+		if strings.Contains(out, "<prepare>") {
+			out = replaceElementContent(out, "prepare", content)
+		} else {
+			out = strings.Replace(out, "</task>", "  <prepare>"+content+"</prepare>\n</task>", 1)
+		}
+	}
 	if flags.Steps != "" {
 		out = replaceElementContent(out, "steps", escapeXML(flags.Steps))
 	}
@@ -254,7 +272,7 @@ func escapeXML(s string) string {
 }
 
 func printUsage(stdout io.Writer) {
-	fmt.Fprintln(stdout, "  Usage: mint spec new \"<title>\" [--slug <slug>] [--goal <text>] [--scope <paths>] [--acceptance <text>] [--gate 'label: command'] [--reviews <list>] [--parent-system <name> --parent-id <id>]")
-	fmt.Fprintln(stdout, "         mint spec set <spec-path> [--goal <text>] [--scope <paths>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
+	fmt.Fprintln(stdout, "  Usage: mint spec new \"<title>\" [--slug <slug>] [--goal <text>] [--scope <paths>] [--protected <paths>] [--prepare <command>] [--acceptance <text>] [--gate 'label: command'] [--reviews <list>] [--parent-system <name> --parent-id <id>]")
+	fmt.Fprintln(stdout, "         mint spec set <spec-path> [--goal <text>] [--scope <paths>] [--protected <paths>] [--prepare <command>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
 	fmt.Fprintln(stdout, "         mint spec validate|scope <spec-path>")
 }

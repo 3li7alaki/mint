@@ -2,7 +2,9 @@ package speccmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -40,5 +42,82 @@ func TestNewUsesGlobalStateAndCarriesOpaqueParent(t *testing.T) {
 	var out bytes.Buffer
 	if code, err := Run(root, []string{"validate", result.SpecPath}, Flags{}, &out, &bytes.Buffer{}); err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
+	}
+}
+
+func TestNewProtectedPaths(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
+	var out bytes.Buffer
+	flags := Flags{Goal: "G", Scope: "cli/**", Protected: "a,b", Acceptance: "WHEN x, THE system SHALL y"}
+	if code, err := Run(root, []string{"new", "Protected unit"}, flags, &out, &bytes.Buffer{}); err != nil || code != 0 {
+		t.Fatalf("code=%d err=%v", code, err)
+	}
+	var result NewResult
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(result.SpecPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "<protected>a,b</protected>") {
+		t.Fatalf("protected block missing: %s", b)
+	}
+	want := append([]string{"a", "b"}, specschema.DefaultProtected...)
+	if got := specschema.ResolveProtected(string(b)); !reflect.DeepEqual(got, want) {
+		t.Fatalf("protected=%#v, want %#v", got, want)
+	}
+}
+
+func TestSetProtectedPaths(t *testing.T) {
+	for _, initial := range []string{"", "old/path"} {
+		t.Run("initial="+initial, func(t *testing.T) {
+			root := t.TempDir()
+			t.Setenv("MINT_STATE_HOME", t.TempDir())
+			result, err := New(root, "Protected unit", Flags{Goal: "G", Scope: "cli/**", Protected: initial, Acceptance: "WHEN x, THE system SHALL y"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if code, err := Run(root, []string{"set", result.SpecPath}, Flags{Protected: "c, d"}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil || code != 0 {
+				t.Fatalf("code=%d err=%v", code, err)
+			}
+			b, err := os.ReadFile(result.SpecPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Count(string(b), "<protected>") != 1 || !strings.Contains(string(b), "<protected>c,d</protected>") {
+				t.Fatalf("protected block not replaced: %s", b)
+			}
+			want := append([]string{"c", "d"}, specschema.DefaultProtected...)
+			if got := specschema.ResolveProtected(string(b)); !reflect.DeepEqual(got, want) {
+				t.Fatalf("protected=%#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
+func TestPrepareNewAndSet(t *testing.T) {
+	for _, initial := range []string{"", `cp "$MINT_SOURCE_ROOT/.env" . && echo '$HOME' > ready`} {
+		t.Run("initial="+initial, func(t *testing.T) {
+			root := t.TempDir()
+			t.Setenv("MINT_STATE_HOME", t.TempDir())
+			result, err := New(root, "Prepare unit", Flags{Goal: "G", Scope: "cli/**", Prepare: initial, Acceptance: "WHEN x, THE system SHALL y"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := os.ReadFile(result.SpecPath)
+			if err != nil || specschema.ResolvePrepare(string(b)) != initial {
+				t.Fatalf("new prepare=%q err=%v", specschema.ResolvePrepare(string(b)), err)
+			}
+			command := `test -f "$MINT_SOURCE_ROOT/.env" && echo '<ready>' > ready`
+			if code, err := Run(root, []string{"set", result.SpecPath}, Flags{Prepare: command}, &bytes.Buffer{}, &bytes.Buffer{}); err != nil || code != 0 {
+				t.Fatalf("code=%d err=%v", code, err)
+			}
+			b, err = os.ReadFile(result.SpecPath)
+			if err != nil || strings.Count(string(b), "<prepare>") != 1 || specschema.ResolvePrepare(string(b)) != command {
+				t.Fatalf("set prepare=%q err=%v", specschema.ResolvePrepare(string(b)), err)
+			}
+		})
 	}
 }

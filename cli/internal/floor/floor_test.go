@@ -641,6 +641,61 @@ func TestClauseAntiGaming(t *testing.T) {
 	}
 }
 
+func TestClauseAntiGamingProtectedPaths(t *testing.T) {
+	cases := []struct {
+		name      string
+		file      string
+		protected string
+		patch     string
+		wantPass  bool
+	}{
+		{"default workflow", ".github/workflows/ci.yml", "", diffOf(".github/workflows/ci.yml", []string{"+name: CI"}), false},
+		{"default without patch", ".github/workflows/ci.yml", "", "", false},
+		{"spec path", "scripts/gate.sh", "scripts/gate.sh", "", false},
+		{"spec glob", "scripts/ci/gate.sh", "scripts/**/*.sh", "", false},
+		{"unprotected", "scripts/build.sh", "scripts/gate.sh", diffOf("scripts/build.sh", []string{"+go build ./..."}), true},
+		{"default prefix boundary", ".codex-extra/config.toml", "", "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			input := passingInput()
+			input.Spec = strings.Replace(specWith(tc.file), "</task>", "<protected>"+tc.protected+"</protected></task>", 1)
+			input.ChangedFiles = []string{tc.file}
+			input.Patch = tc.patch
+			result := Enforce(input)
+			if c5 := clauseResult(t, result, 5); !c5.Pass {
+				t.Fatalf("allowed protected path failed scope: %s", reason(c5))
+			}
+			c4 := clauseResult(t, result, 4)
+			if c4.Pass != tc.wantPass || (!tc.wantPass && !strings.Contains(reason(c4), "protected path modified: "+tc.file)) {
+				t.Fatalf("anti-gaming pass=%v, want %v: %s", c4.Pass, tc.wantPass, reason(c4))
+			}
+			if tc.wantPass {
+				return
+			}
+			input.Verdict["tamperingReviewed"] = true
+			input.Verdict["tamperingReason"] = ""
+			if c4 := clauseResult(t, Enforce(input), 4); c4.Pass {
+				t.Fatal("empty tampering reason passed anti-gaming")
+			}
+			input.Verdict["tamperingReason"] = "independently reviewed intentional gate configuration change"
+			if c4 := clauseResult(t, Enforce(input), 4); !c4.Pass {
+				t.Fatalf("protected path attestation failed: %s", reason(c4))
+			}
+		})
+	}
+}
+
+func TestClauseAntiGamingMergesProtectedAndPatchSignals(t *testing.T) {
+	input := passingInput()
+	input.ChangedFiles = []string{".claude/hooks/check.sh", "cli/lib/calc.test.js"}
+	input.Patch = diffOf("cli/lib/calc.test.js", []string{"+it.skip('hard case', () => {})"})
+	c4 := clauseResult(t, Enforce(input), 4)
+	if c4.Pass || !strings.Contains(reason(c4), "a:skip-or-only-added") || !strings.Contains(reason(c4), "protected path modified: .claude/hooks/check.sh") {
+		t.Fatalf("missing combined tampering signals: %s", reason(c4))
+	}
+}
+
 func TestClauseAntiGamingStructuralSignals(t *testing.T) {
 	cases := []struct {
 		name       string

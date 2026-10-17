@@ -90,6 +90,20 @@ Seven fixed clauses, the same for a typo and for an auth rewrite: verifiable
 completion, maker and checker independence, the safety carve-out, anti-gaming,
 scope, bounded terminal state, and floor-gated consequential action.
 
+An optional top-level `<protected>` block adds paths whose edits the anti-gaming
+clause flags, even when scope allows them. Use `<path>` children or a comma-separated
+list, or pass `--protected <paths>` to `mint spec new` or `mint spec set`. Defaults
+always protect CI workflows and hook configuration; an empty block keeps those
+defaults. Flagged edits require `tamperingReviewed: true` and a substantive
+`tamperingReason` in the independent verdict.
+
+Gates run in a clean replay worktree when the attempt has a baseline. Protected
+paths are restored to their baseline content there. Ignored files are absent;
+use an optional top-level `<prepare>` shell command (or `--prepare` on `mint spec
+new` and `mint spec set`) for dependencies and local environment files. The command
+runs before gates with `MINT_SOURCE_ROOT` pointing to the live worktree, for example
+`cp "$MINT_SOURCE_ROOT/.env" .`.
+
 Independence is structural. Normal work may be checked by the same vendor only
 from a distinct execution reference; a different executor under the same vendor
 does not establish it. Safety reviews and safety-tier acceptance require a
@@ -104,8 +118,21 @@ evidence is visible rather than hidden.
 
 Provenance is a declared record. `executor`, `vendor`, `model`, `locality` and
 `executionRef` are opaque attributable claims. mint stores them and owns no
-executor registry, no binary adapters and no process lifecycle. It does not
-pretend to authenticate an identity it cannot see.
+executor registry or binary adapters. It does not pretend to authenticate an
+identity it cannot see.
+
+Dispatchers should prefer `mint done --checker '<shell command>'` with
+`--checker-executor`, `--checker-vendor`, `--checker-model`, `--checker-locality`,
+and `--checker-execution-ref` so the verdict comes from a process mint launched.
+The checker receives the spec, changed files, patch, and gate results as JSON on
+stdin after gates run. Its first non-empty stdout line must be `ALLOW: <reason>`
+or `BLOCK: <reason>`; later `ATTEST adversarial: <reason>`, `ATTEST safety: <reason>`,
+`ATTEST tampering: <reason>`, or `ATTEST vendorDiversity: <reason>` lines supply
+attestations. `--checker-timeout` defaults to `15m`; timeout, process failure, or
+malformed output rejects completion. `--checker` and `--verdict` are mutually
+exclusive. Receipts record `verdictSource: "checker"` for launched checks;
+a verdict file defaults to `"declared"`, which is weaker evidence because any
+process with file access can write it. Provenance remains a declared claim.
 
 ## Commands
 

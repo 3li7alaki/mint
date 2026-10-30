@@ -1,8 +1,12 @@
 package verify
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -12,6 +16,7 @@ import (
 	"mint/internal/replay"
 	"mint/internal/snapshot"
 	"mint/internal/specschema"
+	"mint/internal/unitstore"
 )
 
 type ChangedFile struct {
@@ -23,11 +28,16 @@ type Result struct {
 	SchemaVersion int               `json:"schemaVersion"`
 	Tier          string            `json:"tier"`
 	Results       map[string]string `json:"results"`
+	Reasons       map[string]string `json:"reasons,omitempty"`
 	OK            bool              `json:"ok"`
 	Declared      bool              `json:"declared"`
 	Error         string            `json:"error,omitempty"`
 	Mode          string            `json:"mode,omitempty"`
 	Reverted      []string          `json:"reverted,omitempty"`
+	Logs          map[string]string `json:"logs,omitempty"`
+	PrepareLog    string            `json:"prepareLog,omitempty"`
+	PrepareFailed bool              `json:"prepareFailed,omitempty"`
+	Hint          string            `json:"hint,omitempty"`
 }
 
 func Run(root, slug, specID, attemptID, specPath string) (result Result) {
@@ -83,7 +93,19 @@ func Run(root, slug, specID, attemptID, specPath string) (result Result) {
 		return result
 	}
 	result.Tier = "full"
+	logDir := unitstore.GateLogDir(root, slug, specID, attemptID)
+	if err := os.RemoveAll(logDir); err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	if err := os.MkdirAll(logDir, 0o700); err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	result.Logs = map[string]string{}
+	result.Reasons = map[string]string{}
 	gateRoot := root
+	prepare := specschema.ResolvePrepare(spec)
 	var prepareErr error
 	if state.BaselineTree != nil {
 		worktree, err := replay.Prepare(root, *state.BaselineTree, specschema.ResolveProtected(spec))
@@ -98,20 +120,60 @@ func Run(root, slug, specID, attemptID, specPath string) (result Result) {
 			}
 		}()
 		gateRoot, result.Reverted = worktree.Dir, worktree.Reverted
-		if prepare := specschema.ResolvePrepare(spec); prepare != "" {
-			prepareErr = runGate(gateRoot, prepare, "MINT_SOURCE_ROOT="+root)
+		if prepare != "" {
+			path := filepath.Join(logDir, "prepare.log")
+			log, err := openGateLog(path)
+			if err != nil {
+				result.Error = err.Error()
+				return result
+			}
+			result.PrepareLog = path
+			prepareErr = runGate(gateRoot, prepare, log, "MINT_SOURCE_ROOT="+root)
+			result.PrepareFailed = prepareErr != nil
+			if err := log.Close(); err != nil {
+				result.Error = err.Error()
+				return result
+			}
 		}
 	}
 	result.OK = true
-	for _, label := range labels {
+	for i, label := range labels {
 		command := gates[label]
 		if strings.TrimSpace(command) == "" {
 			continue
 		}
-		gateResult := "pass"
-		if prepareErr != nil || runGate(gateRoot, command) != nil {
-			gateResult = "fail"
+		var gateErr error
+		if prepareErr == nil {
+			name := []byte(label)
+			for j, b := range name {
+				if !(b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z' || b >= '0' && b <= '9' || b == '.' || b == '_' || b == '-') {
+					name[j] = '-'
+				}
+			}
+			path := filepath.Join(logDir, fmt.Sprintf("%02d-%s.log", i+1, name))
+			log, err := openGateLog(path)
+			if err != nil {
+				result.OK = false
+				result.Error = err.Error()
+				return result
+			}
+			result.Logs[label] = path
+			gateErr = runGate(gateRoot, command, log)
+			if err := log.Close(); err != nil {
+				result.OK = false
+				result.Error = err.Error()
+				return result
+			}
+		}
+		gateResult, reason := classifyGate(gateErr)
+		if prepareErr != nil {
+			_, prepareReason := classifyGate(prepareErr)
+			gateResult = "inconclusive"
+			reason = "not run: prepare failed (" + prepareReason + ")"
+		}
+		if gateResult != "pass" {
 			result.OK = false
+			result.Reasons[label] = reason
 		}
 		result.Results[label] = gateResult
 		if _, err := execstate.RecordGate(root, slug, specID, label, gateResult, attemptID); err != nil {
@@ -119,6 +181,9 @@ func Run(root, slug, specID, attemptID, specPath string) (result Result) {
 			result.Error = err.Error()
 			return result
 		}
+	}
+	if result.Mode == "replay" && prepare == "" && !result.OK {
+		result.Hint = "gates ran in a replay worktree that holds only tracked files, so gitignored dependencies (node_modules, vendor, .env, generated code) are absent; declare them with <prepare>, e.g. mint spec set <spec> --prepare 'pnpm install --frozen-lockfile'"
 	}
 	result.Declared = true
 	return result
@@ -155,7 +220,34 @@ func ResolveGates(specPath string) map[string]string {
 	return map[string]string{}
 }
 
-func runGate(root, command string, env ...string) error {
+func classifyGate(err error) (result, reason string) {
+	if err == nil {
+		return "pass", ""
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return "inconclusive", "could not start: " + err.Error()
+	}
+	switch code := exitErr.ExitCode(); code {
+	case -1:
+		return "inconclusive", "killed by a signal"
+	case 126:
+		return "inconclusive", "exit 126: command not executable"
+	case 127:
+		return "inconclusive", "exit 127: command not found"
+	default:
+		// ponytail: Exit codes above 128, including a child killed under sh (137), stay fail because tests can crash too; upgrade to a mint-owned timeout that knows when it killed the gate.
+		return "fail", fmt.Sprintf("exit %d", code)
+	}
+}
+
+func openGateLog(path string) (*os.File, error) {
+	// Gate output can contain secrets from copied .env files, so logs stay private.
+	// ponytail: No size cap; chatty gates write MBs per run. Keep only the tail if storage becomes costly.
+	return os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+}
+
+func runGate(root, command string, log io.Writer, env ...string) error {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
 		cmd = exec.Command("cmd", "/C", command)
@@ -163,6 +255,8 @@ func runGate(root, command string, env ...string) error {
 		cmd = exec.Command("sh", "-c", command)
 	}
 	cmd.Dir = root
+	cmd.Stdout = log
+	cmd.Stderr = log
 	if len(env) > 0 {
 		cmd.Env = append(os.Environ(), env...)
 	}

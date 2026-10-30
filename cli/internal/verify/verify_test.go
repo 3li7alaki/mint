@@ -1,6 +1,9 @@
 package verify
 
 import (
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -102,7 +105,14 @@ second: printf ran > "$MINT_GATE_MARKER"
 				wantFirst = "fail"
 			}
 			if tc.name == "prepare fails" {
-				wantSecond = "fail"
+				wantFirst, wantSecond = "inconclusive", "inconclusive"
+				if !result.PrepareFailed || result.PrepareLog == "" || len(result.Logs) != 0 {
+					t.Fatalf("prepare failure logs=%#v", result)
+				}
+				entries, err := os.ReadDir(unitstore.GateLogDir(root, "unit", "001", "a1"))
+				if err != nil || len(entries) != 1 || entries[0].Name() != "prepare.log" {
+					t.Fatalf("prepare failure log files=%v err=%v", entries, err)
+				}
 				if _, err := os.Stat(marker); !os.IsNotExist(err) {
 					t.Fatalf("gate ran after prepare failed: %v", err)
 				}
@@ -153,6 +163,192 @@ func TestRunDocsOnlyUsesBaseline(t *testing.T) {
 	result := Run(root, "unit", "001", "a1", spec)
 	if !result.OK || result.Tier != "skip" || result.Mode != "replay" || result.Error != "" {
 		t.Fatalf("result=%#v", result)
+	}
+	if _, err := os.Stat(unitstore.GateLogDir(root, "unit", "001", "a1")); !os.IsNotExist(err) {
+		t.Fatalf("docs-only run created logs: %v", err)
+	}
+}
+
+func TestRunGateLogs(t *testing.T) {
+	for _, legacy := range []bool{false, true} {
+		name := "replay"
+		if legacy {
+			name = "legacy"
+		}
+		t.Run(name, func(t *testing.T) {
+			root := repo(t)
+			t.Setenv("MINT_STATE_HOME", t.TempDir())
+			spec := unitstore.SpecPath(root, "unit", "001")
+			write(t, spec, `<task><prepare>printf 'PREP\n'</prepare><gates>
+z/last._-9: printf 'LAST\n'
+a space: printf 'OUT\n'; printf 'ERR\n' >&2
+a/space: printf 'COLLISION\n'
+é: printf 'UTF8\n'
+</gates></task>`)
+			maker := &execstate.Maker{Executor: "codex", Vendor: "openai", Model: "gpt", Locality: "remote", ExecutionRef: "maker"}
+			state, err := execstate.Init(root, "unit", "001", "a1", maker)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if legacy {
+				state.BaselineTree = nil
+				if err := statehome.WriteJSON(execstate.Path(root, "unit", "001", "a1"), state); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(t, filepath.Join(root, "app.go"), "package app\nvar X = 2\n")
+			result := Run(root, "unit", "001", "a1", spec)
+			if result.Error != "" || !result.OK || result.PrepareFailed || len(result.Logs) != 4 {
+				t.Fatalf("result=%#v", result)
+			}
+			dir := unitstore.GateLogDir(root, "unit", "001", "a1")
+			info, err := os.Stat(dir)
+			if err != nil || info.Mode().Perm() != 0o700 {
+				t.Fatalf("log dir info=%v err=%v", info, err)
+			}
+			logs := []struct{ label, file, body string }{
+				{"a space", "01-a-space.log", "OUT\nERR\n"},
+				{"a/space", "02-a-space.log", "COLLISION\n"},
+				{"z/last._-9", "03-z-last._-9.log", "LAST\n"},
+				{"é", "04---.log", "UTF8\n"},
+			}
+			if legacy {
+				if result.PrepareLog != "" {
+					t.Fatalf("legacy prepare log=%q", result.PrepareLog)
+				}
+			} else {
+				if result.PrepareLog != filepath.Join(dir, "prepare.log") {
+					t.Fatalf("prepare log=%q", result.PrepareLog)
+				}
+				logs = append(logs, struct{ label, file, body string }{"", "prepare.log", "PREP\n"})
+			}
+			for _, log := range logs {
+				path := filepath.Join(dir, log.file)
+				if log.label != "" && result.Logs[log.label] != path {
+					t.Fatalf("log path for %q=%q, want %q", log.label, result.Logs[log.label], path)
+				}
+				body, err := os.ReadFile(path)
+				if err != nil || string(body) != log.body {
+					t.Fatalf("log %q=%q err=%v", path, body, err)
+				}
+				info, err := os.Stat(path)
+				if err != nil || info.Mode().Perm() != 0o600 {
+					t.Fatalf("log info=%v err=%v", info, err)
+				}
+			}
+			write(t, spec, `<task><gates>a space: printf 'NEW\n'</gates></task>`)
+			result = Run(root, "unit", "001", "a1", spec)
+			if result.Error != "" || !result.OK || len(result.Logs) != 1 || result.PrepareLog != "" {
+				t.Fatalf("second result=%#v", result)
+			}
+			entries, err := os.ReadDir(dir)
+			if err != nil || len(entries) != 1 || entries[0].Name() != "01-a-space.log" {
+				t.Fatalf("stale logs remain: entries=%v err=%v", entries, err)
+			}
+			body, err := os.ReadFile(result.Logs["a space"])
+			if err != nil || string(body) != "NEW\n" {
+				t.Fatalf("second log=%q err=%v", body, err)
+			}
+		})
+	}
+}
+
+func TestRunGateResults(t *testing.T) {
+	const hint = "gates ran in a replay worktree that holds only tracked files, so gitignored dependencies (node_modules, vendor, .env, generated code) are absent; declare them with <prepare>, e.g. mint spec set <spec> --prepare 'pnpm install --frozen-lockfile'"
+	for _, tc := range []struct {
+		name       string
+		gate       string
+		prepare    string
+		legacy     bool
+		wantResult string
+		wantReason string
+		wantHint   string
+	}{
+		{"missing command", "nosuchbin-mint-xyz", "", false, "inconclusive", "exit 127: command not found", hint},
+		{"not executable", "./script.sh", "", false, "inconclusive", "exit 126: command not executable", hint},
+		{"signal", "kill -9 $$", "", false, "inconclusive", "killed by a signal", hint},
+		{"failed", "exit 3", "", false, "fail", "exit 3", hint},
+		{"child signal exit", "exit 137", "", false, "fail", "exit 137", hint},
+		{"prepare failed", "true", "false", false, "inconclusive", "not run: prepare failed (exit 1)", ""},
+		{"prepare missing command", "true", "nosuchbin-mint-xyz", false, "inconclusive", "not run: prepare failed (exit 127: command not found)", ""},
+		{"prepare declared", "nosuchbin-mint-xyz", "true", false, "inconclusive", "exit 127: command not found", ""},
+		{"passed", "true", "", false, "pass", "", ""},
+		{"legacy", "nosuchbin-mint-xyz", "", true, "inconclusive", "exit 127: command not found", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := repo(t)
+			t.Setenv("MINT_STATE_HOME", t.TempDir())
+			if tc.gate == "./script.sh" {
+				write(t, filepath.Join(root, "script.sh"), "#!/bin/sh\nexit 0\n")
+				run(t, root, "add", "script.sh")
+			}
+			prepare := ""
+			if tc.prepare != "" {
+				prepare = "<prepare>" + tc.prepare + "</prepare>"
+			}
+			spec := unitstore.SpecPath(root, "unit", "001")
+			write(t, spec, "<task>"+prepare+"<gates>\ntests: "+tc.gate+"\nother: true\n</gates></task>")
+			maker := &execstate.Maker{Executor: "codex", Vendor: "openai", Model: "gpt", Locality: "remote", ExecutionRef: "maker"}
+			state, err := execstate.Init(root, "unit", "001", "a1", maker)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.legacy {
+				state.BaselineTree = nil
+				if err := statehome.WriteJSON(execstate.Path(root, "unit", "001", "a1"), state); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(t, filepath.Join(root, "app.go"), "package app\nvar X = 2\n")
+			result := Run(root, "unit", "001", "a1", spec)
+			if result.Error != "" || result.OK != (tc.wantResult == "pass") || !result.Declared || result.Tier != "full" {
+				t.Fatalf("result=%#v", result)
+			}
+			if result.Results["tests"] != tc.wantResult || result.Reasons["tests"] != tc.wantReason || result.Hint != tc.wantHint {
+				t.Fatalf("result=%#v, want %s, %q, hint %q", result, tc.wantResult, tc.wantReason, tc.wantHint)
+			}
+			wantOther, wantOtherReason := "pass", ""
+			wantReasons := 0
+			if tc.wantResult != "pass" {
+				wantReasons++
+			}
+			if strings.HasPrefix(tc.wantReason, "not run: prepare failed") {
+				wantOther, wantOtherReason = "inconclusive", tc.wantReason
+				wantReasons++
+				if !result.PrepareFailed || len(result.Logs) != 0 {
+					t.Fatalf("gates ran after prepare failed: %#v", result)
+				}
+			}
+			if len(result.Results) != 2 || result.Results["other"] != wantOther || result.Reasons["other"] != wantOtherReason || len(result.Reasons) != wantReasons {
+				t.Fatalf("gate results=%#v", result)
+			}
+			state, ok := execstate.Read(root, "unit", "001", "a1")
+			if !ok || state.Gates["tests"] != tc.wantResult || state.Gates["other"] != wantOther {
+				t.Fatalf("recorded state=%#v", state)
+			}
+		})
+	}
+}
+
+func TestClassifyGateErrors(t *testing.T) {
+	exitErr := runGate(t.TempDir(), "exit 127", io.Discard)
+	if exitErr == nil {
+		t.Fatal("exit 127 succeeded")
+	}
+	for _, tc := range []struct {
+		name   string
+		err    error
+		reason string
+	}{
+		{"could not start", errors.New("shell unavailable"), "could not start: shell unavailable"},
+		{"wrapped exit", fmt.Errorf("wrapped: %w", exitErr), "exit 127: command not found"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			result, reason := classifyGate(tc.err)
+			if result != "inconclusive" || reason != tc.reason {
+				t.Fatalf("result=%q reason=%q, want inconclusive, %q", result, reason, tc.reason)
+			}
+		})
 	}
 }
 

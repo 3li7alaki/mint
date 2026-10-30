@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -61,10 +62,51 @@ func Run(root string, args []string, flags Flags, stdout io.Writer) (int, error)
 		return 1, nil
 	}
 	fmt.Fprintf(stdout, "  tier: %s - %s\n", result.Tier, gateLine(result.Results))
+	if result.PrepareFailed {
+		printLogTail(stdout, "prepare", "", result.PrepareLog)
+	}
+	labels := make([]string, 0, len(result.Results))
+	for label := range result.Results {
+		labels = append(labels, label)
+	}
+	sort.Strings(labels)
+	for _, label := range labels {
+		if result.Results[label] == "pass" {
+			continue
+		}
+		path := result.Logs[label]
+		if result.PrepareFailed && path == "" {
+			fmt.Fprintf(stdout, "  %s: inconclusive, not run, prepare failed\n", label)
+			continue
+		}
+		printLogTail(stdout, label, result.Results[label]+", "+result.Reasons[label]+"; ", path)
+	}
+	if result.Hint != "" {
+		fmt.Fprintf(stdout, "  hint: %s\n", result.Hint)
+	}
 	if result.OK {
 		return 0, nil
 	}
 	return 1, nil
+}
+
+func printLogTail(stdout io.Writer, label, detail, path string) {
+	fmt.Fprintf(stdout, "  %s: %slast 20 lines of %s\n", label, detail, path)
+	for _, line := range tail(path) {
+		fmt.Fprintf(stdout, "    | %s\n", line)
+	}
+}
+
+func tail(path string) []string {
+	body, err := os.ReadFile(path)
+	if err != nil || len(body) == 0 {
+		return []string{"(no output)"}
+	}
+	lines := strings.Split(strings.TrimSuffix(string(body), "\n"), "\n")
+	if len(lines) > 20 {
+		lines = lines[len(lines)-20:]
+	}
+	return lines
 }
 
 func resolveAttempt(root, slug, specID, explicit string) (string, error) {
@@ -93,8 +135,8 @@ func gateLine(results map[string]string) string {
 	parts := make([]string, 0, len(labels))
 	for _, label := range labels {
 		prefix := "ok"
-		if results[label] == "fail" {
-			prefix = "fail"
+		if results[label] == "fail" || results[label] == "inconclusive" {
+			prefix = results[label]
 		}
 		parts = append(parts, prefix+" "+label)
 	}

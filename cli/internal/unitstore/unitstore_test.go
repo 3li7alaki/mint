@@ -46,3 +46,22 @@ func TestAttemptIDsAreLiteralAndUnique(t *testing.T) {
 		t.Fatalf("attempt ids a=%q b=%q", a, b)
 	}
 }
+
+func TestGateLogDir(t *testing.T) {
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	want := filepath.Join(filepath.Dir(AttemptPath(root, "unit", "001", "a1")), "a1.logs")
+	if got := GateLogDir(root, "unit", "001", "a1"); got != want || !filepath.IsAbs(got) {
+		t.Fatalf("log dir=%q, want %q", got, want)
+	}
+	for _, tc := range []struct{ slug, specID, attemptID string }{
+		{"../unit", "001", "a1"},
+		{"unit", "..", "a1"},
+		{"unit", "001", "a/b"},
+		{"unit", "001", ""},
+	} {
+		if got := GateLogDir(root, tc.slug, tc.specID, tc.attemptID); got != "" {
+			t.Fatalf("invalid path components %#v resolved %q", tc, got)
+		}
+	}
+}

@@ -109,3 +109,46 @@ func TestGenericProvenanceValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestRecordGateResults(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
+	cmd := exec.Command("git", "init", "-q")
+	cmd.Dir = root
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, out)
+	}
+	spec := unitstore.SpecPath(root, "unit", "001")
+	if err := os.MkdirAll(filepath.Dir(spec), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(spec, []byte("<task/>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	maker := &Maker{Executor: "codex", Vendor: "openai", Model: "gpt", Locality: "remote", ExecutionRef: "maker"}
+	if _, err := Init(root, "unit", "001", "a1", maker); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		result string
+		valid  bool
+	}{
+		{"inconclusive", true},
+		{"unknown", false},
+	} {
+		t.Run(tc.result, func(t *testing.T) {
+			_, err := RecordGate(root, "unit", "001", tc.result, tc.result, "a1")
+			if (err == nil) != tc.valid {
+				t.Fatalf("RecordGate(%q) error=%v", tc.result, err)
+			}
+			state, ok := Read(root, "unit", "001", "a1")
+			want := ""
+			if tc.valid {
+				want = tc.result
+			}
+			if !ok || state.Gates[tc.result] != want {
+				t.Fatalf("recorded state=%#v", state)
+			}
+		})
+	}
+}

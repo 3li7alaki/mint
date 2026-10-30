@@ -245,6 +245,30 @@ func TestClauseVerifiableCompletion(t *testing.T) {
 	}
 }
 
+func TestClauseVerifiableCompletionGateResults(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		inconclusive []string
+		failed       []string
+		want         string
+	}{
+		{"inconclusive", []string{"lint (exit 127: command not found)", "tests (killed by a signal)"}, nil, "gates inconclusive, they could not run: lint (exit 127: command not found); tests (killed by a signal). This is not a pass: fix the environment (often <prepare>) and rerun"},
+		{"failed", nil, nil, "gates did not run green (gates.ok !== true)"},
+		{"failed only", nil, []string{"vet (exit 1)"}, "gates did not run green (gates.ok !== true)"},
+		{"mixed names the failure first", []string{"lint (exit 127: command not found)"}, []string{"vet (exit 1)"}, "gates failed: vet (exit 1). Also inconclusive, they could not run: lint (exit 127: command not found)"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := passingInput()
+			input.Gates = &GateResult{OK: false, Inconclusive: tc.inconclusive, Failed: tc.failed}
+			result := Enforce(input)
+			c1 := clauseResult(t, result, 1)
+			if result.Pass || c1.Pass || reason(c1) != tc.want {
+				t.Fatalf("clause 1=%#v, want %q", c1, tc.want)
+			}
+		})
+	}
+}
+
 func TestDeclaredReviewRejectsMissingAndMakerProvenance(t *testing.T) {
 	for name, review := range map[string]execstate.Review{
 		"no provenance": {Verdict: "passed"},

@@ -82,6 +82,39 @@ func TestBuildInputBaselineAndLegacyDiffs(t *testing.T) {
 	}
 }
 
+func TestBuildInputInconclusiveGates(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
+	inputGit(t, root, "init", "-q")
+	inputWrite(t, filepath.Join(root, "app.go"), "package app\n")
+	inputGit(t, root, "add", ".")
+	inputGit(t, root, "-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "base")
+	spec := unitstore.SpecPath(root, "unit", "001")
+	inputWrite(t, spec, `<task><gates>
+zeta: nosuchbin-mint-xyz
+red: exit 3
+passed: true
+alpha: nosuchbin-mint-xyz
+</gates></task>`)
+	maker := &execstate.Maker{Executor: "codex", Vendor: "openai", Model: "gpt", Locality: "remote", ExecutionRef: "maker"}
+	if _, err := execstate.Init(root, "unit", "001", "a1", maker); err != nil {
+		t.Fatal(err)
+	}
+	inputWrite(t, filepath.Join(root, "app.go"), "package app\nvar X = 2\n")
+	input, err := BuildInput(root, BuildOptions{SpecPath: spec, Slug: "unit", SpecID: "001", AttemptID: "a1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"alpha (exit 127: command not found)", "zeta (exit 127: command not found)"}
+	if input.Gates.OK || !reflect.DeepEqual(input.Gates.Inconclusive, want) || !reflect.DeepEqual(input.Gates.Failed, []string{"red (exit 3)"}) {
+		t.Fatalf("gate evidence=%#v, want %v", input.Gates, want)
+	}
+	c1 := clauseResult(t, Enforce(input), 1)
+	if c1.Pass || reason(c1) != "gates failed: red (exit 3). Also inconclusive, they could not run: "+strings.Join(want, "; ") {
+		t.Fatalf("clause 1=%#v", c1)
+	}
+}
+
 func inputGit(t *testing.T, root string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", args...)

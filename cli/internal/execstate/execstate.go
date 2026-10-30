@@ -53,7 +53,7 @@ var (
 		"running": true, "done-verified": true, "budget-exhausted": true,
 		"stuck-escalated": true, "external-stop": true,
 	}
-	gateResults    = map[string]bool{"pass": true, "fail": true, "skip": true}
+	gateResults    = map[string]bool{"pass": true, "fail": true, "skip": true, "inconclusive": true}
 	reviewVerdicts = map[string]bool{"passed": true, "failed": true}
 )
 

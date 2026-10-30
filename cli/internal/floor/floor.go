@@ -38,9 +38,11 @@ type Input struct {
 }
 
 type GateResult struct {
-	OK       bool
-	GateMode string   `json:"gateMode,omitempty"`
-	Reverted []string `json:"reverted,omitempty"`
+	OK           bool
+	GateMode     string   `json:"gateMode,omitempty"`
+	Reverted     []string `json:"reverted,omitempty"`
+	Inconclusive []string `json:"inconclusive,omitempty"`
+	Failed       []string `json:"failed,omitempty"`
 }
 
 type ClauseResult struct {
@@ -247,6 +249,13 @@ type segment struct {
 
 func clauseVerifiableCompletion(input Input) clauseVerdict {
 	if input.Gates == nil || !input.Gates.OK {
+		if input.Gates != nil && len(input.Gates.Inconclusive) > 0 {
+			// A real red goes first, so the environment hint never hides it.
+			if len(input.Gates.Failed) > 0 {
+				return fail("gates failed: " + strings.Join(input.Gates.Failed, "; ") + ". Also inconclusive, they could not run: " + strings.Join(input.Gates.Inconclusive, "; "))
+			}
+			return fail("gates inconclusive, they could not run: " + strings.Join(input.Gates.Inconclusive, "; ") + ". This is not a pass: fix the environment (often <prepare>) and rerun")
+		}
 		return fail("gates did not run green (gates.ok !== true)")
 	}
 	if input.Verdict == nil {

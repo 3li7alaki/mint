@@ -104,6 +104,13 @@ new` and `mint spec set`) for dependencies and local environment files. The comm
 runs before gates with `MINT_SOURCE_ROOT` pointing to the live worktree, for example
 `cp "$MINT_SOURCE_ROOT/.env" .`.
 
+Gate and prepare output is saved in
+`<state>/attempts/<slug>/<spec>/<attempt>.logs/`. Each full verify run replaces
+these logs, and `mint verify` prints the last 20 lines for each gate that did not
+pass. If prepare fails, it prints the prepare log tail and marks gates as not run.
+A gate is inconclusive if prepare failed, its command could not start, it exited
+126 or 127, or it was killed directly by a signal. Inconclusive never counts as pass.
+
 Independence is structural. Normal work may be checked by the same vendor only
 from a distinct execution reference; a different executor under the same vendor
 does not establish it. Safety reviews and safety-tier acceptance require a

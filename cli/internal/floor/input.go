@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strings"
 
 	"mint/internal/execstate"
@@ -61,13 +62,24 @@ func BuildInput(root string, opts BuildOptions) (Input, error) {
 	if gates.Error != "" {
 		return Input{}, fmt.Errorf("verify: %s", gates.Error)
 	}
+	var inconclusive, failed []string
+	for label, result := range gates.Results {
+		switch result {
+		case "inconclusive":
+			inconclusive = append(inconclusive, label+" ("+gates.Reasons[label]+")")
+		case "fail":
+			failed = append(failed, label+" ("+gates.Reasons[label]+")")
+		}
+	}
+	sort.Strings(inconclusive)
+	sort.Strings(failed)
 	verdict := ReadVerdict(opts.VerdictPath)
 
 	input := Input{
 		Spec:            string(specBytes),
 		ChangedFiles:    changed,
 		Patch:           patch,
-		Gates:           &GateResult{OK: gates.OK, GateMode: gates.Mode, Reverted: gates.Reverted},
+		Gates:           &GateResult{OK: gates.OK, GateMode: gates.Mode, Reverted: gates.Reverted, Inconclusive: inconclusive, Failed: failed},
 		Verdict:         verdict,
 		TerminalState:   opts.TerminalState,
 		RequiredReviews: resolveRequiredReviews(opts.SpecPath),

@@ -354,7 +354,10 @@ func clauseAntiGaming(input Input) clauseVerdict {
 		if hasSubstantiveAttestation(input.Verdict, "tamperingReviewed", "tamperingReason") {
 			return clauseVerdict{pass: true, reason: fmt.Sprintf("tampering flagged but acknowledged by independent review: %s [signals: %s]", strings.TrimSpace(input.Verdict["tamperingReason"].(string)), summary)}
 		}
-		return fail("verifier-tampering detected: " + summary)
+		// Name the way out, like clauses 1 and 3 do: a repo-standard environment guard (a
+		// Docker-gated t.Skip in a new fixture) is legitimate, and only an independent
+		// checker who looked may say so (pcgg-524, 2026-10-30).
+		return fail("verifier-tampering detected: " + summary + "; if intended (e.g. a repo-standard environment guard), an INDEPENDENT checker attests it in the verdict (tamperingReviewed: true + a substantive tamperingReason, or an ATTEST tampering: line) and re-attaches")
 	}
 	return pass()
 }

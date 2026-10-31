@@ -74,6 +74,14 @@ func AttemptLockPath(root, slug, specID, attemptID string) string {
 	return strings.TrimSuffix(path, ".json") + ".lock"
 }
 
+func VerifyLockPath(root, slug, specID, attemptID string) string {
+	path := AttemptPath(root, slug, specID, attemptID)
+	if path == "" {
+		return ""
+	}
+	return strings.TrimSuffix(path, ".json") + ".verify.lock"
+}
+
 func GateLogDir(root, slug, specID, attemptID string) string {
 	path := AttemptPath(root, slug, specID, attemptID)
 	if path == "" {

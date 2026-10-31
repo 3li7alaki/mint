@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -15,6 +16,77 @@ import (
 	"mint/internal/statehome"
 	"mint/internal/unitstore"
 )
+
+func TestRunVerifyLock(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		body    string
+		present bool
+	}{
+		{"old pid", strconv.Itoa(os.Getpid()), true},
+		{"garbage", "not a pid", true},
+		{"empty", "", true},
+		{"normal", "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := repo(t)
+			t.Setenv("MINT_STATE_HOME", t.TempDir())
+			spec := unitstore.SpecPath(root, "unit", "001")
+			write(t, spec, `<task><gates>tests: cat "$MINT_VERIFY_LOCK"</gates></task>`)
+			maker := &execstate.Maker{Executor: "codex", Vendor: "openai", Model: "gpt", Locality: "remote", ExecutionRef: "maker"}
+			if _, err := execstate.Init(root, "unit", "001", "a1", maker); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := execstate.RecordGate(root, "unit", "001", "tests", "fail", "a1"); err != nil {
+				t.Fatal(err)
+			}
+			logPath := filepath.Join(unitstore.GateLogDir(root, "unit", "001", "a1"), "old.log")
+			write(t, logPath, "prior output")
+			lockPath := unitstore.VerifyLockPath(root, "unit", "001", "a1")
+			t.Setenv("MINT_VERIFY_LOCK", lockPath)
+			if tc.present {
+				write(t, lockPath, tc.body)
+			}
+			write(t, filepath.Join(root, "app.go"), "package app\nvar X = 2\n")
+			result := Run(root, "unit", "001", "a1", spec)
+			if result.Error != "" || !result.OK || result.Results["tests"] != "pass" {
+				t.Fatalf("result=%#v", result)
+			}
+			body, err := os.ReadFile(result.Logs["tests"])
+			if err != nil || string(body) != strconv.Itoa(os.Getpid()) {
+				t.Fatalf("gate output=%q err=%v", body, err)
+			}
+			body, err = os.ReadFile(lockPath)
+			if err != nil || string(body) != strconv.Itoa(os.Getpid()) {
+				t.Fatalf("lock content=%q err=%v", body, err)
+			}
+			assertVerifyLockFree(t, lockPath)
+		})
+	}
+}
+
+func TestRunMissingAttemptReleasesVerifyLock(t *testing.T) {
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	result := Run(root, "unit", "001", "a1", "")
+	if result.Error != "attempt does not exist; run mint exec init" {
+		t.Fatalf("result=%#v", result)
+	}
+	assertVerifyLockFree(t, unitstore.VerifyLockPath(root, "unit", "001", "a1"))
+}
+
+func assertVerifyLockFree(t *testing.T, path string) {
+	t.Helper()
+	file, err := os.OpenFile(path, os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if err := lockVerifyFile(file); err != nil {
+		t.Fatalf("verify lock still held: %v", err)
+	}
+	defer unlockVerifyFile(file)
+}
 
 func TestRunUsesOnlyUnitDeclaredGates(t *testing.T) {
 	root := repo(t)

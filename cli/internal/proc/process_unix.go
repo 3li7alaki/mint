@@ -1,12 +1,12 @@
 //go:build !windows
 
-package replay
+package proc
 
 import (
 	"errors"
 	"syscall"
 )
 
-func processAlive(pid int) bool {
+func Alive(pid int) bool {
 	return !errors.Is(syscall.Kill(pid, 0), syscall.ESRCH)
 }

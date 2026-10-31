@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"mint/internal/proc"
 	"mint/internal/scopematch"
 	"mint/internal/snapshot"
 )
@@ -105,7 +106,7 @@ func sweep(root string) {
 			continue
 		}
 		pid, err := strconv.Atoi(owner)
-		if err != nil || pid <= 0 || processAlive(pid) {
+		if err != nil || pid <= 0 || proc.Alive(pid) {
 			continue
 		}
 		_ = (Worktree{Dir: path, root: root}).Close()

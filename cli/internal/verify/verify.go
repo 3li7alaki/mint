@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -44,6 +45,18 @@ type Result struct {
 
 func Run(root, slug, specID, attemptID, specPath string) (result Result) {
 	result = Result{SchemaVersion: 1, Results: map[string]string{}, Mode: "in-place"}
+	lockPath := unitstore.VerifyLockPath(root, slug, specID, attemptID)
+	lock, err := acquireVerifyLock(lockPath, slug, specID, attemptID)
+	if err != nil {
+		result.Error = err.Error()
+		return result
+	}
+	// Keep the path so every open locks the same inode.
+	defer func() {
+		_ = unlockVerifyFile(lock)
+		_ = lock.Close()
+	}()
+
 	state, exists := execstate.Read(root, slug, specID, attemptID)
 	if !exists {
 		result.Error = "attempt does not exist; run mint exec init"
@@ -208,6 +221,37 @@ func Run(root, slug, specID, attemptID, specPath string) (result Result) {
 	}
 	result.Declared = true
 	return result
+}
+
+func acquireVerifyLock(path, slug, specID, attemptID string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
+	lock, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := lockVerifyFile(lock); err != nil {
+		defer lock.Close()
+		if !errors.Is(err, syscall.EWOULDBLOCK) {
+			return nil, err
+		}
+		message := fmt.Sprintf("verify already running for %s/%s/%s", slug, specID, attemptID)
+		body, readErr := io.ReadAll(lock)
+		if pid, parseErr := strconv.Atoi(strings.TrimSpace(string(body))); readErr == nil && parseErr == nil && pid > 0 {
+			message += fmt.Sprintf(" (pid %d)", pid)
+		}
+		return nil, errors.New(message)
+	}
+	if err := lock.Truncate(0); err != nil {
+		_ = lock.Close()
+		return nil, err
+	}
+	if _, err := fmt.Fprintf(lock, "%d", os.Getpid()); err != nil {
+		_ = lock.Close()
+		return nil, err
+	}
+	return lock, nil
 }
 
 func ChangedFiles(root string) []ChangedFile {

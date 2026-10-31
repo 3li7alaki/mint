@@ -110,6 +110,8 @@ Gate and prepare output is saved in
 `<state>/attempts/<slug>/<spec>/<attempt>.logs/`. Each full verify run replaces
 these logs, and `mint verify` prints the last 20 lines for each gate that did not
 pass. If prepare fails, it prints the prepare log tail and marks gates as not run.
+Only one verify runs per attempt at a time; a second is refused with the holder's
+pid. The lock is held by the OS for the run, released on exit or kill.
 A gate is inconclusive if prepare failed, its command could not start, it exited
 126 or 127, or it was killed directly by a signal. Inconclusive never counts as pass.
 

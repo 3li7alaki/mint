@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -118,4 +120,24 @@ func buildBin(t *testing.T) string {
 		t.Fatalf("go build failed: %v\n%s", err, out)
 	}
 	return bin
+}
+
+func TestMainNestedHelp(t *testing.T) {
+	bin := buildBin(t)
+	for _, args := range [][]string{{"spec", "new", "--help"}, {"exec", "init", "--help"}, {"done", "unit", "001", "--help"}} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			state := t.TempDir()
+			cmd := exec.Command(bin, args...)
+			cmd.Dir = t.TempDir()
+			cmd.Env = append(os.Environ(), "MINT_STATE_HOME="+state)
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &stdout, &stderr
+			if err := cmd.Run(); err != nil || stdout.Len() == 0 {
+				t.Fatalf("help must exit 0 and print usage: err=%v stderr=%q", err, stderr.String())
+			}
+			if entries, _ := os.ReadDir(state); len(entries) != 0 {
+				t.Fatalf("help must not act, state dir has %d entries", len(entries))
+			}
+		})
+	}
 }

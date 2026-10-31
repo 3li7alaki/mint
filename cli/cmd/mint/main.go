@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,7 +38,9 @@ func run(args []string) (int, error) {
 	if base.Command(args) == "help" {
 		return help("")
 	}
-	if len(args) == 2 && args[1] == "--help" {
+	// Help is answered at any depth before a parser can reject it as an unknown flag:
+	// `mint spec new --help` used to fail with "unknown spec flag: --help".
+	if len(args) >= 2 && slices.Contains(args[1:], "--help") {
 		return help(args[0])
 	}
 	if base.Command(args) == "version" {

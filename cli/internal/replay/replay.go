@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"mint/internal/scopematch"
@@ -20,6 +21,7 @@ type Worktree struct {
 }
 
 func Prepare(root, baseline string, protected []string) (Worktree, error) {
+	sweep(root)
 	if _, err := git(root, "", "rev-parse", "--verify", "HEAD^{commit}"); err != nil {
 		return Worktree{}, fmt.Errorf("replay needs a commit: %w", err)
 	}
@@ -69,7 +71,7 @@ func Prepare(root, baseline string, protected []string) (Worktree, error) {
 		return Worktree{}, err
 	}
 	worktree := Worktree{Dir: dir, Reverted: reverted, root: root}
-	if _, err := git(root, "", "worktree", "add", "--detach", "--no-checkout", dir, "HEAD"); err != nil {
+	if _, err := git(root, "", "worktree", "add", "--lock", "--reason", fmt.Sprintf("mint pid %d", os.Getpid()), "--detach", "--no-checkout", dir, "HEAD"); err != nil {
 		return Worktree{}, errors.Join(err, os.RemoveAll(dir))
 	}
 	if _, err := git(dir, "", "read-tree", "-u", "--reset", strings.TrimSpace(graded)); err != nil {
@@ -79,8 +81,36 @@ func Prepare(root, baseline string, protected []string) (Worktree, error) {
 }
 
 func (w Worktree) Close() error {
-	_, err := git(w.root, "", "worktree", "remove", "--force", w.Dir)
+	_, err := git(w.root, "", "worktree", "remove", "--force", "--force", w.Dir)
 	return errors.Join(err, os.RemoveAll(w.Dir))
+}
+
+func sweep(root string) {
+	out, err := git(root, "", "worktree", "list", "--porcelain", "-z")
+	if err != nil {
+		return
+	}
+	for _, entry := range strings.Split(out, "\x00\x00") {
+		var path, reason string
+		for _, field := range strings.Split(entry, "\x00") {
+			if value, ok := strings.CutPrefix(field, "worktree "); ok {
+				path = value
+			}
+			if value, ok := strings.CutPrefix(field, "locked "); ok {
+				reason = value
+			}
+		}
+		owner, ok := strings.CutPrefix(reason, "mint pid ")
+		if !ok || owner == "" || strings.Trim(owner, "0123456789") != "" || path == "" {
+			continue
+		}
+		pid, err := strconv.Atoi(owner)
+		if err != nil || pid <= 0 || processAlive(pid) {
+			continue
+		}
+		_ = (Worktree{Dir: path, root: root}).Close()
+	}
+	_, _ = git(root, "", "worktree", "prune")
 }
 
 func git(root, index string, args ...string) (string, error) {

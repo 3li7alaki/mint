@@ -97,8 +97,10 @@ always protect CI workflows and hook configuration; an empty block keeps those
 defaults. Flagged edits require `tamperingReviewed: true` and a substantive
 `tamperingReason` in the independent verdict.
 
-Gates run in a clean replay worktree when the attempt has a baseline. Protected
-paths are restored to their baseline content there. Ignored files are absent;
+Gates run in a clean replay worktree when the attempt has a baseline.
+Replay worktrees are locked with the owning pid, removed on SIGINT/SIGTERM, and any
+left by a killed process are removed at the start of the next verify in that repo.
+Protected paths are restored to their baseline content there. Ignored files are absent;
 use an optional top-level `<prepare>` shell command (or `--prepare` on `mint spec
 new` and `mint spec set`) for dependencies and local environment files. The command
 runs before gates with `MINT_SOURCE_ROOT` pointing to the live worktree, for example

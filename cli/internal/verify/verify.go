@@ -6,10 +6,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 
 	"mint/internal/docclassify"
 	"mint/internal/execstate"
@@ -113,7 +115,26 @@ func Run(root, slug, specID, attemptID, specPath string) (result Result) {
 			result.Error = err.Error()
 			return result
 		}
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+		done := make(chan struct{})
+		stopped := make(chan struct{})
+		go func() {
+			defer close(stopped)
+			select {
+			case sig := <-signals:
+				_ = worktree.Close()
+				if sig == os.Interrupt {
+					os.Exit(130)
+				}
+				os.Exit(143)
+			case <-done:
+			}
+		}()
 		defer func() {
+			signal.Stop(signals)
+			close(done)
+			<-stopped
 			if err := worktree.Close(); err != nil {
 				result.OK = false
 				result.Error = err.Error()

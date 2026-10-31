@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -41,6 +43,9 @@ func TestPrepareRestoresProtectedPathsAndCloseRemovesWorktree(t *testing.T) {
 			_ = worktree.Close()
 		}
 	}()
+	if got := run(t, root, "worktree", "list", "--porcelain"); !strings.Contains(got, "locked mint pid "+strconv.Itoa(os.Getpid())+"\n") {
+		t.Fatalf("replay worktree is not owned: %s", got)
+	}
 	if want := []string{"scripts/deleted.txt", "scripts/gate.txt", "scripts/new.txt"}; !reflect.DeepEqual(worktree.Reverted, want) {
 		t.Fatalf("Reverted=%v want %v", worktree.Reverted, want)
 	}
@@ -78,6 +83,80 @@ func TestPrepareNeedsCommit(t *testing.T) {
 	}
 	if _, err := Prepare(root, baseline, nil); err == nil || !strings.Contains(err.Error(), "replay needs a commit") {
 		t.Fatalf("Prepare error=%v", err)
+	}
+}
+
+func TestPrepareSweepsOnlyDeadMintOwners(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows conservatively treats every owner as alive")
+	}
+	child := exec.Command("git", "--version")
+	if err := child.Run(); err != nil {
+		t.Fatal(err)
+	}
+	dead := strconv.Itoa(child.Process.Pid)
+	for _, tc := range []struct {
+		name    string
+		reason  string
+		missing bool
+		removed bool
+	}{
+		{"dead owner", "mint pid " + dead, false, true},
+		{"missing directory", "mint pid " + dead, true, true},
+		{"live owner", "mint pid " + strconv.Itoa(os.Getpid()), false, false},
+		{"foreign lock", "my own", false, false},
+		{"unlocked", "", false, false},
+		{"zero pid", "mint pid 0", false, false},
+		{"negative pid", "mint pid -" + dead, false, false},
+		{"signed pid", "mint pid +" + dead, false, false},
+		{"extra text", "mint pid " + dead + " extra", false, false},
+		{"missing pid", "mint pid ", false, false},
+		{"overflow pid", "mint pid 99999999999999999999", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			run(t, root, "init", "-q")
+			run(t, root, "-c", "user.name=Test", "-c", "user.email=t@example.com", "commit", "--allow-empty", "-qm", "base")
+			baseline := strings.TrimSpace(run(t, root, "rev-parse", "HEAD^{tree}"))
+			parent, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			orphan := filepath.Join(parent, "orphan\nquoted\" path")
+			args := []string{"worktree", "add", "--detach"}
+			if tc.reason != "" {
+				args = append(args, "--lock", "--reason", tc.reason)
+			}
+			run(t, root, append(args, orphan, "HEAD")...)
+			t.Cleanup(func() { _ = (Worktree{Dir: orphan, root: root}).Close() })
+			if tc.missing {
+				if err := os.RemoveAll(orphan); err != nil {
+					t.Fatal(err)
+				}
+			}
+			worktree, err := Prepare(root, baseline, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = worktree.Close() })
+			got := run(t, root, "worktree", "list", "--porcelain", "-z")
+			if remains := strings.Contains(got, "worktree "+orphan+"\x00"); remains == tc.removed {
+				t.Fatalf("orphan registered=%v, want %v: %q", remains, !tc.removed, got)
+			}
+			if _, err := os.Stat(orphan); tc.removed && !os.IsNotExist(err) || !tc.removed && err != nil {
+				t.Fatalf("orphan directory: removed=%v err=%v", tc.removed, err)
+			}
+			if _, err := os.Stat(worktree.Dir); err != nil {
+				t.Fatalf("new replay directory: %v", err)
+			}
+			want := 2
+			if !tc.removed {
+				want++
+			}
+			if strings.Count(got, "worktree ") != want {
+				t.Fatalf("unexpected worktrees: %q", got)
+			}
+		})
 	}
 }
 

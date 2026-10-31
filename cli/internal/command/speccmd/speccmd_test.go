@@ -121,3 +121,20 @@ func TestPrepareNewAndSet(t *testing.T) {
 		})
 	}
 }
+
+func TestSetWritesDespiteWarnings(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("MINT_STATE_HOME", t.TempDir())
+	result, err := New(root, "Prose unit", Flags{Goal: "G", Scope: "cli/**", Acceptance: "it works when it works"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stderr bytes.Buffer
+	if code, err := Run(root, []string{"set", result.SpecPath}, Flags{Prepare: "pnpm install"}, &bytes.Buffer{}, &stderr); err != nil || code != 0 {
+		t.Fatalf("a warning must not block set: code=%d err=%v", code, err)
+	}
+	b, _ := os.ReadFile(result.SpecPath)
+	if specschema.ResolvePrepare(string(b)) != "pnpm install" || !strings.Contains(stderr.String(), "warn") {
+		t.Fatalf("prepare=%q stderr=%q", specschema.ResolvePrepare(string(b)), stderr.String())
+	}
+}

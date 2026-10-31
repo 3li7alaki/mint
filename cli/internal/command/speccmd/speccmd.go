@@ -66,8 +66,12 @@ func Run(root string, args []string, flags Flags, stdout, stderr io.Writer) (int
 		if len(args) < 2 {
 			return 1, fmt.Errorf("Usage: mint spec set <spec-path> [--goal <text>] [--scope <paths>] [--protected <paths>] [--prepare <command>] [--acceptance <text>] [--steps <text>] [--commit <text>]")
 		}
-		if err := Set(root, args[1], flags); err != nil {
+		warnings, err := Set(root, args[1], flags)
+		if err != nil {
 			return 1, err
+		}
+		for _, w := range warnings {
+			fmt.Fprintln(stderr, "  warn   "+w)
 		}
 		fmt.Fprintf(stdout, "  ok %s updated\n", args[1])
 		return 0, nil
@@ -172,28 +176,27 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func Set(root, specPath string, flags Flags) error {
+// Set refuses only on errors, like spec new. A warning (free-prose acceptance) used to
+// block it too, so a unit could never gain the --prepare its replay gates needed.
+func Set(root, specPath string, flags Flags) ([]string, error) {
 	abs := resolveSpecPath(root, specPath)
 	b, err := os.ReadFile(abs)
 	if err != nil {
-		return fmt.Errorf("Spec not found: %s", specPath)
+		return nil, fmt.Errorf("Spec not found: %s", specPath)
 	}
 	updated := applyFieldFlags(string(b), flags)
 	result := specschema.Validate(updated)
-	if len(result.Errors) > 0 || len(result.Warnings) > 0 {
+	if len(result.Errors) > 0 {
 		var lines []string
 		for _, e := range result.Errors {
 			lines = append(lines, "error  "+e)
 		}
-		for _, w := range result.Warnings {
-			lines = append(lines, "warn   "+w)
-		}
-		return fmt.Errorf("spec validation failed:\n  %s", strings.Join(lines, "\n  "))
+		return nil, fmt.Errorf("spec validation failed:\n  %s", strings.Join(lines, "\n  "))
 	}
 	if err := statehome.Write(abs, []byte(updated)); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return result.Warnings, nil
 }
 
 func readSpec(root, specPath string) (string, error) {

@@ -71,3 +71,61 @@ func ChangedSince(root, baseline string) (files []string, patch string, current 
 	}
 	return files, patch, current, nil
 }
+
+// PatchFor is the baseline-to-current patch of exactly files. It builds a tree that is the
+// baseline with only those paths taken from current, then diffs the two with no pathspec.
+// Both shortcuts leaked: cutting the full patch apart misreads a header once a path holds
+// " b/", and a pathspec, even :(literal), also selects everything below a directory of the
+// same name, so a kept deleted file foo.go dragged in a set-aside foo.go/child.txt (mint
+// sibling-lanes checker, 2026-11-01). files must hold both sides of any file/directory swap
+// (floor.SplitSiblingFiles keeps them together): staging a file over a baseline directory
+// drops that directory's entries, which then show in the patch as deletions.
+func PatchFor(root, baseline, current string, files []string) (string, error) {
+	if len(files) == 0 {
+		return "", nil
+	}
+	indexDir, err := os.MkdirTemp("", "mint-index-*")
+	if err != nil {
+		return "", fmt.Errorf("Create temporary Git index: %w", err)
+	}
+	defer os.RemoveAll(indexDir)
+	run := func(stdin string, args ...string) (string, error) {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		cmd.Env = append(os.Environ(), "GIT_INDEX_FILE="+filepath.Join(indexDir, "index"))
+		cmd.Stdin = strings.NewReader(stdin)
+		out, err := cmd.Output()
+		return string(out), err
+	}
+	if _, err := run("", "read-tree", baseline); err != nil {
+		return "", fmt.Errorf("Read baseline tree: %w", err)
+	}
+	// One --index-info line per path: its exact entry in current, or mode 0 to drop it when
+	// current holds no file there (deleted, or a directory now).
+	var info strings.Builder
+	for _, file := range files {
+		entry, err := run("", "ls-tree", "-z", "--full-tree", current, "--", ":(literal)"+file)
+		if err != nil {
+			return "", fmt.Errorf("Read current entry for %s: %w", file, err)
+		}
+		meta, name, _ := strings.Cut(strings.TrimSuffix(entry, "\x00"), "\t")
+		fields := strings.Fields(meta)
+		if name == file && len(fields) == 3 && fields[1] != "tree" {
+			fmt.Fprintf(&info, "%s %s\t%s\x00", fields[0], fields[2], file)
+		} else {
+			fmt.Fprintf(&info, "0 %s\t%s\x00", strings.Repeat("0", len(baseline)), file)
+		}
+	}
+	if _, err := run(info.String(), "update-index", "-z", "--replace", "--index-info"); err != nil {
+		return "", fmt.Errorf("Stage kept files: %w", err)
+	}
+	kept, err := run("", "write-tree")
+	if err != nil {
+		return "", fmt.Errorf("Write kept tree: %w", err)
+	}
+	patch, err := git(root, "diff", baseline, strings.TrimSpace(kept))
+	if err != nil {
+		return "", fmt.Errorf("Baseline tree patch failed: %w", err)
+	}
+	return patch, nil
+}

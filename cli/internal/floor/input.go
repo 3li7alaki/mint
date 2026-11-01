@@ -8,10 +8,12 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"mint/internal/execstate"
 	"mint/internal/snapshot"
 	"mint/internal/specschema"
+	"mint/internal/unitstore"
 	"mint/internal/verify"
 )
 
@@ -44,9 +46,9 @@ func BuildInput(root string, opts BuildOptions) (Input, error) {
 	}
 	state, _ := execstate.Read(root, opts.Slug, opts.SpecID, opts.AttemptID)
 	var changed []string
-	var patch string
+	var patch, current string
 	if opts.Base == "" && state != nil && state.BaselineTree != nil {
-		changed, patch, _, err = snapshot.ChangedSince(root, *state.BaselineTree)
+		changed, patch, current, err = snapshot.ChangedSince(root, *state.BaselineTree)
 	} else {
 		changed, err = changedFilePaths(root, base)
 		if err != nil {
@@ -56,6 +58,17 @@ func BuildInput(root string, opts BuildOptions) (Input, error) {
 	}
 	if err != nil {
 		return Input{}, err
+	}
+	var aside []string
+	if current != "" {
+		if siblings := siblingLanes(root, opts.Slug, opts.SpecID, state.StartedAt); len(siblings) > 0 {
+			changed, aside = SplitSiblingFiles(changed, specschema.ResolveCanModify(string(specBytes)), siblings)
+			if len(aside) > 0 {
+				if patch, err = snapshot.PatchFor(root, *state.BaselineTree, current, changed); err != nil {
+					return Input{}, err
+				}
+			}
+		}
 	}
 
 	gates := verify.Run(root, opts.Slug, opts.SpecID, opts.AttemptID, opts.SpecPath)
@@ -84,6 +97,7 @@ func BuildInput(root string, opts BuildOptions) (Input, error) {
 		TerminalState:   opts.TerminalState,
 		RequiredReviews: resolveRequiredReviews(opts.SpecPath),
 		Reviews:         attachedReviews(root, opts.Slug, opts.SpecID, opts.AttemptID),
+		SetAside:        aside,
 	}
 	if state != nil && state.Maker != nil {
 		input.MakerExecutor = state.Maker.Executor
@@ -93,6 +107,45 @@ func BuildInput(root string, opts BuildOptions) (Input, error) {
 		input.MakerExecutionRef = state.Maker.ExecutionRef
 	}
 	return input, nil
+}
+
+// siblingLanes is the can-modify of every other unit in this worktree with an attempt
+// that was open at some point since this attempt started: still running, or completed
+// after it. Unit state is worktree-isolated, so List only sees this worktree's units.
+// ponytail: an attempt left "running" forever keeps its lane set aside for every later
+// attempt in the worktree; mint exec set-status closes it.
+func siblingLanes(root, slug, specID, startedAt string) []string {
+	since, err := time.Parse(time.RFC3339Nano, startedAt)
+	if err != nil {
+		return nil
+	}
+	var lanes []string
+	for _, unit := range unitstore.List(root) {
+		if unit.Slug == slug && unit.SpecID == specID {
+			continue
+		}
+		open := false
+		for _, attempt := range execstate.Attempts(root, unit.Slug, unit.SpecID) {
+			st, ok := execstate.Read(root, unit.Slug, unit.SpecID, attempt)
+			if !ok {
+				continue
+			}
+			if st.CompletedAt == nil {
+				open = open || st.Status == "running"
+			} else if done, err := time.Parse(time.RFC3339Nano, *st.CompletedAt); err == nil && done.After(since) {
+				open = true
+			}
+		}
+		if !open {
+			continue
+		}
+		if path, ok := unitstore.ResolveSpec(root, unit.Slug, unit.SpecID); ok {
+			if spec, err := os.ReadFile(path); err == nil {
+				lanes = append(lanes, specschema.ResolveCanModify(string(spec))...)
+			}
+		}
+	}
+	return lanes
 }
 
 func ReadVerdict(path string) map[string]any {

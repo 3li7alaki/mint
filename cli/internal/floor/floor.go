@@ -35,6 +35,10 @@ type Input struct {
 	TerminalState     string
 	RequiredReviews   []string
 	Reviews           map[string]execstate.Review
+	// SetAside holds changed files that are outside this spec's scope but inside the
+	// can-modify of another attempt open in the same worktree during this one. They are
+	// already gone from ChangedFiles and Patch; clause 5 names them.
+	SetAside []string
 }
 
 type GateResult struct {
@@ -84,9 +88,13 @@ func Enforce(input Input) Result {
 	var failed []int
 	for _, c := range clauses {
 		v := safeRun(c.run, input)
+		// A pass keeps its reason when it has one: what a clause let through on a condition
+		// (set-aside sibling files, acknowledged tampering) belongs in the receipt too.
 		var reason *string
-		if !v.pass {
+		if !v.pass || v.reason != "" {
 			reason = &v.reason
+		}
+		if !v.pass {
 			failed = append(failed, c.n)
 		}
 		results = append(results, ClauseResult{
@@ -362,6 +370,48 @@ func clauseAntiGaming(input Input) clauseVerdict {
 	return pass()
 }
 
+// SplitSiblingFiles separates changed files that belong to a sibling lane: outside own
+// (this spec's can-modify) but inside some sibling's. Two lanes running in ONE worktree
+// (barada's no-worktree rule, 2026-10-24) see each other's files in their baseline diff, so
+// without this each fails clause 5 for the other's work. A file in neither stays and still
+// fails. The sibling's own done and gates are what judge a file set aside here.
+func SplitSiblingFiles(changed, own, siblings []string) (kept, aside []string) {
+	matches := func(file string, lanes []string) bool {
+		for _, lane := range lanes {
+			if scopematch.MatchesAllowed(file, lane) {
+				return true
+			}
+		}
+		return false
+	}
+	var candidates []string
+	for _, file := range changed {
+		if len(siblings) > 0 && !matches(file, own) && matches(file, siblings) {
+			candidates = append(candidates, file)
+		} else {
+			kept = append(kept, file)
+		}
+	}
+	// A set-aside path under a kept path, or above one, is a file/directory swap between the
+	// two lanes: no tree holds one without the other, so the patch could not leave it out.
+	// That is a real collision, so it stays with this lane and clause 5 names it.
+	for _, file := range candidates {
+		collides := false
+		for _, k := range kept {
+			if strings.HasPrefix(file, k+"/") || strings.HasPrefix(k, file+"/") {
+				collides = true
+				break
+			}
+		}
+		if collides {
+			kept = append(kept, file)
+		} else {
+			aside = append(aside, file)
+		}
+	}
+	return kept, aside
+}
+
 func clauseScope(input Input) clauseVerdict {
 	allowed := specschema.ResolveCanModify(input.Spec)
 	var offending []string
@@ -383,6 +433,9 @@ func clauseScope(input Input) clauseVerdict {
 			allowedText = "(none)"
 		}
 		return fail(fmt.Sprintf("out-of-lane file(s): %s, allowed: %s", strings.Join(offending, ", "), allowedText))
+	}
+	if len(input.SetAside) > 0 {
+		return clauseVerdict{pass: true, reason: fmt.Sprintf("set aside %d file(s) in the lane of another attempt open in this worktree: %s", len(input.SetAside), strings.Join(input.SetAside, ", "))}
 	}
 	return pass()
 }

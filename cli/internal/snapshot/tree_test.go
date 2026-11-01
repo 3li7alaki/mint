@@ -120,3 +120,71 @@ func TestChangedSinceReturnsBaselineDiffAndCurrentTree(t *testing.T) {
 		t.Fatal("missing baseline accepted")
 	}
 }
+
+// The sibling-lanes checker's case: a kept path that starts with a set-aside file's name and
+// " b/", and glob characters, each mean only themselves.
+func TestPatchForLimitsToLiteralFiles(t *testing.T) {
+	root := newRepo(t)
+	write(t, filepath.Join(root, "base.txt"), "base\n")
+	gitRun(t, root, "add", ".")
+	gitRun(t, root, "commit", "-qm", "base")
+	baseline, err := CaptureTree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(root, "sibling.go"), "ASIDE\n")
+	write(t, filepath.Join(root, "sibling.go b", "tests_test.go"), "OWN-TEST\n")
+	write(t, filepath.Join(root, "[a].go"), "BRACKET\n")
+	write(t, filepath.Join(root, "a.go"), "PLAIN\n")
+	_, _, current, err := ChangedSince(root, baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	patch, err := PatchFor(root, baseline, current, []string{"sibling.go b/tests_test.go", "[a].go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for want, in := range map[string]bool{"OWN-TEST": true, "BRACKET": true, "ASIDE": false, "PLAIN": false} {
+		if strings.Contains(patch, want) != in {
+			t.Fatalf("%s in patch=%v want %v:\n%s", want, !in, in, patch)
+		}
+	}
+	if patch, err := PatchFor(root, baseline, current, nil); err != nil || patch != "" {
+		t.Fatalf("no files: patch=%q err=%v", patch, err)
+	}
+}
+
+// A pathspec selects a directory's contents too: a kept deletion of foo.go must not pull in
+// a set-aside foo.go/child.txt, and a kept file replacing a directory still lands.
+func TestPatchForFileDirectorySwaps(t *testing.T) {
+	root := newRepo(t)
+	write(t, filepath.Join(root, "foo.go"), "OLD-FOO\n")
+	write(t, filepath.Join(root, "dir", "inner.txt"), "OLD-INNER\n")
+	gitRun(t, root, "add", ".")
+	gitRun(t, root, "commit", "-qm", "base")
+	baseline, err := CaptureTree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, "foo.go")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(root, "foo.go", "child.txt"), "ASIDE-CHILD\n")
+	if err := os.RemoveAll(filepath.Join(root, "dir")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(root, "dir"), "NEW-DIR-FILE\n")
+	_, _, current, err := ChangedSince(root, baseline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	patch, err := PatchFor(root, baseline, current, []string{"foo.go", "dir", "dir/inner.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for want, in := range map[string]bool{"-OLD-FOO": true, "+NEW-DIR-FILE": true, "-OLD-INNER": true, "ASIDE-CHILD": false} {
+		if strings.Contains(patch, want) != in {
+			t.Fatalf("%s in patch=%v want %v:\n%s", want, !in, in, patch)
+		}
+	}
+}
